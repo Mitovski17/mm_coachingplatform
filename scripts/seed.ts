@@ -44,18 +44,41 @@ async function cleanSeedData() {
   const seedIds = seedUsers.map((u) => u.id)
   const seedEmails = seedUsers.map((u) => u.email!)
 
-  // Delete in FK-safe order: clients → profiles → workspaces → auth users
-  const { error: clientsErr } = await admin.from('clients').delete().in('email', seedEmails)
-  if (clientsErr) throw clientsErr
-
-  const { error: profilesErr } = await admin.from('profiles').delete().in('id', seedIds)
-  if (profilesErr) throw profilesErr
+  // Fetch IDs needed for cascading deletes before any deletions
+  const { data: seedClients, error: clientsListErr } = await admin
+    .from('clients')
+    .select('id')
+    .in('email', seedEmails)
+  if (clientsListErr) throw clientsListErr
 
   const { data: workspaces, error: wsListErr } = await admin
     .from('workspaces')
     .select('id')
     .in('owner_id', seedIds)
   if (wsListErr) throw wsListErr
+
+  // Delete in FK-safe order: checkins → checkin_templates → clients → profiles → workspaces → auth users
+  if (seedClients && seedClients.length > 0) {
+    const { error: checkinsErr } = await admin
+      .from('checkins')
+      .delete()
+      .in('client_id', seedClients.map((c) => c.id))
+    if (checkinsErr) throw checkinsErr
+  }
+
+  if (workspaces && workspaces.length > 0) {
+    const { error: templatesErr } = await admin
+      .from('checkin_templates')
+      .delete()
+      .in('workspace_id', workspaces.map((w) => w.id))
+    if (templatesErr) throw templatesErr
+  }
+
+  const { error: clientsErr } = await admin.from('clients').delete().in('email', seedEmails)
+  if (clientsErr) throw clientsErr
+
+  const { error: profilesErr } = await admin.from('profiles').delete().in('id', seedIds)
+  if (profilesErr) throw profilesErr
 
   if (workspaces && workspaces.length > 0) {
     const { error: wsDelErr } = await admin
@@ -108,14 +131,14 @@ async function seed() {
   })
   if (freshAuthErr) throw freshAuthErr
 
-  const { error: freshClientErr } = await admin.from('clients').insert({
+  const { data: freshClient, error: freshClientErr } = await admin.from('clients').insert({
     workspace_id: workspace.id,
     coach_id: coachId,
     full_name: 'Seed Client Fresh',
     email: 'seed_client_fresh@mitovski.dev',
     status: 'active',
     onboarding_completed_at: null,
-  })
+  }).select().single()
   if (freshClientErr) throw freshClientErr
 
   // ── Done client (onboarding complete) ────────────────────────────────────────
@@ -126,7 +149,7 @@ async function seed() {
   })
   if (doneAuthErr) throw doneAuthErr
 
-  const { error: doneClientErr } = await admin.from('clients').insert({
+  const { data: doneClient, error: doneClientErr } = await admin.from('clients').insert({
     workspace_id: workspace.id,
     coach_id: coachId,
     full_name: 'Seed Client Done',
@@ -146,13 +169,64 @@ async function seed() {
     training_days_per_week: 4,
     preferred_training_time: 'morning',
     onboarding_completed_at: new Date().toISOString(),
-  })
+  }).select().single()
   if (doneClientErr) throw doneClientErr
+
+  // ── Check-in template ─────────────────────────────────────────────────────────
+  const { data: template, error: templateErr } = await admin
+    .from('checkin_templates')
+    .insert({
+      workspace_id: workspace.id,
+      name: 'Weekly Check-in',
+      questions: [
+        { id: 'weight',         label: 'Current weight (kg)',       type: 'number' },
+        { id: 'energy',         label: 'Energy level this week',    type: 'scale_1_10' },
+        { id: 'notes',          label: 'Anything else to share?',   type: 'text' },
+        { id: 'progress_photo', label: 'Progress photo',            type: 'photo' },
+      ],
+    })
+    .select()
+    .single()
+  if (templateErr) throw templateErr
+
+  // ── Check-ins ─────────────────────────────────────────────────────────────────
+  const { error: pendingCheckinErr } = await admin.from('checkins').insert({
+    workspace_id: workspace.id,
+    client_id: freshClient.id,
+    template_id: template.id,
+    status: 'pending',
+    answers: {
+      weight: 72,
+      energy: 6,
+      notes: 'Felt good this week, a bit tired on Thursday.',
+      progress_photo: null,
+    },
+  })
+  if (pendingCheckinErr) throw pendingCheckinErr
+
+  const now = new Date().toISOString()
+  const { error: reviewedCheckinErr } = await admin.from('checkins').insert({
+    workspace_id: workspace.id,
+    client_id: doneClient.id,
+    template_id: template.id,
+    status: 'reviewed',
+    answers: {
+      weight: 76,
+      energy: 8,
+      notes: 'Great week, hit all my gym sessions.',
+      progress_photo: null,
+    },
+    coach_notes: 'Solid progress — keep the protein high and we will hit target by end of month.',
+    reviewed_at: now,
+  })
+  if (reviewedCheckinErr) throw reviewedCheckinErr
 
   console.log('\nSeed complete.')
   console.log('  Coach:        seed_coach@mitovski.dev        / devpassword123')
   console.log('  Fresh client: seed_client_fresh@mitovski.dev / devpassword123')
   console.log('  Done client:  seed_client_done@mitovski.dev  / devpassword123')
+  console.log('  Template:     Weekly Check-in')
+  console.log('  Check-ins:    1 pending (fresh), 1 reviewed (done)')
 }
 
 seed().catch((err) => {

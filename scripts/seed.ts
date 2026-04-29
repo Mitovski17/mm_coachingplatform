@@ -179,10 +179,17 @@ async function seed() {
       workspace_id: workspace.id,
       name: 'Weekly Check-in',
       questions: [
-        { id: 'weight',         label: 'Current weight (kg)',       type: 'number' },
-        { id: 'energy',         label: 'Energy level this week',    type: 'scale_1_10' },
-        { id: 'notes',          label: 'Anything else to share?',   type: 'text' },
-        { id: 'progress_photo', label: 'Progress photo',            type: 'photo' },
+        { id: 'performance_rating',  label: 'How did this week go overall?',                  type: 'scale_1_10' },
+        { id: 'nutrition_adherence', label: 'How closely did you follow your nutrition plan?', type: 'options',   options: [0, 25, 50, 75, 100] },
+        { id: 'training_adherence',  label: 'How closely did you follow your training plan?',  type: 'options',   options: [0, 25, 50, 75, 100] },
+        { id: 'sleep_quality',       label: 'How was your sleep?',                             type: 'scale_1_10' },
+        { id: 'stress_level',        label: 'How stressed were you?',                          type: 'scale_1_10' },
+        { id: 'energy_level',        label: 'How were your energy levels?',                    type: 'scale_1_10' },
+        { id: 'biggest_win',         label: 'What was your biggest win this week?',            type: 'text' },
+        { id: 'biggest_challenge',   label: 'What was your biggest challenge?',                type: 'text' },
+        { id: 'schedule_changes',    label: 'Any upcoming schedule changes?',                  type: 'text',      optional: true },
+        { id: 'anything_else',       label: 'Anything else for your coach?',                   type: 'text',      optional: true },
+        { id: 'progress_photo',      label: 'Upload a progress photo (optional, coach-only)',  type: 'photo',     optional: true },
       ],
     })
     .select()

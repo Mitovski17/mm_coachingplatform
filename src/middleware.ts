@@ -24,7 +24,7 @@ function handleMockAuth(request: NextRequest): NextResponse | null {
   // On login page, redirect to the appropriate dashboard
   if (pathname === '/login') {
     const dest = request.nextUrl.clone()
-    dest.pathname = mockUser === 'coach' ? '/coach/dashboard' : '/client/dashboard'
+    dest.pathname = mockUser === 'coach' ? '/coach/dashboard' : '/check-in'
     return NextResponse.redirect(dest)
   }
 
@@ -67,7 +67,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const isProtected = pathname.startsWith('/coach') || pathname.startsWith('/client') || pathname.startsWith('/onboarding')
+  const isProtected = pathname.startsWith('/coach') || pathname.startsWith('/client') || pathname.startsWith('/onboarding') || pathname.startsWith('/check-in')
   const isLoginPage = pathname === '/login'
 
   if (isProtected && !user) {

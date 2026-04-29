@@ -110,6 +110,105 @@ export type Database = {
           },
         ]
       }
+      checkin_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          questions: Json
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          questions?: Json
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          questions?: Json
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_templates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkins: {
+        Row: {
+          answers: Json
+          client_id: string
+          coach_notes: string | null
+          created_at: string
+          id: string
+          reviewed_at: string | null
+          status: string
+          template_id: string | null
+          updated_at: string
+          week_start_date: string
+          workspace_id: string
+        }
+        Insert: {
+          answers?: Json
+          client_id: string
+          coach_notes?: string | null
+          created_at?: string
+          id?: string
+          reviewed_at?: string | null
+          status?: string
+          template_id?: string | null
+          updated_at?: string
+          week_start_date: string
+          workspace_id: string
+        }
+        Update: {
+          answers?: Json
+          client_id?: string
+          coach_notes?: string | null
+          created_at?: string
+          id?: string
+          reviewed_at?: string | null
+          status?: string
+          template_id?: string | null
+          updated_at?: string
+          week_start_date?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkins_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkins_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkins_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invites: {
         Row: {
           accepted_at: string | null

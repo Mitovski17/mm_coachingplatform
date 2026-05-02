@@ -116,6 +116,21 @@ export async function ensureDefaultTemplate(workspaceId: string): Promise<Checki
   return created as CheckinTemplate
 }
 
+export async function submitCheckin(payload: {
+  workspace_id: string
+  client_id: string
+  template_id: string
+  answers: Record<string, string | number | string[] | null>
+  week_start_date: string
+}): Promise<void> {
+  const admin = adminClient()
+  const { error } = await admin.from('checkins').insert({
+    ...payload,
+    status: 'pending',
+  })
+  if (error) throw new Error(error.message)
+}
+
 export async function uploadProgressPhoto(formData: FormData): Promise<string> {
   const file        = formData.get('file')        as File
   const workspaceId = formData.get('workspaceId') as string

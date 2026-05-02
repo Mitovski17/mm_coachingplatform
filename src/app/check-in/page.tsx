@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ensureDefaultTemplate, getClientByEmail, uploadProgressPhoto } from './actions'
+import { ensureDefaultTemplate, getClientByEmail, uploadProgressPhoto, submitCheckin } from './actions'
 import type { Question, ChoiceOption } from './actions'
 
 // ─── Week helpers ─────────────────────────────────────────────────────────────
@@ -659,17 +659,15 @@ export default function CheckInPage() {
     const finalAnswers: Record<string, string | number | string[] | null> = { ...answers }
     if (photoPaths.length > 0) finalAnswers.progress_photo = photoPaths
 
-    const supabase = createClient()
-    const { error: insertErr } = await supabase.from('checkins').insert({
-      workspace_id:    workspaceId,
-      client_id:       clientId,
-      template_id:     templateId,
-      answers:         finalAnswers,
-      week_start_date: getWeekStart(),
-      status:          'pending',
-    })
-
-    if (insertErr) {
+    try {
+      await submitCheckin({
+        workspace_id:    workspaceId,
+        client_id:       clientId,
+        template_id:     templateId,
+        answers:         finalAnswers,
+        week_start_date: getWeekStart(),
+      })
+    } catch {
       setError('Submission failed. Please try again.')
       setIsSubmitting(false)
       return

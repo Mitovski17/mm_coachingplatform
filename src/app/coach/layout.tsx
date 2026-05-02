@@ -1,5 +1,67 @@
+import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/supabase'
 import SidebarShell from './SidebarShell'
 
-export default function CoachLayout({ children }: { children: React.ReactNode }) {
-  return <SidebarShell>{children}</SidebarShell>
+function currentWeekDate(): string {
+  const now = new Date()
+  const day = now.getUTCDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const monday = new Date(now)
+  monday.setUTCDate(now.getUTCDate() + diff)
+  monday.setUTCHours(0, 0, 0, 0)
+  return monday.toISOString().split('T')[0]
+}
+
+async function fetchPendingCount(): Promise<number> {
+  try {
+    const weekDate = currentWeekDate()
+
+    if (process.env.NODE_ENV === 'development') {
+      const cookieStore = await cookies()
+      const rawMockEmail = cookieStore.get('dev_mock_email')?.value
+      if (rawMockEmail) {
+        const mockEmail = decodeURIComponent(rawMockEmail)
+        const svc = createServiceClient<Database>(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+        const { data: { users } } = await svc.auth.admin.listUsers({ perPage: 1000 })
+        const adminUser = users.find((u) => u.email === mockEmail)
+        if (!adminUser) return 0
+        const { data: profile } = await svc
+          .from('profiles').select('workspace_id').eq('id', adminUser.id).single()
+        if (!profile) return 0
+        const { count } = await svc
+          .from('checkins')
+          .select('id', { count: 'exact', head: true })
+          .eq('workspace_id', profile.workspace_id)
+          .eq('status', 'pending')
+          .eq('week_start_date', weekDate)
+        return count ?? 0
+      }
+    }
+
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return 0
+    const { data: profile } = await supabase
+      .from('profiles').select('workspace_id').eq('id', user.id).single()
+    if (!profile) return 0
+    const { count } = await supabase
+      .from('checkins')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', profile.workspace_id)
+      .eq('status', 'pending')
+      .eq('week_start_date', weekDate)
+    return count ?? 0
+  } catch {
+    return 0
+  }
+}
+
+export default async function CoachLayout({ children }: { children: React.ReactNode }) {
+  const pendingCount = await fetchPendingCount()
+  return <SidebarShell pendingCount={pendingCount}>{children}</SidebarShell>
 }

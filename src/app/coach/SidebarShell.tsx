@@ -15,7 +15,13 @@ const EXPANDED = 220
 const COLLAPSED = 64
 const LS_KEY = 'coach_sidebar_collapsed'
 
-export default function SidebarShell({ children }: { children: React.ReactNode }) {
+export default function SidebarShell({
+  children,
+  pendingCount = 0,
+}: {
+  children: React.ReactNode
+  pendingCount?: number
+}) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
 
@@ -105,8 +111,44 @@ export default function SidebarShell({ children }: { children: React.ReactNode }
                   textDecoration: 'none',
                 }}
               >
-                <Icon size={16} style={{ flexShrink: 0 }} />
-                {!collapsed && <span className="whitespace-nowrap">{label}</span>}
+                <div className="relative" style={{ flexShrink: 0 }}>
+                  <Icon size={16} />
+                  {href === '/coach/check-ins' && pendingCount > 0 && (
+                    <span
+                      className="absolute"
+                      style={{
+                        top: -3,
+                        right: -3,
+                        width: 7,
+                        height: 7,
+                        borderRadius: '50%',
+                        backgroundColor: '#ef4444',
+                        display: 'block',
+                      }}
+                    />
+                  )}
+                </div>
+                {!collapsed && (
+                  <span className="whitespace-nowrap flex items-center gap-1.5">
+                    {label}
+                    {href === '/coach/check-ins' && pendingCount > 0 && !collapsed && (
+                      <span
+                        className="inline-flex items-center justify-center text-xs font-semibold"
+                        style={{
+                          minWidth: 18,
+                          height: 18,
+                          borderRadius: '9999px',
+                          backgroundColor: 'rgba(239,68,68,0.18)',
+                          color: '#ef4444',
+                          padding: '0 5px',
+                          lineHeight: 1,
+                        }}
+                      >
+                        {pendingCount}
+                      </span>
+                    )}
+                  </span>
+                )}
               </Link>
             )
           })}

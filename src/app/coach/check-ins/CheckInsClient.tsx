@@ -131,7 +131,7 @@ function CheckinCard({
               {card.clientName}
             </p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-hint)' }}>
-              submitted {formatDistanceToNow(new Date(card.submittedAt), { addSuffix: true })}
+              submitted {formatDistanceToNow(new Date(card.submittedAt!), { addSuffix: true })}
             </p>
           </div>
           <div className="flex items-center gap-2">

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
@@ -10,7 +12,7 @@ export type CheckinCard = {
   clientName: string
   checkinId: string
   status: 'pending' | 'reviewed'
-  submittedAt: string
+  submittedAt: string | null
   reviewedAt: string | null
   coachNotes: string | null
   answers: Record<string, unknown>
@@ -78,10 +80,10 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
     svc.from('clients').select('id, full_name').eq('workspace_id', workspaceId),
     svc
       .from('checkins')
-      .select('id, client_id, status, answers, coach_notes, created_at, reviewed_at')
+      .select('id, client_id, status, answers, coach_notes, submitted_at, reviewed_at')
       .eq('workspace_id', workspaceId)
       .eq('week_start_date', currentWeek)
-      .order('created_at', { ascending: false }),
+      .order('submitted_at', { ascending: false }),
     svc
       .from('checkins')
       .select('id, client_id, answers')
@@ -92,7 +94,7 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
   const clients: { id: string; full_name: string }[] = clientsRes.data ?? []
   const currentCheckins: {
     id: string; client_id: string; status: string; answers: Record<string, unknown>;
-    coach_notes: string | null; created_at: string; reviewed_at: string | null
+    coach_notes: string | null; submitted_at: string; reviewed_at: string | null
   }[] = currentRes.data ?? []
   const prevCheckins: { id: string; client_id: string; answers: Record<string, unknown> }[] = prevRes.data ?? []
 
@@ -110,7 +112,7 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
       clientName: clientMap.get(ci.client_id) ?? 'Unknown client',
       checkinId: ci.id,
       status: ci.status as 'pending' | 'reviewed',
-      submittedAt: ci.created_at,
+      submittedAt: ci.submitted_at,
       reviewedAt: ci.reviewed_at,
       coachNotes: ci.coach_notes,
       answers: ci.answers,

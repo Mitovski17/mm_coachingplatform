@@ -10,7 +10,7 @@ type Client = Database['public']['Tables']['clients']['Row']
 
 type CheckIn = {
   client_id: string
-  created_at: string
+  submitted_at: string
   status: string
 }
 
@@ -58,10 +58,10 @@ function checkInStatus(
   const rows = checkIns.filter((ci) => ci.client_id === clientId)
   if (rows.length === 0) return { label: 'Never', hasPending: false }
   const latest = rows.reduce((a, b) =>
-    new Date(a.created_at) > new Date(b.created_at) ? a : b
+    new Date(a.submitted_at) > new Date(b.submitted_at) ? a : b
   )
   return {
-    label: formatDistanceToNow(new Date(latest.created_at), { addSuffix: true }),
+    label: formatDistanceToNow(new Date(latest.submitted_at), { addSuffix: true }),
     hasPending: rows.some((ci) => ci.status === 'pending'),
   }
 }
@@ -107,8 +107,8 @@ async function fetchDashboardData(): Promise<{ clients: Client[]; checkIns: Chec
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: ciData, error: ciError } = await (svc as any)
-          .from('check_ins')
-          .select('client_id, created_at, status')
+          .from('checkins')
+          .select('client_id, submitted_at, status')
         if (!ciError && ciData) checkIns = ciData as CheckIn[]
       } catch {
         // check_ins table not yet created
@@ -142,8 +142,8 @@ async function fetchDashboardData(): Promise<{ clients: Client[]; checkIns: Chec
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: ciData, error: ciError } = await (supabase as any)
-      .from('check_ins')
-      .select('client_id, created_at, status')
+      .from('checkins')
+      .select('client_id, submitted_at, status')
     if (!ciError && ciData) checkIns = ciData as CheckIn[]
   } catch {
     // check_ins table not yet created

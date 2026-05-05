@@ -14,6 +14,192 @@ export type Database = {
   }
   public: {
     Tables: {
+      exercises: {
+        Row: {
+          created_at: string
+          equipment: string
+          id: string
+          muscle_group: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          equipment: string
+          id?: string
+          muscle_group: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          equipment?: string
+          id?: string
+          muscle_group?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      workout_sessions: {
+        Row: {
+          client_id: string
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          name: string
+          notes: string | null
+          performed_at: string
+          workspace_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          performed_at?: string
+          workspace_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          performed_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_sessions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_sessions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workout_sets: {
+        Row: {
+          created_at: string
+          exercise_id: string
+          id: string
+          notes: string | null
+          reps: number | null
+          rpe: number | null
+          session_id: string
+          set_number: number
+          weight_kg: number | null
+        }
+        Insert: {
+          created_at?: string
+          exercise_id: string
+          id?: string
+          notes?: string | null
+          reps?: number | null
+          rpe?: number | null
+          session_id: string
+          set_number?: number
+          weight_kg?: number | null
+        }
+        Update: {
+          created_at?: string
+          exercise_id?: string
+          id?: string
+          notes?: string | null
+          reps?: number | null
+          rpe?: number | null
+          session_id?: string
+          set_number?: number
+          weight_kg?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_sets_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_sets_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "workout_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nutrition_logs: {
+        Row: {
+          calories: number | null
+          carbs_g: number | null
+          client_id: string
+          created_at: string
+          fat_g: number | null
+          food_name: string
+          id: string
+          logged_date: string
+          meal_type: string
+          protein_g: number | null
+          quantity: number | null
+          unit: string | null
+          workspace_id: string
+        }
+        Insert: {
+          calories?: number | null
+          carbs_g?: number | null
+          client_id: string
+          created_at?: string
+          fat_g?: number | null
+          food_name: string
+          id?: string
+          logged_date?: string
+          meal_type: string
+          protein_g?: number | null
+          quantity?: number | null
+          unit?: string | null
+          workspace_id: string
+        }
+        Update: {
+          calories?: number | null
+          carbs_g?: number | null
+          client_id?: string
+          created_at?: string
+          fat_g?: number | null
+          food_name?: string
+          id?: string
+          logged_date?: string
+          meal_type?: string
+          protein_g?: number | null
+          quantity?: number | null
+          unit?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nutrition_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nutrition_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           activity_level: string | null
@@ -327,6 +513,170 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      workout_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_templates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workout_template_exercises: {
+        Row: {
+          created_at: string
+          exercise_id: string
+          id: string
+          notes: string | null
+          rest_seconds: number
+          sort_order: number
+          target_reps: string
+          target_sets: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          exercise_id: string
+          id?: string
+          notes?: string | null
+          rest_seconds?: number
+          sort_order?: number
+          target_reps?: string
+          target_sets?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          exercise_id?: string
+          id?: string
+          notes?: string | null
+          rest_seconds?: number
+          sort_order?: number
+          target_reps?: string
+          target_sets?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_template_exercises_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_template_exercises_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "workout_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workout_programs: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          workspace_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          workspace_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_programs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_programs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workout_program_days: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          id: string
+          program_id: string
+          template_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          id?: string
+          program_id: string
+          template_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          program_id?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_program_days_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "workout_programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_program_days_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "workout_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

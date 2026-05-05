@@ -24,7 +24,7 @@ function handleMockAuth(request: NextRequest): NextResponse | null {
   // On login page, redirect to the appropriate dashboard
   if (pathname === '/login') {
     const dest = request.nextUrl.clone()
-    dest.pathname = mockUser === 'coach' ? '/coach/dashboard' : '/check-in'
+    dest.pathname = mockUser === 'coach' ? '/coach/dashboard' : '/client'
     return NextResponse.redirect(dest)
   }
 

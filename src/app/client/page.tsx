@@ -1,4 +1,13 @@
+export const dynamic = 'force-dynamic'
+
+import { cookies } from 'next/headers'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
+import {
+  getClientId,
+  getTodayTemplate,
+  type TodayTemplate,
+} from './workouts/actions'
 
 const checkInDone = false
 
@@ -15,7 +24,35 @@ const recentWorkouts = [
   { name: 'Push Day', date: 'Thu Apr 30', duration: '44 min', exercises: 6 },
 ]
 
-export default function ClientHomePage() {
+async function resolveTodayTemplate(): Promise<TodayTemplate | null> {
+  let email: string | null = null
+
+  if (process.env.NODE_ENV === 'development') {
+    const cookieStore = await cookies()
+    const raw = cookieStore.get('dev_mock_email')?.value
+    if (raw) email = decodeURIComponent(raw)
+  }
+
+  if (!email) {
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      email = user?.email ?? null
+    } catch {
+      return null
+    }
+  }
+
+  if (!email) return null
+
+  const client = await getClientId(email)
+  if (!client) return null
+  return getTodayTemplate(client.id)
+}
+
+export default async function ClientHomePage() {
+  const today = await resolveTodayTemplate()
+
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
       {/* Header */}
@@ -47,6 +84,11 @@ export default function ClientHomePage() {
         </div>
       </div>
 
+      {/* Today's Workout widget */}
+      <div style={{ padding: '0 16px 16px' }}>
+        <TodayWorkoutWidget today={today} />
+      </div>
+
       {/* Weekly Check-in CTA */}
       <div style={{ padding: '0 16px 16px' }}>
         <div
@@ -57,7 +99,6 @@ export default function ClientHomePage() {
             overflow: 'hidden',
           }}
         >
-          {/* Gradient strip */}
           <div
             style={{
               height: '4px',
@@ -274,6 +315,83 @@ export default function ClientHomePage() {
           </p>
         </div>
       </section>
+    </div>
+  )
+}
+
+function TodayWorkoutWidget({ today }: { today: TodayTemplate | null }) {
+  if (!today) {
+    return (
+      <div
+        style={{
+          backgroundColor: 'var(--color-surface-1)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '14px',
+          padding: '14px 16px',
+        }}
+      >
+        <p
+          style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--color-text-muted)',
+            margin: '0 0 4px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+          }}
+        >
+          Today
+        </p>
+        <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', margin: 0 }}>
+          Rest day — recovery matters
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        backgroundColor: 'var(--color-surface-1)',
+        border: '1px solid var(--color-border)',
+        borderRadius: '16px',
+        padding: '16px 18px',
+      }}
+    >
+      <p
+        style={{
+          fontSize: '11px',
+          fontWeight: 600,
+          color: 'var(--color-text-muted)',
+          margin: '0 0 4px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+        }}
+      >
+        Today&apos;s Workout
+      </p>
+      <p style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
+        {today.templateName}
+      </p>
+      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+        {today.exerciseCount} {today.exerciseCount === 1 ? 'exercise' : 'exercises'}
+      </p>
+      <Link
+        href={`/client/workouts/session?templateId=${encodeURIComponent(today.templateId)}&templateName=${encodeURIComponent(today.templateName)}`}
+        style={{
+          display: 'block',
+          textAlign: 'center',
+          backgroundColor: '#ffffff',
+          color: '#000000',
+          borderRadius: '10px',
+          padding: '11px',
+          fontSize: '14px',
+          fontWeight: 700,
+          textDecoration: 'none',
+        }}
+      >
+        Start Workout
+      </Link>
     </div>
   )
 }

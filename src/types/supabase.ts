@@ -47,6 +47,7 @@ export type Database = {
           name: string
           notes: string | null
           performed_at: string
+          template_id: string | null
           workspace_id: string
         }
         Insert: {
@@ -57,6 +58,7 @@ export type Database = {
           name?: string
           notes?: string | null
           performed_at?: string
+          template_id?: string | null
           workspace_id: string
         }
         Update: {
@@ -67,6 +69,7 @@ export type Database = {
           name?: string
           notes?: string | null
           performed_at?: string
+          template_id?: string | null
           workspace_id?: string
         }
         Relationships: [

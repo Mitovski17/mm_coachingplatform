@@ -256,28 +256,28 @@ export default async function DashboardPage() {
                 return (
                   <tr
                     key={client.id}
-                    className="relative group"
+                    className="relative group select-none cursor-pointer"
                     style={{
                       borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
                     }}
                   >
-                    {/* Name — block link covers the full row */}
-                    <td className="px-3 py-2.5 relative" style={{ overflow: 'hidden' }}>
+                    {/* Name — link is absolute relative to <tr> so it covers the full row */}
+                    <td className="px-3 py-2.5">
                       <Link
                         href={`/coach/clients/${client.id}`}
                         className="absolute inset-0 z-0 group-hover:bg-white/[0.02] transition-colors"
                         aria-label={`View ${client.full_name}`}
                       />
                       <span
-                        className="relative z-10 block truncate"
-                        style={{ color: 'var(--color-text-primary)', fontWeight: 500 }}
+                        className="block truncate"
+                        style={{ color: 'var(--color-text-primary)', fontWeight: 500, pointerEvents: 'none' }}
                       >
                         {client.full_name}
                       </span>
                     </td>
 
                     {/* Onboarding */}
-                    <td className="px-3 py-2.5 relative z-10">
+                    <td className="px-3 py-2.5">
                       {client.onboarding_completed_at ? (
                         <span
                           className="inline-flex items-center px-2 py-0.5 text-xs"
@@ -307,7 +307,7 @@ export default async function DashboardPage() {
 
                     {/* Goal */}
                     <td
-                      className="px-3 py-2.5 relative z-10"
+                      className="px-3 py-2.5"
                       style={{
                         color: 'var(--color-text-secondary)',
                         overflow: 'hidden',
@@ -320,7 +320,7 @@ export default async function DashboardPage() {
 
                     {/* Activity level */}
                     <td
-                      className="px-3 py-2.5 relative z-10"
+                      className="px-3 py-2.5"
                       style={{
                         color: 'var(--color-text-secondary)',
                         overflow: 'hidden',
@@ -335,7 +335,7 @@ export default async function DashboardPage() {
 
                     {/* Meals per day */}
                     <td
-                      className="px-3 py-2.5 relative z-10"
+                      className="px-3 py-2.5"
                       style={{ color: 'var(--color-text-secondary)' }}
                     >
                       {client.meals_per_day ?? '—'}
@@ -343,7 +343,7 @@ export default async function DashboardPage() {
 
                     {/* Training */}
                     <td
-                      className="px-3 py-2.5 relative z-10"
+                      className="px-3 py-2.5"
                       style={{
                         color: 'var(--color-text-secondary)',
                         overflow: 'hidden',
@@ -356,7 +356,7 @@ export default async function DashboardPage() {
 
                     {/* Meal plan — placeholder, hidden below xl */}
                     <td
-                      className="px-3 py-2.5 relative z-10 hidden xl:table-cell"
+                      className="px-3 py-2.5 hidden xl:table-cell"
                       style={{ color: 'var(--color-text-hint)' }}
                     >
                       —
@@ -364,14 +364,14 @@ export default async function DashboardPage() {
 
                     {/* Training plan — placeholder, hidden below xl */}
                     <td
-                      className="px-3 py-2.5 relative z-10 hidden xl:table-cell"
+                      className="px-3 py-2.5 hidden xl:table-cell"
                       style={{ color: 'var(--color-text-hint)' }}
                     >
                       —
                     </td>
 
                     {/* Check-in status */}
-                    <td className="px-3 py-2.5 relative z-10">
+                    <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span
                           style={{
@@ -400,7 +400,7 @@ export default async function DashboardPage() {
 
                     {/* Joined */}
                     <td
-                      className="px-3 py-2.5 relative z-10"
+                      className="px-3 py-2.5"
                       style={{ color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}
                     >
                       {format(new Date(client.created_at), 'MMM yyyy')}

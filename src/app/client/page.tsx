@@ -9,23 +9,57 @@ import {
   type TodayTemplate,
 } from './workouts/actions'
 import { getDayLogs, type DayLog } from './nutrition/actions'
+import { getHomeStats, type HomeStats } from './home-actions'
+
+function getGreeting(): string {
+  const hour = new Date().getUTCHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
+function getWeekLabel(): string {
+  const now = new Date()
+  const dayOfWeek = now.getUTCDay()
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const monday = new Date(now)
+  monday.setUTCDate(now.getUTCDate() - daysSinceMonday)
+  return monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function getCurrentDayOfWeek(): number {
+  const day = new Date().getUTCDay()
+  return day === 0 ? 7 : day
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
+
+function formatWorkoutDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function daysAgo(dateStr: string): string {
+  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
+  if (days === 0) return 'today'
+  if (days === 1) return '1 day ago'
+  return `${days} days ago`
+}
 
 const checkInDone = false
 
-const stats = [
-  { label: 'Workouts Logged', value: '3 / 4', trend: '↑', up: true },
-  { label: 'Calories avg', value: '2,340 kcal', trend: '↑', up: true },
-  { label: 'Avg Sleep', value: '7.2 hrs', trend: '↓', up: false },
-  { label: 'Body Weight', value: '84.2 kg', trend: '↓', up: true },
-]
-
-const recentWorkouts = [
-  { name: 'Upper A', date: 'Mon May 4', duration: '52 min', exercises: 6 },
-  { name: 'Pull Day', date: 'Sat May 2', duration: '48 min', exercises: 7 },
-  { name: 'Push Day', date: 'Thu Apr 30', duration: '44 min', exercises: 6 },
-]
-
-async function resolveClientAndData(): Promise<{ today: TodayTemplate | null; logs: DayLog[] }> {
+async function resolveClientAndData(): Promise<{
+  today: TodayTemplate | null
+  logs: DayLog[]
+  stats: HomeStats | null
+}> {
   let email: string | null = null
 
   if (process.env.NODE_ENV === 'development') {
@@ -40,27 +74,55 @@ async function resolveClientAndData(): Promise<{ today: TodayTemplate | null; lo
       const { data: { user } } = await supabase.auth.getUser()
       email = user?.email ?? null
     } catch {
-      return { today: null, logs: [] }
+      return { today: null, logs: [], stats: null }
     }
   }
 
-  if (!email) return { today: null, logs: [] }
+  if (!email) return { today: null, logs: [], stats: null }
 
   const client = await getClientId(email)
-  if (!client) return { today: null, logs: [] }
+  if (!client) return { today: null, logs: [], stats: null }
+
   const isoToday = (() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })()
-  const [today, logs] = await Promise.all([
+
+  const [today, logs, stats] = await Promise.all([
     getTodayTemplate(client.id),
     getDayLogs(client.id, isoToday),
+    getHomeStats(email, client.id),
   ])
-  return { today, logs }
+
+  return { today, logs, stats }
 }
 
 export default async function ClientHomePage() {
-  const { today, logs } = await resolveClientAndData()
+  const { today, logs, stats } = await resolveClientAndData()
+
+  const greeting = getGreeting()
+  const clientName = stats?.clientName ?? 'there'
+  const initials = stats?.clientName ? getInitials(stats.clientName) : '?'
+
+  const workoutsLogged = stats?.workoutsLogged ?? 0
+  const workoutsTarget = stats?.workoutsTarget ?? 0
+  const workoutsOnTrack = workoutsTarget > 0 && workoutsLogged >= workoutsTarget
+
+  const sleepQuality = stats?.sleepQuality ?? null
+  const sleepColor =
+    sleepQuality == null
+      ? 'var(--color-text-primary)'
+      : sleepQuality >= 7
+      ? '#22c55e'
+      : sleepQuality >= 5
+      ? '#f59e0b'
+      : '#ef4444'
+
+  const bodyWeight = stats?.bodyWeight ?? null
+  const bodyWeightTrend = stats?.bodyWeightTrend ?? null
+
+  const caloriesAvg = stats?.caloriesAvg ?? null
+  const caloriesTrend = stats?.caloriesTrend ?? null
 
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
@@ -71,10 +133,10 @@ export default async function ClientHomePage() {
       >
         <div>
           <h1 style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
-            Good morning, Alex
+            {greeting}, {clientName}
           </h1>
           <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
-            Week of May 5 · Day 2 of 7
+            Week of {getWeekLabel()} · Day {getCurrentDayOfWeek()} of 7
           </p>
         </div>
         <div
@@ -89,7 +151,7 @@ export default async function ClientHomePage() {
             fontWeight: 600,
           }}
         >
-          AM
+          {initials}
         </div>
       </div>
 
@@ -199,136 +261,176 @@ export default async function ClientHomePage() {
           This Week
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          {stats.map((s) => (
-            <div
-              key={s.label}
-              style={{
-                backgroundColor: 'var(--color-surface-2)',
-                borderRadius: '12px',
-                padding: '14px 14px 12px',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <p style={{ fontSize: '11px', color: 'var(--color-text-hint)', margin: '0 0 4px', fontWeight: 500 }}>
-                {s.label}
-              </p>
-              <div className="flex items-baseline gap-1.5">
-                <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.1 }}>
-                  {s.value}
-                </span>
-                <span style={{ fontSize: '14px', color: s.up ? '#22c55e' : '#ef4444', fontWeight: 600 }}>
-                  {s.trend}
-                </span>
-              </div>
-            </div>
-          ))}
+          {/* Workouts */}
+          <StatCard
+            label="Workouts"
+            value={`${workoutsLogged} / ${workoutsTarget}`}
+            trend={workoutsTarget > 0 ? (workoutsOnTrack ? '↑' : '↓') : ''}
+            trendColor={workoutsTarget > 0 ? (workoutsOnTrack ? '#22c55e' : '#f59e0b') : 'transparent'}
+          />
+          {/* Calories */}
+          <StatCard
+            label="Calories avg"
+            value={caloriesAvg != null ? `${caloriesAvg.toLocaleString()} kcal` : '—'}
+            trend={caloriesTrend === 'up' ? '↑' : caloriesTrend === 'down' ? '↓' : ''}
+            trendColor={caloriesTrend === 'up' ? '#22c55e' : caloriesTrend === 'down' ? '#ef4444' : 'transparent'}
+          />
+          {/* Sleep Quality */}
+          <StatCard
+            label="Sleep Quality"
+            value={sleepQuality != null ? `${sleepQuality} / 10` : '—'}
+            trend=""
+            trendColor="transparent"
+            valueColor={sleepColor}
+          />
+          {/* Body Weight */}
+          <StatCard
+            label="Body Weight"
+            value={bodyWeight != null ? `${bodyWeight} kg` : '—'}
+            trend={bodyWeightTrend === 'up' ? '↑' : bodyWeightTrend === 'down' ? '↓' : ''}
+            trendColor={bodyWeightTrend === 'down' ? '#22c55e' : bodyWeightTrend === 'up' ? '#ef4444' : 'transparent'}
+          />
         </div>
       </section>
 
       {/* Recent Workouts */}
-      <section style={{ padding: '0 0 16px' }}>
-        <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: '16px' }}>
-          Recent Workouts
-        </h2>
-        <div
-          className="flex gap-3"
-          style={{
-            overflowX: 'auto',
-            paddingLeft: '16px',
-            paddingRight: '16px',
-            paddingBottom: '4px',
-            scrollbarWidth: 'none',
-          }}
-        >
-          {recentWorkouts.map((w) => (
-            <div
-              key={w.name + w.date}
-              style={{
-                flexShrink: 0,
-                width: '180px',
-                backgroundColor: 'var(--color-surface-2)',
-                border: '1px solid var(--color-border)',
-                borderRadius: '12px',
-                padding: '14px',
-              }}
-            >
-              <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
-                {w.name}
-              </p>
-              <p style={{ fontSize: '12px', color: 'var(--color-text-hint)', margin: '0 0 8px' }}>
-                {w.date}
-              </p>
-              <div className="flex gap-2">
-                <span
-                  style={{
-                    fontSize: '11px',
-                    color: 'var(--color-text-muted)',
-                    backgroundColor: 'var(--color-surface-3)',
-                    borderRadius: '6px',
-                    padding: '2px 7px',
-                  }}
-                >
-                  {w.duration}
-                </span>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    color: 'var(--color-text-muted)',
-                    backgroundColor: 'var(--color-surface-3)',
-                    borderRadius: '6px',
-                    padding: '2px 7px',
-                  }}
-                >
-                  {w.exercises} exercises
-                </span>
+      {stats?.recentWorkouts && stats.recentWorkouts.length > 0 && (
+        <section style={{ padding: '0 0 16px' }}>
+          <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: '16px' }}>
+            Recent Workouts
+          </h2>
+          <div
+            className="flex gap-3"
+            style={{
+              overflowX: 'auto',
+              paddingLeft: '16px',
+              paddingRight: '16px',
+              paddingBottom: '4px',
+              scrollbarWidth: 'none',
+            }}
+          >
+            {stats.recentWorkouts.map((w) => (
+              <div
+                key={w.id}
+                style={{
+                  flexShrink: 0,
+                  width: '180px',
+                  backgroundColor: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '12px',
+                  padding: '14px',
+                }}
+              >
+                <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
+                  {w.name}
+                </p>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-hint)', margin: '0 0 8px' }}>
+                  {formatWorkoutDate(w.performedAt)}
+                </p>
+                {w.durationMinutes != null && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--color-text-muted)',
+                      backgroundColor: 'var(--color-surface-3)',
+                      borderRadius: '6px',
+                      padding: '2px 7px',
+                    }}
+                  >
+                    {w.durationMinutes} min
+                  </span>
+                )}
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Coach Message */}
-      <section style={{ padding: '0 16px 16px' }}>
-        <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Coach
-        </h2>
-        <div
-          style={{
-            backgroundColor: 'var(--color-surface-1)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '14px',
-            padding: '16px',
-          }}
-        >
-          <div className="flex items-center gap-3" style={{ marginBottom: '10px' }}>
-            <div
-              className="flex items-center justify-center flex-shrink-0"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                backgroundColor: 'var(--color-accent-dim)',
-                color: 'var(--color-accent)',
-                fontSize: '12px',
-                fontWeight: 700,
-              }}
-            >
-              MC
+      {stats?.coachNote && (
+        <section style={{ padding: '0 16px 16px' }}>
+          <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Coach
+          </h2>
+          <div
+            style={{
+              backgroundColor: 'var(--color-surface-1)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '14px',
+              padding: '16px',
+            }}
+          >
+            <div className="flex items-center gap-3" style={{ marginBottom: '10px' }}>
+              <div
+                className="flex items-center justify-center flex-shrink-0"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-accent-dim)',
+                  color: 'var(--color-accent)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                }}
+              >
+                MC
+              </div>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-secondary)', margin: 0 }}>
+                  Your coach left a note:
+                </p>
+                {stats.coachNoteDate && (
+                  <p style={{ fontSize: '11px', color: 'var(--color-text-hint)', margin: '2px 0 0' }}>
+                    {daysAgo(stats.coachNoteDate)}
+                  </p>
+                )}
+              </div>
             </div>
-            <div>
-              <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-secondary)', margin: 0 }}>
-                Your coach left a note:
-              </p>
-              <p style={{ fontSize: '11px', color: 'var(--color-text-hint)', margin: '2px 0 0' }}>
-                2 days ago
-              </p>
-            </div>
+            <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
+              &ldquo;{stats.coachNote}&rdquo;
+            </p>
           </div>
-          <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
-            &ldquo;Great work this week. Keep protein above 180g on training days.&rdquo;
-          </p>
-        </div>
-      </section>
+        </section>
+      )}
+    </div>
+  )
+}
+
+function StatCard({
+  label,
+  value,
+  trend,
+  trendColor,
+  valueColor,
+}: {
+  label: string
+  value: string
+  trend: string
+  trendColor: string
+  valueColor?: string
+}) {
+  return (
+    <div
+      style={{
+        backgroundColor: 'var(--color-surface-2)',
+        borderRadius: '12px',
+        padding: '14px 14px 12px',
+        border: '1px solid var(--color-border)',
+      }}
+    >
+      <p style={{ fontSize: '11px', color: 'var(--color-text-hint)', margin: '0 0 4px', fontWeight: 500 }}>
+        {label}
+      </p>
+      <div className="flex items-baseline gap-1.5">
+        <span style={{ fontSize: '18px', fontWeight: 700, color: valueColor ?? 'var(--color-text-primary)', lineHeight: 1.1 }}>
+          {value}
+        </span>
+        {trend && (
+          <span style={{ fontSize: '14px', color: trendColor, fontWeight: 600 }}>
+            {trend}
+          </span>
+        )}
+      </div>
     </div>
   )
 }

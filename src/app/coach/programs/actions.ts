@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { unstable_cache, revalidateTag } from 'next/cache'
 
 function adminClient() {
   return createClient(
@@ -113,36 +114,44 @@ export async function getAllExercises(): Promise<Exercise[]> {
   }))
 }
 
+const _getTemplatesCached = unstable_cache(
+  async (workspaceId: string): Promise<Template[]> => {
+    const admin = adminClient()
+    const { data: templates, error } = await admin
+      .from('workout_templates')
+      .select('id, name, notes, created_at')
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+
+    const ids = (templates ?? []).map((t) => t.id)
+    let countsByTemplate = new Map<string, number>()
+    if (ids.length > 0) {
+      const { data: rows, error: e2 } = await admin
+        .from('workout_template_exercises')
+        .select('template_id')
+        .in('template_id', ids)
+      if (e2) throw new Error(e2.message)
+      countsByTemplate = (rows ?? []).reduce((acc, r) => {
+        acc.set(r.template_id, (acc.get(r.template_id) ?? 0) + 1)
+        return acc
+      }, new Map<string, number>())
+    }
+
+    return (templates ?? []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      notes: t.notes,
+      exerciseCount: countsByTemplate.get(t.id) ?? 0,
+      createdAt: t.created_at,
+    }))
+  },
+  ['programs-getTemplates'],
+  { tags: ['programs'], revalidate: 60 }
+)
+
 export async function getTemplates(workspaceId: string): Promise<Template[]> {
-  const admin = adminClient()
-  const { data: templates, error } = await admin
-    .from('workout_templates')
-    .select('id, name, notes, created_at')
-    .eq('workspace_id', workspaceId)
-    .order('created_at', { ascending: false })
-  if (error) throw new Error(error.message)
-
-  const ids = (templates ?? []).map((t) => t.id)
-  let countsByTemplate = new Map<string, number>()
-  if (ids.length > 0) {
-    const { data: rows, error: e2 } = await admin
-      .from('workout_template_exercises')
-      .select('template_id')
-      .in('template_id', ids)
-    if (e2) throw new Error(e2.message)
-    countsByTemplate = (rows ?? []).reduce((acc, r) => {
-      acc.set(r.template_id, (acc.get(r.template_id) ?? 0) + 1)
-      return acc
-    }, new Map<string, number>())
-  }
-
-  return (templates ?? []).map((t) => ({
-    id: t.id,
-    name: t.name,
-    notes: t.notes,
-    exerciseCount: countsByTemplate.get(t.id) ?? 0,
-    createdAt: t.created_at,
-  }))
+  return _getTemplatesCached(workspaceId)
 }
 
 export async function getTemplate(templateId: string): Promise<TemplateWithExercises | null> {
@@ -250,6 +259,7 @@ export async function upsertTemplate(payload: {
     if (insErr) throw new Error(insErr.message)
   }
 
+  revalidateTag('programs', 'max')
   return { id: templateId! }
 }
 
@@ -257,6 +267,7 @@ export async function deleteTemplate(templateId: string): Promise<void> {
   const admin = adminClient()
   const { error } = await admin.from('workout_templates').delete().eq('id', templateId)
   if (error) throw new Error(error.message)
+  revalidateTag('programs', 'max')
 }
 
 export async function getClients(workspaceId: string): Promise<Client[]> {
@@ -274,45 +285,53 @@ export async function getClients(workspaceId: string): Promise<Client[]> {
   }))
 }
 
+const _getProgramsCached = unstable_cache(
+  async (workspaceId: string): Promise<Program[]> => {
+    const admin = adminClient()
+    const { data: programs, error } = await admin
+      .from('workout_programs')
+      .select('id, name, is_active, client_id, created_at, clients(full_name)')
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+
+    const ids = (programs ?? []).map((p) => p.id)
+    const daysByProgram = new Map<string, ProgramDayPreview[]>()
+    if (ids.length > 0) {
+      const { data: dayRows, error: e2 } = await admin
+        .from('workout_program_days')
+        .select('program_id, day_of_week, workout_templates(name)')
+        .in('program_id', ids)
+      if (e2) throw new Error(e2.message)
+      for (const r of dayRows ?? []) {
+        const t = r.workout_templates as unknown as { name: string } | null
+        const list = daysByProgram.get(r.program_id) ?? []
+        list.push({ dayOfWeek: r.day_of_week, templateName: t?.name ?? null })
+        daysByProgram.set(r.program_id, list)
+      }
+    }
+
+    return (programs ?? []).map((p) => {
+      const c = p.clients as unknown as { full_name: string } | null
+      const programDays = daysByProgram.get(p.id) ?? []
+      return {
+        id: p.id,
+        name: p.name,
+        isActive: p.is_active,
+        clientId: p.client_id,
+        clientName: c?.full_name ?? 'Unknown client',
+        dayCount: programDays.length,
+        days: programDays,
+        createdAt: p.created_at,
+      }
+    })
+  },
+  ['programs-getPrograms'],
+  { tags: ['programs'], revalidate: 60 }
+)
+
 export async function getPrograms(workspaceId: string): Promise<Program[]> {
-  const admin = adminClient()
-  const { data: programs, error } = await admin
-    .from('workout_programs')
-    .select('id, name, is_active, client_id, created_at, clients(full_name)')
-    .eq('workspace_id', workspaceId)
-    .order('created_at', { ascending: false })
-  if (error) throw new Error(error.message)
-
-  const ids = (programs ?? []).map((p) => p.id)
-  const daysByProgram = new Map<string, ProgramDayPreview[]>()
-  if (ids.length > 0) {
-    const { data: dayRows, error: e2 } = await admin
-      .from('workout_program_days')
-      .select('program_id, day_of_week, workout_templates(name)')
-      .in('program_id', ids)
-    if (e2) throw new Error(e2.message)
-    for (const r of dayRows ?? []) {
-      const t = r.workout_templates as unknown as { name: string } | null
-      const list = daysByProgram.get(r.program_id) ?? []
-      list.push({ dayOfWeek: r.day_of_week, templateName: t?.name ?? null })
-      daysByProgram.set(r.program_id, list)
-    }
-  }
-
-  return (programs ?? []).map((p) => {
-    const c = p.clients as unknown as { full_name: string } | null
-    const programDays = daysByProgram.get(p.id) ?? []
-    return {
-      id: p.id,
-      name: p.name,
-      isActive: p.is_active,
-      clientId: p.client_id,
-      clientName: c?.full_name ?? 'Unknown client',
-      dayCount: programDays.length,
-      days: programDays,
-      createdAt: p.created_at,
-    }
-  })
+  return _getProgramsCached(workspaceId)
 }
 
 export async function getProgram(programId: string): Promise<ProgramWithDays | null> {
@@ -418,6 +437,7 @@ export async function upsertProgram(payload: {
     if (insErr) throw new Error(insErr.message)
   }
 
+  revalidateTag('programs', 'max')
   return { id: programId! }
 }
 
@@ -425,4 +445,5 @@ export async function deleteProgram(programId: string): Promise<void> {
   const admin = adminClient()
   const { error } = await admin.from('workout_programs').delete().eq('id', programId)
   if (error) throw new Error(error.message)
+  revalidateTag('programs', 'max')
 }

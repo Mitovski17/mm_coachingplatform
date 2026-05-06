@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import {
   searchFoods as searchFoodsLib,
   upsertFood as upsertFoodLib,
@@ -80,39 +81,47 @@ export type ClientAssignments = {
   rest: Assignment | null
 }
 
-export async function getMealPlanTemplates(workspaceId: string): Promise<MealPlanTemplate[]> {
-  const admin = adminClient()
-  const { data: templates, error } = await admin
-    .from('meal_plan_templates')
-    .select('id, workspace_id, name, plan_type, notes, recommendations, created_at')
-    .eq('workspace_id', workspaceId)
-    .order('plan_type', { ascending: true })
-    .order('created_at', { ascending: false })
-  if (error) throw new Error(error.message)
+const _getMealPlanTemplatesCached = unstable_cache(
+  async (workspaceId: string): Promise<MealPlanTemplate[]> => {
+    const admin = adminClient()
+    const { data: templates, error } = await admin
+      .from('meal_plan_templates')
+      .select('id, workspace_id, name, plan_type, notes, recommendations, created_at')
+      .eq('workspace_id', workspaceId)
+      .order('plan_type', { ascending: true })
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
 
-  const ids = (templates ?? []).map((t) => t.id)
-  const counts = new Map<string, number>()
-  if (ids.length > 0) {
-    const { data: rows, error: e2 } = await admin
-      .from('meal_plan_meals')
-      .select('template_id')
-      .in('template_id', ids)
-    if (e2) throw new Error(e2.message)
-    for (const r of rows ?? []) {
-      counts.set(r.template_id, (counts.get(r.template_id) ?? 0) + 1)
+    const ids = (templates ?? []).map((t) => t.id)
+    const counts = new Map<string, number>()
+    if (ids.length > 0) {
+      const { data: rows, error: e2 } = await admin
+        .from('meal_plan_meals')
+        .select('template_id')
+        .in('template_id', ids)
+      if (e2) throw new Error(e2.message)
+      for (const r of rows ?? []) {
+        counts.set(r.template_id, (counts.get(r.template_id) ?? 0) + 1)
+      }
     }
-  }
 
-  return (templates ?? []).map((t) => ({
-    id: t.id,
-    workspaceId: t.workspace_id,
-    name: t.name,
-    planType: t.plan_type as PlanType,
-    notes: t.notes,
-    recommendations: t.recommendations,
-    mealCount: counts.get(t.id) ?? 0,
-    createdAt: t.created_at,
-  }))
+    return (templates ?? []).map((t) => ({
+      id: t.id,
+      workspaceId: t.workspace_id,
+      name: t.name,
+      planType: t.plan_type as PlanType,
+      notes: t.notes,
+      recommendations: t.recommendations,
+      mealCount: counts.get(t.id) ?? 0,
+      createdAt: t.created_at,
+    }))
+  },
+  ['meal-plans-getTemplates'],
+  { tags: ['meal-plans'], revalidate: 60 }
+)
+
+export async function getMealPlanTemplates(workspaceId: string): Promise<MealPlanTemplate[]> {
+  return _getMealPlanTemplatesCached(workspaceId)
 }
 
 export async function getMealPlanTemplate(templateId: string): Promise<FullTemplate | null> {
@@ -310,6 +319,7 @@ export async function upsertMealPlanTemplate(payload: {
     }
   }
 
+  revalidateTag('meal-plans', 'max')
   return { id: templateId! }
 }
 
@@ -317,6 +327,7 @@ export async function deleteMealPlanTemplate(templateId: string): Promise<void> 
   const admin = adminClient()
   const { error } = await admin.from('meal_plan_templates').delete().eq('id', templateId)
   if (error) throw new Error(error.message)
+  revalidateTag('meal-plans', 'max')
 }
 
 export async function getMealPlanAssignments(workspaceId: string): Promise<Assignment[]> {
@@ -402,6 +413,7 @@ export async function upsertClientMealPlanAssignment(payload: {
       if (iErr) throw new Error(iErr.message)
     }
   }
+  revalidateTag('meal-plans', 'max')
 }
 
 export async function searchFoods(query: string): Promise<FoodSearchResult[]> {

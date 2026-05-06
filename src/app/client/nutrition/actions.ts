@@ -1,0 +1,312 @@
+'use server'
+
+import { cookies } from 'next/headers'
+import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+import { searchFoods as searchFoodsLib, type FoodSearchResult } from '@/lib/food-search'
+
+function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
+
+export type FoodItem = {
+  id: string
+  foodName: string
+  quantity: number
+  unit: string
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  sortOrder: number
+}
+
+export type Option = {
+  id: string
+  label: string
+  sortOrder: number
+  foods: FoodItem[]
+}
+
+export type Meal = {
+  id: string
+  name: string
+  sortOrder: number
+  options: Option[]
+}
+
+export type FullMealPlan = {
+  id: string
+  name: string
+  planType: 'training' | 'rest'
+  notes: string | null
+  recommendations: string | null
+  updatedAt: string
+  meals: Meal[]
+}
+
+export type DayLog = {
+  id: string
+  mealType: string
+  foodName: string
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  quantity: number
+  unit: string
+  mealOptionId: string | null
+  templateFoodId: string | null
+}
+
+export async function getCurrentClient(): Promise<{ id: string; workspaceId: string; email: string } | null> {
+  let email: string | null = null
+  if (process.env.NODE_ENV === 'development') {
+    const cookieStore = await cookies()
+    const raw = cookieStore.get('dev_mock_email')?.value
+    if (raw) email = decodeURIComponent(raw)
+  }
+  if (!email) {
+    try {
+      const supabase = await createServerClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      email = user?.email ?? null
+    } catch {
+      return null
+    }
+  }
+  if (!email) return null
+  return getClientInfo(email)
+}
+
+export async function getClientInfo(email: string): Promise<{ id: string; workspaceId: string; email: string } | null> {
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('clients')
+    .select('id, workspace_id, email')
+    .eq('email', email)
+    .maybeSingle()
+  if (error || !data) return null
+  return { id: data.id, workspaceId: data.workspace_id, email: data.email }
+}
+
+export async function getActiveMealPlan(
+  clientId: string,
+  planType: 'training' | 'rest'
+): Promise<FullMealPlan | null> {
+  const admin = adminClient()
+  const { data: assignment, error: aErr } = await admin
+    .from('meal_plan_assignments')
+    .select('template_id')
+    .eq('client_id', clientId)
+    .eq('plan_type', planType)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (aErr || !assignment) return null
+
+  const { data: template } = await admin
+    .from('meal_plan_templates')
+    .select('id, name, plan_type, notes, recommendations, created_at')
+    .eq('id', assignment.template_id)
+    .maybeSingle()
+  if (!template) return null
+
+  const { data: meals } = await admin
+    .from('meal_plan_meals')
+    .select('id, name, sort_order')
+    .eq('template_id', template.id)
+    .order('sort_order', { ascending: true })
+
+  const mealIds = (meals ?? []).map((m) => m.id)
+  const optionsByMeal = new Map<string, Option[]>()
+  const foodsByOption = new Map<string, FoodItem[]>()
+
+  if (mealIds.length > 0) {
+    const { data: options } = await admin
+      .from('meal_plan_meal_options')
+      .select('id, meal_id, label, sort_order')
+      .in('meal_id', mealIds)
+      .order('sort_order', { ascending: true })
+
+    const optIds = (options ?? []).map((o) => o.id)
+    if (optIds.length > 0) {
+      const { data: foods } = await admin
+        .from('meal_plan_foods')
+        .select('id, option_id, food_name, quantity, unit, calories, protein_g, carbs_g, fat_g, sort_order')
+        .in('option_id', optIds)
+        .order('sort_order', { ascending: true })
+      for (const f of foods ?? []) {
+        const list = foodsByOption.get(f.option_id) ?? []
+        list.push({
+          id: f.id,
+          foodName: f.food_name,
+          quantity: Number(f.quantity),
+          unit: f.unit,
+          calories: Number(f.calories),
+          proteinG: Number(f.protein_g),
+          carbsG: Number(f.carbs_g),
+          fatG: Number(f.fat_g),
+          sortOrder: f.sort_order,
+        })
+        foodsByOption.set(f.option_id, list)
+      }
+    }
+
+    for (const o of options ?? []) {
+      const list = optionsByMeal.get(o.meal_id) ?? []
+      list.push({
+        id: o.id,
+        label: o.label,
+        sortOrder: o.sort_order,
+        foods: foodsByOption.get(o.id) ?? [],
+      })
+      optionsByMeal.set(o.meal_id, list)
+    }
+  }
+
+  return {
+    id: template.id,
+    name: template.name,
+    planType: template.plan_type as 'training' | 'rest',
+    notes: template.notes,
+    recommendations: template.recommendations,
+    updatedAt: template.created_at,
+    meals: (meals ?? []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      sortOrder: m.sort_order,
+      options: optionsByMeal.get(m.id) ?? [],
+    })),
+  }
+}
+
+export async function getDayLogs(clientId: string, date: string): Promise<DayLog[]> {
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('nutrition_logs')
+    .select('id, meal_type, food_name, calories, protein_g, carbs_g, fat_g, quantity, unit, meal_option_id, template_food_id')
+    .eq('client_id', clientId)
+    .eq('logged_date', date)
+    .order('created_at', { ascending: true })
+  if (error || !data) return []
+  return data.map((r) => ({
+    id: r.id,
+    mealType: r.meal_type,
+    foodName: r.food_name,
+    calories: Number(r.calories),
+    proteinG: Number(r.protein_g),
+    carbsG: Number(r.carbs_g),
+    fatG: Number(r.fat_g),
+    quantity: Number(r.quantity),
+    unit: r.unit,
+    mealOptionId: r.meal_option_id,
+    templateFoodId: r.template_food_id,
+  }))
+}
+
+export async function logMealOption(payload: {
+  clientId: string
+  workspaceId: string
+  loggedDate: string
+  mealType: string
+  mealOptionId: string
+  foods: Array<{
+    templateFoodId: string
+    foodName: string
+    quantity: number
+    unit: string
+    calories: number
+    proteinG: number
+    carbsG: number
+    fatG: number
+  }>
+}): Promise<void> {
+  const admin = adminClient()
+  const { error: dErr } = await admin
+    .from('nutrition_logs')
+    .delete()
+    .eq('client_id', payload.clientId)
+    .eq('logged_date', payload.loggedDate)
+    .eq('meal_type', payload.mealType)
+  if (dErr) throw new Error(dErr.message)
+
+  if (payload.foods.length === 0) return
+  const rows = payload.foods.map((f) => ({
+    client_id: payload.clientId,
+    workspace_id: payload.workspaceId,
+    logged_date: payload.loggedDate,
+    meal_type: payload.mealType,
+    meal_option_id: payload.mealOptionId,
+    template_food_id: f.templateFoodId,
+    food_name: f.foodName,
+    quantity: f.quantity,
+    unit: f.unit,
+    calories: f.calories,
+    protein_g: f.proteinG,
+    carbs_g: f.carbsG,
+    fat_g: f.fatG,
+  }))
+  const { error: iErr } = await admin.from('nutrition_logs').insert(rows)
+  if (iErr) throw new Error(iErr.message)
+}
+
+export async function removeOptionLog(
+  clientId: string,
+  date: string,
+  mealType: string
+): Promise<void> {
+  const admin = adminClient()
+  const { error } = await admin
+    .from('nutrition_logs')
+    .delete()
+    .eq('client_id', clientId)
+    .eq('logged_date', date)
+    .eq('meal_type', mealType)
+  if (error) throw new Error(error.message)
+}
+
+export async function logCustomFood(payload: {
+  clientId: string
+  workspaceId: string
+  loggedDate: string
+  mealType: string
+  foodName: string
+  quantity: number
+  unit: string
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+}): Promise<void> {
+  const admin = adminClient()
+  const { error } = await admin.from('nutrition_logs').insert({
+    client_id: payload.clientId,
+    workspace_id: payload.workspaceId,
+    logged_date: payload.loggedDate,
+    meal_type: payload.mealType,
+    template_food_id: null,
+    food_name: payload.foodName,
+    quantity: payload.quantity,
+    unit: payload.unit,
+    calories: payload.calories,
+    protein_g: payload.proteinG,
+    carbs_g: payload.carbsG,
+    fat_g: payload.fatG,
+  })
+  if (error) throw new Error(error.message)
+}
+
+export async function searchFoodsForClient(query: string): Promise<FoodSearchResult[]> {
+  const client = adminClient()
+  return searchFoodsLib(query, client)
+}
+
+export async function deleteNutritionLog(logId: string): Promise<void> {
+  const admin = adminClient()
+  const { error } = await admin.from('nutrition_logs').delete().eq('id', logId)
+  if (error) throw new Error(error.message)
+}

@@ -535,14 +535,19 @@ function ExerciseCard({
       </p>
 
       <div className="flex flex-col gap-2">
-        {exercise.currentSets.map((s) => (
-          <SetRowItem
-            key={s.setNumber}
-            row={s}
-            onChange={(patch) => onUpdateSet(exercise.exerciseId, s.setNumber, patch)}
-            onToggleDone={() => onToggleDone(exercise.exerciseId, s.setNumber)}
-          />
-        ))}
+        {exercise.currentSets.map((s) => {
+          const idx = s.setNumber - 1
+          const prev = exercise.previousSets[idx] ?? (exercise.previousSets.length > 0 ? exercise.previousSets[exercise.previousSets.length - 1] : undefined)
+          return (
+            <SetRowItem
+              key={s.setNumber}
+              row={s}
+              previousWeight={prev?.weightKg ?? null}
+              onChange={(patch) => onUpdateSet(exercise.exerciseId, s.setNumber, patch)}
+              onToggleDone={() => onToggleDone(exercise.exerciseId, s.setNumber)}
+            />
+          )
+        })}
       </div>
 
       <button
@@ -587,13 +592,22 @@ function OverloadBadge({ indicator }: { indicator: ExerciseState['overloadIndica
 
 function SetRowItem({
   row,
+  previousWeight,
   onChange,
   onToggleDone,
 }: {
   row: SetRow
+  previousWeight: number | null
   onChange: (patch: Partial<SetRow>) => void
   onToggleDone: () => void
 }) {
+  const currentWeight = parseFloat(row.weightKg)
+  const isPR =
+    row.done &&
+    previousWeight !== null &&
+    !Number.isNaN(currentWeight) &&
+    currentWeight > previousWeight
+
   return (
     <div
       className="flex items-center gap-2"
@@ -660,6 +674,24 @@ function SetRowItem({
         }}
       />
       <div style={{ flex: 1 }} />
+      {/* PR badge placeholder — fixed width keeps checkmark from shifting */}
+      <div style={{ width: 28, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+        {isPR && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#22c55e',
+              backgroundColor: 'rgba(34, 197, 94, 0.15)',
+              borderRadius: '999px',
+              padding: '2px 6px',
+              letterSpacing: '0.05em',
+            }}
+          >
+            PR
+          </span>
+        )}
+      </div>
       <button
         type="button"
         onClick={onToggleDone}

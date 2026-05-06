@@ -8,6 +8,7 @@ import {
   getTodayTemplate,
   type TodayTemplate,
 } from './workouts/actions'
+import { getDayLogs, type DayLog } from './nutrition/actions'
 
 const checkInDone = false
 
@@ -24,7 +25,7 @@ const recentWorkouts = [
   { name: 'Push Day', date: 'Thu Apr 30', duration: '44 min', exercises: 6 },
 ]
 
-async function resolveTodayTemplate(): Promise<TodayTemplate | null> {
+async function resolveClientAndData(): Promise<{ today: TodayTemplate | null; logs: DayLog[] }> {
   let email: string | null = null
 
   if (process.env.NODE_ENV === 'development') {
@@ -39,19 +40,27 @@ async function resolveTodayTemplate(): Promise<TodayTemplate | null> {
       const { data: { user } } = await supabase.auth.getUser()
       email = user?.email ?? null
     } catch {
-      return null
+      return { today: null, logs: [] }
     }
   }
 
-  if (!email) return null
+  if (!email) return { today: null, logs: [] }
 
   const client = await getClientId(email)
-  if (!client) return null
-  return getTodayTemplate(client.id)
+  if (!client) return { today: null, logs: [] }
+  const isoToday = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  const [today, logs] = await Promise.all([
+    getTodayTemplate(client.id),
+    getDayLogs(client.id, isoToday),
+  ])
+  return { today, logs }
 }
 
 export default async function ClientHomePage() {
-  const today = await resolveTodayTemplate()
+  const { today, logs } = await resolveClientAndData()
 
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
@@ -87,6 +96,11 @@ export default async function ClientHomePage() {
       {/* Today's Workout widget */}
       <div style={{ padding: '0 16px 16px' }}>
         <TodayWorkoutWidget today={today} />
+      </div>
+
+      {/* Today's Nutrition widget */}
+      <div style={{ padding: '0 16px 16px' }}>
+        <TodayNutritionWidget logs={logs} />
       </div>
 
       {/* Weekly Check-in CTA */}
@@ -315,6 +329,77 @@ export default async function ClientHomePage() {
           </p>
         </div>
       </section>
+    </div>
+  )
+}
+
+function TodayNutritionWidget({ logs }: { logs: DayLog[] }) {
+  const totals = logs.reduce(
+    (acc, l) => ({
+      calories: acc.calories + l.calories,
+      proteinG: acc.proteinG + l.proteinG,
+      carbsG: acc.carbsG + l.carbsG,
+      fatG: acc.fatG + l.fatG,
+    }),
+    { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+  )
+
+  return (
+    <Link
+      href="/client/nutrition"
+      style={{
+        display: 'block',
+        backgroundColor: 'var(--color-surface-1)',
+        border: '1px solid var(--color-border)',
+        borderRadius: '14px',
+        padding: '14px 16px',
+        textDecoration: 'none',
+      }}
+    >
+      <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+        <p
+          style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--color-text-muted)',
+            margin: 0,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+          }}
+        >
+          Today&apos;s Nutrition
+        </p>
+        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+          {Math.round(totals.calories)} kcal
+        </span>
+      </div>
+      {logs.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: 0 }}>
+          No meals logged today
+        </p>
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          <MiniMacro label="Protein" value={Math.round(totals.proteinG)} color="#3b82f6" />
+          <MiniMacro label="Carbs" value={Math.round(totals.carbsG)} color="#f97316" />
+          <MiniMacro label="Fat" value={Math.round(totals.fatG)} color="#ef4444" />
+        </div>
+      )}
+    </Link>
+  )
+}
+
+function MiniMacro({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <p style={{ fontSize: 10, color: 'var(--color-text-hint)', fontWeight: 600, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </p>
+      <p style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 700, margin: '0 0 4px' }}>
+        {value}g
+      </p>
+      <div style={{ height: 3, backgroundColor: 'var(--color-surface-3)', borderRadius: 999 }}>
+        <div style={{ height: '100%', width: value > 0 ? '100%' : '0%', backgroundColor: color, borderRadius: 999 }} />
+      </div>
     </div>
   )
 }

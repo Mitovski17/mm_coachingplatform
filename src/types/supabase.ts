@@ -150,9 +150,11 @@ export type Database = {
           food_name: string
           id: string
           logged_date: string
+          meal_option_id: string | null
           meal_type: string
           protein_g: number | null
           quantity: number | null
+          template_food_id: string | null
           unit: string | null
           workspace_id: string
         }
@@ -165,9 +167,11 @@ export type Database = {
           food_name: string
           id?: string
           logged_date?: string
+          meal_option_id?: string | null
           meal_type: string
           protein_g?: number | null
           quantity?: number | null
+          template_food_id?: string | null
           unit?: string | null
           workspace_id: string
         }
@@ -180,9 +184,11 @@ export type Database = {
           food_name?: string
           id?: string
           logged_date?: string
+          meal_option_id?: string | null
           meal_type?: string
           protein_g?: number | null
           quantity?: number | null
+          template_food_id?: string | null
           unit?: string | null
           workspace_id?: string
         }
@@ -677,6 +683,259 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "workout_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      foods: {
+        Row: {
+          brand: string | null
+          calories_per_100g: number | null
+          carbs_per_100g: number | null
+          created_at: string
+          external_id: string | null
+          fat_per_100g: number | null
+          id: string
+          name: string
+          protein_per_100g: number | null
+          source: string
+        }
+        Insert: {
+          brand?: string | null
+          calories_per_100g?: number | null
+          carbs_per_100g?: number | null
+          created_at?: string
+          external_id?: string | null
+          fat_per_100g?: number | null
+          id?: string
+          name: string
+          protein_per_100g?: number | null
+          source?: string
+        }
+        Update: {
+          brand?: string | null
+          calories_per_100g?: number | null
+          carbs_per_100g?: number | null
+          created_at?: string
+          external_id?: string | null
+          fat_per_100g?: number | null
+          id?: string
+          name?: string
+          protein_per_100g?: number | null
+          source?: string
+        }
+        Relationships: []
+      }
+      meal_plan_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          plan_type: string
+          recommendations: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          plan_type?: string
+          recommendations?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          plan_type?: string
+          recommendations?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_plan_templates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meal_plan_meals: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_plan_meals_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "meal_plan_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meal_plan_meal_options: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          meal_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string
+          meal_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          meal_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_plan_meal_options_meal_id_fkey"
+            columns: ["meal_id"]
+            isOneToOne: false
+            referencedRelation: "meal_plan_meals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meal_plan_foods: {
+        Row: {
+          calories: number
+          carbs_g: number
+          created_at: string
+          fat_g: number
+          food_id: string | null
+          food_name: string
+          id: string
+          option_id: string
+          protein_g: number
+          quantity: number
+          sort_order: number
+          unit: string
+        }
+        Insert: {
+          calories?: number
+          carbs_g?: number
+          created_at?: string
+          fat_g?: number
+          food_id?: string | null
+          food_name: string
+          id?: string
+          option_id: string
+          protein_g?: number
+          quantity?: number
+          sort_order?: number
+          unit?: string
+        }
+        Update: {
+          calories?: number
+          carbs_g?: number
+          created_at?: string
+          fat_g?: number
+          food_id?: string | null
+          food_name?: string
+          id?: string
+          option_id?: string
+          protein_g?: number
+          quantity?: number
+          sort_order?: number
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_plan_foods_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "meal_plan_meal_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meal_plan_foods_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "foods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meal_plan_assignments: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          plan_type: string
+          template_id: string
+          workspace_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          plan_type: string
+          template_id: string
+          workspace_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          plan_type?: string
+          template_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_plan_assignments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meal_plan_assignments_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "meal_plan_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meal_plan_assignments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]

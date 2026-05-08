@@ -10,6 +10,8 @@ import {
 } from './workouts/actions'
 import { getDayLogs, type DayLog } from './nutrition/actions'
 import { getHomeStats, type HomeStats } from './home-actions'
+import { getNextSundayMidnight } from '@/lib/checkin-window'
+import CheckinWidget from './CheckinWidget'
 
 function getGreeting(): string {
   const hour = new Date().getUTCHours()
@@ -52,8 +54,6 @@ function daysAgo(dateStr: string): string {
   if (days === 1) return '1 day ago'
   return `${days} days ago`
 }
-
-const checkInDone = false
 
 async function resolveClientAndData(): Promise<{
   today: TodayTemplate | null
@@ -167,92 +167,10 @@ export default async function ClientHomePage() {
 
       {/* Weekly Check-in CTA */}
       <div style={{ padding: '0 16px 16px' }}>
-        <div
-          style={{
-            backgroundColor: 'var(--color-surface-1)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '16px',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              height: '4px',
-              background: checkInDone
-                ? '#22c55e'
-                : 'linear-gradient(to right, #ef4444, #f59e0b, #22c55e)',
-            }}
-          />
-          <div style={{ padding: '16px 18px 18px' }}>
-            <div className="flex items-center gap-2" style={{ marginBottom: '6px' }}>
-              <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                Weekly Check-in
-              </span>
-              {!checkInDone ? (
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: '#f59e0b',
-                    backgroundColor: 'rgba(245,158,11,0.12)',
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                  }}
-                >
-                  Due today
-                </span>
-              ) : (
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: '#22c55e',
-                    backgroundColor: 'rgba(34,197,94,0.12)',
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                  }}
-                >
-                  Submitted ✓
-                </span>
-              )}
-            </div>
-            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '0 0 14px' }}>
-              Tell your coach how the week went.
-            </p>
-            {!checkInDone ? (
-              <Link
-                href="/check-in"
-                style={{
-                  display: 'block',
-                  textAlign: 'center',
-                  backgroundColor: 'var(--color-accent)',
-                  color: '#ffffff',
-                  borderRadius: '10px',
-                  padding: '11px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  textDecoration: 'none',
-                }}
-              >
-                Start Check-in →
-              </Link>
-            ) : (
-              <div
-                style={{
-                  textAlign: 'center',
-                  color: '#22c55e',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  padding: '11px',
-                  backgroundColor: 'rgba(34,197,94,0.06)',
-                  borderRadius: '10px',
-                }}
-              >
-                Great work — check-in complete 🎉
-              </div>
-            )}
-          </div>
-        </div>
+        <CheckinWidget
+          submitted={stats?.checkinSubmittedThisWeek ?? false}
+          nextSundayMs={getNextSundayMidnight().getTime()}
+        />
       </div>
 
       {/* This Week at a Glance */}

@@ -2,7 +2,6 @@
 
 import { Camera } from 'lucide-react'
 
-// Weight data points: ~28 days, slight downward trend
 const weightData = [
   { day: 1, w: 85.4 },
   { day: 4, w: 85.1 },
@@ -40,7 +39,6 @@ const areaPoints = [
 
 const yLabels = [86, 85.5, 85, 84.5, 84]
 
-// Sparkline for check-in trends
 interface SparklineProps {
   values: number[]
   color: string
@@ -85,7 +83,6 @@ const photoSlots = [
 export default function ProgressPage() {
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
-      {/* Header */}
       <div
         className="flex items-center justify-between"
         style={{ padding: '52px 20px 20px' }}
@@ -106,13 +103,15 @@ export default function ProgressPage() {
           defaultValue="4w"
           aria-label="Time range"
         >
-          <option value="4w">Last 4 weeks</option>
-          <option value="8w">Last 8 weeks</option>
+          <option value="7d">Last 7 days</option>
+          <option value="2w">Last 2 weeks</option>
+          <option value="3w">Last 3 weeks</option>
+          <option value="4w">Last 1 month</option>
+          <option value="2m">Last 2 months</option>
           <option value="3m">Last 3 months</option>
         </select>
       </div>
 
-      {/* Body Weight chart */}
       <div style={{ padding: '0 16px 16px' }}>
         <div
           style={{
@@ -132,7 +131,7 @@ export default function ProgressPage() {
               </p>
             </div>
             <span style={{ fontSize: '12px', color: '#22c55e', fontWeight: 600, marginTop: '4px' }}>
-              ↓ 0.8 kg this month
+              down 0.8 kg this month
             </span>
           </div>
 
@@ -146,59 +145,21 @@ export default function ProgressPage() {
                 <stop offset="100%" stopColor="rgba(255,255,255,0)" />
               </linearGradient>
             </defs>
-
-            {/* Y axis labels */}
             {yLabels.map((v) => (
-              <text
-                key={v}
-                x={PAD.left - 6}
-                y={scaleY(v) + 4}
-                textAnchor="end"
-                fill="var(--color-text-hint)"
-                fontSize={9}
-              >
+              <text key={v} x={PAD.left - 6} y={scaleY(v) + 4} textAnchor="end" fill="var(--color-text-hint)" fontSize={9}>
                 {v}
               </text>
             ))}
-
-            {/* Horizontal grid */}
             {yLabels.map((v) => (
-              <line
-                key={v}
-                x1={PAD.left}
-                y1={scaleY(v)}
-                x2={PAD.left + innerW}
-                y2={scaleY(v)}
-                stroke="var(--color-border)"
-                strokeWidth={0.5}
-              />
+              <line key={v} x1={PAD.left} y1={scaleY(v)} x2={PAD.left + innerW} y2={scaleY(v)} stroke="var(--color-border)" strokeWidth={0.5} />
             ))}
-
-            {/* Area fill */}
             <polygon points={areaPoints} fill="url(#wGrad)" />
-
-            {/* Line */}
-            <polyline
-              points={points}
-              fill="none"
-              stroke="#ffffff"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-
-            {/* Last point dot */}
-            <circle
-              cx={scaleX(weightData[weightData.length - 1].day)}
-              cy={scaleY(weightData[weightData.length - 1].w)}
-              r={3.5}
-              fill="#ffffff"
-            />
+            <polyline points={points} fill="none" stroke="#ffffff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx={scaleX(weightData[weightData.length - 1].day)} cy={scaleY(weightData[weightData.length - 1].w)} r={3.5} fill="#ffffff" />
           </svg>
         </div>
       </div>
 
-      {/* Check-in Trends */}
       <section style={{ padding: '0 16px 16px' }}>
         <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Check-in Trends
@@ -228,7 +189,6 @@ export default function ProgressPage() {
         </div>
       </section>
 
-      {/* Progress Photos */}
       <section style={{ padding: '0 16px 16px' }}>
         <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Progress Photos

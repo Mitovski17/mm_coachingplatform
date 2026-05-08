@@ -20,24 +20,23 @@ export type CheckinCard = {
 }
 
 function weekBounds(): { currentWeek: string; prevWeek: string } {
+  // Check-in windows open on Sundays - match that boundary here.
   const now = new Date()
-  const day = now.getUTCDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const monday = new Date(now)
-  monday.setUTCDate(now.getUTCDate() + diff)
-  monday.setUTCHours(0, 0, 0, 0)
-  const prevMonday = new Date(monday)
-  prevMonday.setUTCDate(monday.getUTCDate() - 7)
+  const day = now.getUTCDay() // 0=Sun...6=Sat
+  const sunday = new Date(now)
+  sunday.setUTCDate(now.getUTCDate() - day)
+  sunday.setUTCHours(0, 0, 0, 0)
+  const prevSunday = new Date(sunday)
+  prevSunday.setUTCDate(sunday.getUTCDate() - 7)
   return {
-    currentWeek: monday.toISOString().split('T')[0],
-    prevWeek: prevMonday.toISOString().split('T')[0],
+    currentWeek: sunday.toISOString().split('T')[0],
+    prevWeek: prevSunday.toISOString().split('T')[0],
   }
 }
 
 async function fetchData(): Promise<CheckinCard[]> {
   const { currentWeek, prevWeek } = weekBounds()
 
-  // ── Dev mock path ────────────────────────────────────────────────────────────
   if (process.env.NODE_ENV === 'development') {
     const cookieStore = await cookies()
     const rawMockEmail = cookieStore.get('dev_mock_email')?.value
@@ -61,7 +60,6 @@ async function fetchData(): Promise<CheckinCard[]> {
     }
   }
 
-  // ── Production SSR path ───────────────────────────────────────────────────────
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -102,7 +100,6 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
   const prevMap = new Map(prevCheckins.map((ci) => [ci.client_id, ci.answers]))
 
   const cards: CheckinCard[] = []
-  // One card per client, using the most recent check-in this week
   const seen = new Set<string>()
   for (const ci of currentCheckins) {
     if (seen.has(ci.client_id)) continue

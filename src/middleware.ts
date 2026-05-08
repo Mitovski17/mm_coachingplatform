@@ -78,7 +78,15 @@ export async function middleware(request: NextRequest) {
 
   if (isLoginPage && user) {
     const dashboardUrl = request.nextUrl.clone()
-    dashboardUrl.pathname = '/coach/dashboard'
+
+    // Check if this user is a coach (has a profiles row) or a client
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    dashboardUrl.pathname = profile ? '/coach/dashboard' : '/client'
     return NextResponse.redirect(dashboardUrl)
   }
 

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { getSundayStart } from '@/lib/checkin-window'
 
 function adminClient() {
   return createClient(
@@ -8,16 +9,6 @@ function adminClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
-}
-
-function getWeekStartISO(): string {
-  const now = new Date()
-  const dayOfWeek = now.getUTCDay()
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-  const d = new Date(now)
-  d.setUTCDate(d.getUTCDate() - daysSinceMonday)
-  d.setUTCHours(0, 0, 0, 0)
-  return d.toISOString().split('T')[0]
 }
 
 export type RecentWorkout = {
@@ -39,11 +30,12 @@ export type HomeStats = {
   recentWorkouts: RecentWorkout[]
   coachNote: string | null
   coachNoteDate: string | null
+  checkinSubmittedThisWeek: boolean
 }
 
 export async function getHomeStats(email: string, clientId: string): Promise<HomeStats> {
   const admin = adminClient()
-  const weekStart = getWeekStartISO()
+  const weekStart = getSundayStart()
 
   const now = new Date()
   const sevenDaysAgo = new Date(now)
@@ -58,6 +50,7 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
     checkinResult,
     recentWorkoutsResult,
     coachNoteResult,
+    checkinThisWeekResult,
   ] = await Promise.all([
     admin.from('clients').select('name').eq('email', email).maybeSingle(),
     admin
@@ -99,12 +92,16 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
       .order('submitted_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    admin
+      .from('checkins')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', clientId)
+      .eq('week_start_date', weekStart),
   ])
 
   const clientName = (clientRow.data as { name: string } | null)?.name ?? null
   const workoutsLogged = workoutsLoggedResult.count ?? 0
 
-  // Workout target requires the program id from the parallel batch
   let workoutsTarget = 0
   if (activeProgramResult.data?.id) {
     const { count } = await admin
@@ -115,7 +112,6 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
     workoutsTarget = count ?? 0
   }
 
-  // Calories: group by day, average across days, trend = last 3 days vs prior 3 days
   let caloriesAvg: number | null = null
   let caloriesTrend: 'up' | 'down' | null = null
   const nutritionData = nutritionResult.data ?? []
@@ -139,7 +135,6 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
     }
   }
 
-  // Check-in data: sleep quality + body weight from latest, weight trend vs previous
   let sleepQuality: number | null = null
   let bodyWeight: number | null = null
   let bodyWeightTrend: 'up' | 'down' | null = null
@@ -167,6 +162,7 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
 
   const coachNote = coachNoteResult.data?.notes ?? null
   const coachNoteDate = coachNoteResult.data?.submitted_at ?? null
+  const checkinSubmittedThisWeek = (checkinThisWeekResult.count ?? 0) > 0
 
   return {
     clientName,
@@ -180,5 +176,6 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
     recentWorkouts,
     coachNote,
     coachNoteDate,
+    checkinSubmittedThisWeek,
   }
 }

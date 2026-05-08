@@ -5,13 +5,13 @@ import type { Database } from '@/types/supabase'
 import SidebarShell from './SidebarShell'
 
 function currentWeekDate(): string {
+  // Check-in windows open on Sundays - match that boundary here.
   const now = new Date()
-  const day = now.getUTCDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const monday = new Date(now)
-  monday.setUTCDate(now.getUTCDate() + diff)
-  monday.setUTCHours(0, 0, 0, 0)
-  return monday.toISOString().split('T')[0]
+  const day = now.getUTCDay() // 0=Sun...6=Sat
+  const sunday = new Date(now)
+  sunday.setUTCDate(now.getUTCDate() - day)
+  sunday.setUTCHours(0, 0, 0, 0)
+  return sunday.toISOString().split('T')[0]
 }
 
 async function fetchPendingCount(): Promise<number> {

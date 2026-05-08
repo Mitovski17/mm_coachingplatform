@@ -27,7 +27,7 @@ export interface CheckinTemplate {
 }
 
 const DEFAULT_QUESTIONS: Question[] = [
-  { id: 'current_weight',      label: 'What is your weight today?',                            type: 'number',  optional: true },
+  { id: 'current_weight',      label: 'What is your weight today?',                            type: 'number' },
   { id: 'performance_rating',  label: 'How did this week go overall?',                          type: 'scale_1_10' },
   {
     id: 'nutrition_adherence',

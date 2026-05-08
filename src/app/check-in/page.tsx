@@ -2,21 +2,11 @@
 
 import { useState, useEffect, useRef, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { ensureDefaultTemplate, getClientByEmail, uploadProgressPhoto, submitCheckin } from './actions'
 import type { Question, ChoiceOption } from './actions'
-
-// ─── Week helpers ─────────────────────────────────────────────────────────────
-
-function getWeekStart(): string {
-  const now = new Date()
-  const day = now.getUTCDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const monday = new Date(now)
-  monday.setUTCDate(now.getUTCDate() + diff)
-  monday.setUTCHours(0, 0, 0, 0)
-  return monday.toISOString().split('T')[0]
-}
+import { getSundayStart, getNextSundayMidnight, formatCountdown } from '@/lib/checkin-window'
 
 // ─── Color helpers for the gradient scale ─────────────────────────────────────
 
@@ -491,45 +481,80 @@ function LoadingScreen() {
   )
 }
 
-function AlreadySubmittedScreen() {
-  return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-6" style={{ backgroundColor: 'var(--color-base)' }}>
-      <div className="w-full max-w-sm text-center">
-        <Wordmark />
-        <div className="mb-4 flex h-14 w-14 mx-auto items-center justify-center rounded-full" style={{ backgroundColor: 'var(--color-surface-2)' }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-accent)' }}>
-            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-            <path d="m9 12 2 2 4-4" />
-          </svg>
-        </div>
-        <h2 className="text-2xl font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-          Already submitted
-        </h2>
-        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          You&apos;ve already completed your check-in for this week. Come back next Monday!
-        </p>
-      </div>
-    </div>
-  )
-}
+function CheckinDoneScreen({ justSubmitted }: { justSubmitted: boolean }) {
+  const [msLeft, setMsLeft] = useState<number>(() => getNextSundayMidnight().getTime() - Date.now())
 
-function SuccessScreen() {
+  useEffect(() => {
+    const tick = () => setMsLeft(getNextSundayMidnight().getTime() - Date.now())
+    const id = setInterval(tick, 60_000)
+    return () => clearInterval(id)
+  }, [])
+
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-6" style={{ backgroundColor: 'var(--color-base)' }}>
       <div className="w-full max-w-sm text-center">
         <Wordmark />
-        <div className="mb-4 flex h-14 w-14 mx-auto items-center justify-center rounded-full" style={{ backgroundColor: 'var(--color-accent-dim)' }}>
+
+        <div
+          className="mb-6 flex h-14 w-14 mx-auto items-center justify-center rounded-full"
+          style={{ backgroundColor: 'var(--color-accent-dim)' }}
+        >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-accent)' }}>
             <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
             <path d="m9 12 2 2 4-4" />
           </svg>
         </div>
+
         <h2 className="text-2xl font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-          Check-in submitted
+          {justSubmitted ? "You're checked in." : 'Already checked in.'}
         </h2>
-        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          Your coach has been notified. See you next week!
+        <p className="text-sm mb-8" style={{ color: 'var(--color-text-muted)' }}>
+          {justSubmitted
+            ? "Your coach will review this shortly. Now let's get back to work."
+            : "Your coach already has your update for this week."}
         </p>
+
+        <div
+          style={{
+            backgroundColor: 'var(--color-surface-2)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '20px',
+          }}
+        >
+          <p className="text-xs mb-1" style={{ color: 'var(--color-text-hint)' }}>
+            Next check-in window opens in
+          </p>
+          <p
+            style={{
+              fontSize: '32px',
+              fontWeight: 700,
+              color: 'var(--color-text-primary)',
+              fontVariantNumeric: 'tabular-nums',
+              lineHeight: 1.1,
+            }}
+          >
+            {formatCountdown(msLeft)}
+          </p>
+        </div>
+
+        <Link
+          href="/client"
+          style={{
+            display: 'block',
+            marginTop: '16px',
+            textAlign: 'center',
+            backgroundColor: 'var(--color-text-primary)',
+            color: 'var(--color-base)',
+            borderRadius: 'var(--radius-md)',
+            padding: '14px',
+            fontSize: '14px',
+            fontWeight: 600,
+            textDecoration: 'none',
+          }}
+        >
+          Back to home
+        </Link>
       </div>
     </div>
   )
@@ -578,7 +603,7 @@ export default function CheckInPage() {
       setWorkspaceId(client.workspace_id)
 
       const supabase = createClient()
-      const weekStart = getWeekStart()
+      const weekStart = getSundayStart()
       const { data: existing } = await supabase
         .from('checkins')
         .select('id')
@@ -665,7 +690,7 @@ export default function CheckInPage() {
         client_id:       clientId,
         template_id:     templateId,
         answers:         finalAnswers,
-        week_start_date: getWeekStart(),
+        week_start_date: getSundayStart(),
       })
     } catch {
       setError('Submission failed. Please try again.')
@@ -678,8 +703,8 @@ export default function CheckInPage() {
 
   // ── Screen routing
   if (pageStatus === 'loading')           return <LoadingScreen />
-  if (pageStatus === 'already_submitted') return <AlreadySubmittedScreen />
-  if (pageStatus === 'success')           return <SuccessScreen />
+  if (pageStatus === 'already_submitted') return <CheckinDoneScreen justSubmitted={false} />
+  if (pageStatus === 'success')           return <CheckinDoneScreen justSubmitted={true} />
   if (!currentQ)                          return <LoadingScreen />
 
   const isAutoAdvance = currentQ.type === 'scale_1_10' || currentQ.type === 'options' || currentQ.type === 'choice'
@@ -810,6 +835,25 @@ export default function CheckInPage() {
                     disabled={
                       isSubmitting ||
                       (!currentQ.optional && (currentQ.type === 'text' || currentQ.type === 'number') && !hasAnswer) ||
+                      (!currentQ.optional && currentQ.type === 'photo' && photoFiles.length === 0)
+                    }
+                    flex={step > 0}
+                  />
+                </div>
+              )}
+
+              {/* Skip link for optional number / text / photo */}
+              {!isAutoAdvance && currentQ.optional && (
+                <SkipLink onClick={skip} />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+'number') && !hasAnswer) ||
                       (!currentQ.optional && currentQ.type === 'photo' && photoFiles.length === 0)
                     }
                     flex={step > 0}

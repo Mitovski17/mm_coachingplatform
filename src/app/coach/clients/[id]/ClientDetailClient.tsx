@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import type {
+  AiDigest,
   Checkin,
   ClientAssignments,
   ClientProfile,
@@ -18,8 +19,9 @@ import WorkoutsTab from './tabs/WorkoutsTab'
 import NutritionTab from './tabs/NutritionTab'
 import CheckInsTab from './tabs/CheckInsTab'
 import ProgressTab from './tabs/ProgressTab'
+import DigestTab from './tabs/DigestTab'
 
-export type TabId = 'overview' | 'workouts' | 'nutrition' | 'checkins' | 'progress'
+export type TabId = 'overview' | 'workouts' | 'nutrition' | 'checkins' | 'progress' | 'digest'
 
 const AVATAR_COLORS = [
   '#3b82f6', // blue
@@ -51,6 +53,7 @@ const TABS: { id: TabId; label: string; dotColor: string }[] = [
   { id: 'nutrition', label: 'Nutrition', dotColor: '#f97316' },
   { id: 'checkins',  label: 'Check-ins', dotColor: '#a855f7' },
   { id: 'progress',  label: 'Progress',  dotColor: '#22c55e' },
+  { id: 'digest',    label: 'Digest',    dotColor: '#14b8a6' },
 ]
 
 type Props = {
@@ -63,6 +66,7 @@ type Props = {
   assignments: ClientAssignments
   photos: ProgressPhoto[]
   redFlags: RedFlag[]
+  initialDigest: AiDigest | null
 }
 
 export default function ClientDetailClient(props: Props) {
@@ -195,6 +199,12 @@ export default function ClientDetailClient(props: Props) {
       )}
       {activeTab === 'progress' && (
         <ProgressTab checkins={props.checkins} photos={props.photos} />
+      )}
+      {activeTab === 'digest' && (
+        <DigestTab
+          clientId={props.profile.id}
+          initialDigest={props.initialDigest}
+        />
       )}
     </div>
   )

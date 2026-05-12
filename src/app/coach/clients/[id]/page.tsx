@@ -5,6 +5,7 @@ import {
   getCheckinHistory,
   getClientAssignments,
   getClientProfile,
+  getLatestDigest,
   getNutritionHistory,
   getNutritionSummary,
   getProgressPhotos,
@@ -29,6 +30,7 @@ export default async function ClientDetailPage({
     nutritionHistory,
     checkins,
     assignments,
+    initialDigest,
   ] = await Promise.all([
     getClientProfile(clientId),
     getWorkoutCompliance(clientId),
@@ -37,6 +39,7 @@ export default async function ClientDetailPage({
     getNutritionHistory(clientId),
     getCheckinHistory(clientId),
     getClientAssignments(clientId),
+    getLatestDigest(clientId),
   ])
 
   const photos = await getProgressPhotos(clientId)
@@ -72,6 +75,7 @@ export default async function ClientDetailPage({
         assignments={assignments}
         photos={photos}
         redFlags={redFlags}
+        initialDigest={initialDigest}
       />
     </div>
   )

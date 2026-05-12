@@ -111,6 +111,18 @@ export type RedFlag = {
   message: string
 }
 
+export type AiDigest = {
+  id: string
+  weekStartDate: string
+  summary: string
+  wins: string[]
+  concerns: string[]
+  actions: string[]
+  suggestedResponse: string
+  ragStatus: 'red' | 'yellow' | 'green'
+  createdAt: string
+}
+
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
 function currentMondayISO(): string {
@@ -473,6 +485,33 @@ export async function getProgressPhotos(
       new Date(a.weekStartDate).getTime() - new Date(b.weekStartDate).getTime()
   )
   return photos
+}
+
+export async function getLatestDigest(clientId: string): Promise<AiDigest | null> {
+  const admin = adminClient()
+  const { data } = await admin
+    .from('ai_digests')
+    .select(
+      'id, week_start_date, summary, wins, concerns, actions, suggested_response, rag_status, created_at'
+    )
+    .eq('client_id', clientId)
+    .order('week_start_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!data) return null
+
+  return {
+    id: data.id,
+    weekStartDate: data.week_start_date,
+    summary: data.summary,
+    wins: (data.wins as string[]) ?? [],
+    concerns: (data.concerns as string[]) ?? [],
+    actions: (data.actions as string[]) ?? [],
+    suggestedResponse: data.suggested_response,
+    ragStatus: data.rag_status as 'red' | 'yellow' | 'green',
+    createdAt: data.created_at,
+  }
 }
 
 export async function getClientAssignments(

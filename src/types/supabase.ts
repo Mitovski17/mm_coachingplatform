@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_digests: {
+        Row: {
+          id: string
+          client_id: string
+          workspace_id: string
+          week_start_date: string
+          summary: string
+          wins: Json
+          concerns: Json
+          actions: Json
+          suggested_response: string
+          rag_status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          workspace_id: string
+          week_start_date: string
+          summary: string
+          wins?: Json
+          concerns?: Json
+          actions?: Json
+          suggested_response: string
+          rag_status: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          workspace_id?: string
+          week_start_date?: string
+          summary?: string
+          wins?: Json
+          concerns?: Json
+          actions?: Json
+          suggested_response?: string
+          rag_status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_digests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_digests_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercises: {
         Row: {
           created_at: string

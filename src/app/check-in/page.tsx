@@ -853,22 +853,3 @@ export default function CheckInPage() {
     </div>
   )
 }
-'number') && !hasAnswer) ||
-                      (!currentQ.optional && currentQ.type === 'photo' && photoFiles.length === 0)
-                    }
-                    flex={step > 0}
-                  />
-                </div>
-              )}
-
-              {/* Skip link for optional number / text / photo */}
-              {!isAutoAdvance && currentQ.optional && (
-                <SkipLink onClick={skip} />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}

@@ -63,7 +63,7 @@ export default function LoginPage() {
       setServerError(error.message)
       return
     }
-    router.push('/coach/dashboard')
+    router.push('/')
   }
 
   return (

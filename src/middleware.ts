@@ -35,6 +35,19 @@ function handleMockAuth(request: NextRequest): NextResponse | null {
   return response
 }
 
+// Copy all cookies from a supabaseResponse onto any redirect response so that
+// refreshed session tokens are never lost when we redirect.
+function copySupabaseCookies(from: NextResponse, to: NextResponse): void {
+  from.cookies.getAll().forEach((cookie) => {
+    to.cookies.set(cookie.name, cookie.value, {
+      sameSite: 'lax',
+      path: '/',
+      httpOnly: cookie.name.startsWith('sb-'),
+      secure: process.env.NODE_ENV === 'production',
+    })
+  })
+}
+
 export async function middleware(request: NextRequest) {
   const mockResponse = handleMockAuth(request)
   if (mockResponse) return mockResponse
@@ -67,27 +80,60 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const isProtected = pathname.startsWith('/coach') || pathname.startsWith('/client') || pathname.startsWith('/onboarding') || pathname.startsWith('/check-in')
+  const isProtected =
+    pathname.startsWith('/coach') ||
+    pathname.startsWith('/client') ||
+    pathname.startsWith('/onboarding') ||
+    pathname.startsWith('/check-in')
   const isLoginPage = pathname === '/login'
+  const isRoot = pathname === '/'
 
+  // Unauthenticated users trying to access protected routes → login
   if (isProtected && !user) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
-    return NextResponse.redirect(loginUrl)
+    const redirectRes = NextResponse.redirect(loginUrl)
+    copySupabaseCookies(supabaseResponse, redirectRes)
+    return redirectRes
   }
 
+  // Authenticated users on the login page → route by role
   if (isLoginPage && user) {
-    const dashboardUrl = request.nextUrl.clone()
-
-    // Check if this user is a coach (has a profiles row) or a client
     const { data: profile } = await supabase
       .from('profiles')
       .select('id')
       .eq('id', user.id)
       .single()
 
+    const dashboardUrl = request.nextUrl.clone()
     dashboardUrl.pathname = profile ? '/coach/dashboard' : '/client'
-    return NextResponse.redirect(dashboardUrl)
+    const redirectRes = NextResponse.redirect(dashboardUrl)
+    copySupabaseCookies(supabaseResponse, redirectRes)
+    return redirectRes
+  }
+
+  // Authenticated users on the root → route by role immediately (no extra round-trip)
+  if (isRoot && user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    const destUrl = request.nextUrl.clone()
+    destUrl.pathname = profile ? '/coach/dashboard' : '/client'
+    const redirectRes = NextResponse.redirect(destUrl)
+    copySupabaseCookies(supabaseResponse, redirectRes)
+    return redirectRes
+  }
+
+  // Unauthenticated users on the root → login
+  if (isRoot && !user) {
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/login'
+    const redirectRes = NextResponse.redirect(loginUrl)
+    copySupabaseCookies(supabaseResponse, redirectRes)
+    return redirectRes
   }
 
   return supabaseResponse
@@ -95,6 +141,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

@@ -1,9 +1,12 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
 
+// Fallback root page — the middleware handles routing for authenticated users
+// hitting "/" in production. This page is only reached in unusual edge cases
+// (e.g. middleware couldn't resolve the role) or during local dev with mock auth.
 export default async function RootPage() {
   // Dev mock: check dev_mock_email cookie and resolve role via service role key
   if (process.env.NODE_ENV === 'development') {
@@ -30,37 +33,27 @@ export default async function RootPage() {
         .single()
       if (profile) redirect('/coach/dashboard')
 
-      const { data: client } = await svc
-        .from('clients')
-        .select('id')
-        .eq('email', mockEmail)
-        .single()
-      if (client) redirect('/check-in')
-
-      redirect('/login')
+      redirect('/client')
     }
   }
 
-  // Production (and dev without mock cookie): use real auth session
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  // Production fallback: use real auth session
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', user.id)
-    .single()
-  if (profile) redirect('/coach/dashboard')
+    if (!user) redirect('/login')
 
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('email', user.email!)
-    .single()
-  if (client) redirect('/check-in')
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single()
 
-  redirect('/login')
+    redirect(profile ? '/coach/dashboard' : '/client')
+  } catch {
+    redirect('/login')
+  }
 }

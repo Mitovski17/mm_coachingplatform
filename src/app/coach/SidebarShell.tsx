@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, ListChecks, LayoutList, Settings, ChevronLeft, ChevronRight, UtensilsCrossed } from 'lucide-react'
+import { Users, ListChecks, LayoutList, Settings, ChevronLeft, ChevronRight, UtensilsCrossed, MessageSquare } from 'lucide-react'
 
 const NAV = [
   { label: 'Clients', href: '/coach/dashboard', Icon: Users },
   { label: 'Check-ins', href: '/coach/check-ins', Icon: ListChecks },
   { label: 'Programs', href: '/coach/programs', Icon: LayoutList },
   { label: 'Meal Plans', href: '/coach/meal-plans', Icon: UtensilsCrossed },
+  { label: 'Assistant', href: '/coach/assistant', Icon: MessageSquare },
   { label: 'Settings', href: '/coach/settings', Icon: Settings },
 ] as const
 

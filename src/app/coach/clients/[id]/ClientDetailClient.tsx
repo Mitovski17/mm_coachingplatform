@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import type {
   AiDigest,
+  BodyMetric,
   Checkin,
   ClientAssignments,
   ClientProfile,
@@ -67,6 +68,7 @@ type Props = {
   photos: ProgressPhoto[]
   redFlags: RedFlag[]
   initialDigest: AiDigest | null
+  bodyMetrics: BodyMetric[]
 }
 
 export default function ClientDetailClient(props: Props) {
@@ -198,7 +200,13 @@ export default function ClientDetailClient(props: Props) {
         <CheckInsTab checkins={props.checkins} photos={props.photos} />
       )}
       {activeTab === 'progress' && (
-        <ProgressTab checkins={props.checkins} photos={props.photos} />
+        <ProgressTab
+          checkins={props.checkins}
+          photos={props.photos}
+          bodyMetrics={props.bodyMetrics}
+          clientId={props.profile.id}
+          workspaceId={props.profile.workspaceId}
+        />
       )}
       {activeTab === 'digest' && (
         <DigestTab

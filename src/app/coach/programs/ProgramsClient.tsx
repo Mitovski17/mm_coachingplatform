@@ -38,16 +38,25 @@ export default function ProgramsClient({
   return (
     <div className="px-6 py-8 max-w-5xl">
       {/* Page header */}
-      <div className="mb-6">
-        <h1
-          className="text-2xl"
-          style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1
+            className="text-2xl"
+            style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
+          >
+            Programs
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            Build reusable workout templates and assign weekly programs to clients
+          </p>
+        </div>
+        <Link
+          href="/coach/programs/exercises"
+          className="text-sm"
+          style={{ color: 'var(--color-text-muted)', textDecoration: 'none', marginTop: 4 }}
         >
-          Programs
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          Build reusable workout templates and assign weekly programs to clients
-        </p>
+          Exercise Library →
+        </Link>
       </div>
 
       {/* Tabs */}

@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronUp, ChevronDown, Trash2, Plus, Search, Loader2 } from 'lucide-react'
+import { ArrowLeft, ChevronUp, ChevronDown, Trash2, Plus, Search, Loader2, Sparkles } from 'lucide-react'
 import {
   upsertMealPlanTemplate,
   searchFoods,
@@ -76,6 +76,87 @@ type SearchState = {
 
 const newId = () => Math.random().toString(36).slice(2, 11)
 
+// ── AI plan types & converter ─────────────────────────────────────────────────
+
+type AiFood = {
+  food_name: string
+  quantity: number
+  unit: string
+  calories: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+}
+
+type AiOption = {
+  label: string
+  sort_order: number
+  foods: AiFood[]
+}
+
+type AiMeal = {
+  name: string
+  sort_order: number
+  options: AiOption[]
+}
+
+type AiPlan = {
+  name: string
+  plan_type: 'training' | 'rest'
+  notes?: string
+  recommendations?: string
+  meals: AiMeal[]
+}
+
+function fromAiPlan(plan: AiPlan): { meals: MealEntry[]; name: string; planType: PlanType; notes: string; recommendations: string } {
+  const meals: MealEntry[] = plan.meals.map((m) => {
+    const options: OptionEntry[] = m.options.map((o) => ({
+      tempId: newId(),
+      label: o.label,
+      sortOrder: o.sort_order,
+      foods: o.foods.map((f, fi) => {
+        const gramEquiv = GRAM_EQUIVALENT[f.unit] ?? 1
+        const grams = f.quantity * gramEquiv
+        const caloriesPer100g = grams > 0 ? round1((f.calories / grams) * 100) : 0
+        const proteinPer100g  = grams > 0 ? round1((f.protein_g / grams) * 100) : 0
+        const carbsPer100g    = grams > 0 ? round1((f.carbs_g / grams) * 100) : 0
+        const fatPer100g      = grams > 0 ? round1((f.fat_g / grams) * 100) : 0
+        return {
+          tempId: newId(),
+          foodId: null,
+          foodName: f.food_name,
+          quantity: f.quantity,
+          unit: f.unit,
+          caloriesPer100g,
+          proteinPer100g,
+          carbsPer100g,
+          fatPer100g,
+          calories: f.calories,
+          proteinG: f.protein_g,
+          carbsG: f.carbs_g,
+          fatG: f.fat_g,
+          sortOrder: fi,
+        }
+      }),
+    }))
+    if (options.length === 0) options.push(emptyOption('A', 0))
+    return {
+      tempId: newId(),
+      name: m.name,
+      sortOrder: m.sort_order,
+      options,
+      activeOptionTempId: options[0].tempId,
+    }
+  })
+  return {
+    meals,
+    name: plan.name ?? '',
+    planType: plan.plan_type === 'rest' ? 'rest' : 'training',
+    notes: plan.notes ?? '',
+    recommendations: plan.recommendations ?? '',
+  }
+}
+
 function computeMacros(food: FoodEntry, quantity: number, unit?: string): FoodEntry {
   const effectiveUnit = unit ?? food.unit
   const grams = quantity * (GRAM_EQUIVALENT[effectiveUnit] ?? 1)
@@ -118,6 +199,32 @@ function emptyMeal(sortOrder: number): MealEntry {
     sortOrder,
     options: [opt],
     activeOptionTempId: opt.tempId,
+  }
+}
+
+function serializePlan(meals: MealEntry[], name: string, planType: PlanType, notes: string, recommendations: string) {
+  return {
+    name,
+    plan_type: planType,
+    notes,
+    recommendations,
+    meals: meals.map((m) => ({
+      name: m.name,
+      sort_order: m.sortOrder,
+      options: m.options.map((o) => ({
+        label: o.label,
+        sort_order: o.sortOrder,
+        foods: o.foods.map((f) => ({
+          food_name: f.foodName,
+          quantity: f.quantity,
+          unit: f.unit,
+          calories: f.calories,
+          protein_g: f.proteinG,
+          carbs_g: f.carbsG,
+          fat_g: f.fatG,
+        })),
+      })),
+    })),
   }
 }
 
@@ -181,6 +288,58 @@ export default function MealPlanEditor({
   )
 
   const [searches, setSearches] = useState<Record<string, SearchState>>({})
+
+  const planTotals = useMemo(() => {
+    return meals.reduce(
+      (acc, meal) => {
+        const activeOption = meal.options.find((o) => o.tempId === meal.activeOptionTempId) ?? meal.options[0]
+        if (!activeOption) return acc
+        const t = optionTotals(activeOption)
+        return {
+          calories: round1(acc.calories + t.calories),
+          proteinG: round1(acc.proteinG + t.proteinG),
+          carbsG: round1(acc.carbsG + t.carbsG),
+          fatG: round1(acc.fatG + t.fatG),
+        }
+      },
+      { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+    )
+  }, [meals])
+
+  // ── AI generation ───────────────────────────────────────────────────────────
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [aiGenerated, setAiGenerated] = useState(false)
+
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim() || aiGenerating) return
+    setAiGenerating(true)
+    setAiError(null)
+    try {
+      const res = await fetch('/api/meal-plan/generate-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: aiPrompt.trim(),
+          ...(aiGenerated ? { current_plan: serializePlan(meals, name, planType, notes, recommendations) } : {}),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      const { meals: aiMeals, name: aiName, planType: aiPlanType, notes: aiNotes, recommendations: aiRecs } = fromAiPlan(data as AiPlan)
+      setMeals(aiMeals)
+      if (aiName) setName(aiName)
+      setPlanType(aiPlanType)
+      if (aiNotes) setNotes(aiNotes)
+      if (aiRecs) setRecommendations(aiRecs)
+      setAiGenerated(true)
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'Generation failed')
+    } finally {
+      setAiGenerating(false)
+    }
+  }
 
   const updateSearch = (optionTempId: string, patch: Partial<SearchState>) => {
     setSearches((prev) => {
@@ -448,6 +607,85 @@ export default function MealPlanEditor({
         </h1>
       </div>
 
+      {/* ── AI panel ──────────────────────────────────────────────────────────── */}
+      <div
+        className="mb-6 p-4"
+        style={{
+          backgroundColor: 'var(--color-surface-1)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+        }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles size={15} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
+          <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+            {aiGenerated ? 'Edit with AI' : 'Generate with AI'}
+          </span>
+          <span className="text-xs" style={{ color: 'var(--color-text-hint)' }}>
+            {aiGenerated ? 'Describe what you want to change' : 'Describe the plan and AI will fill in all meals, options, and foods'}
+          </span>
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAiGenerate() }}
+            placeholder={aiGenerated ? 'e.g. swap breakfast Option B to eggs and avocado, increase lunch protein to 55g' : 'Describe a plan (e.g. Mediterranean 2000 kcal, 35/35/30) — or paste a meal plan from the assistant to import it'}
+            className="flex-1 px-3 py-2 text-sm"
+            disabled={aiGenerating}
+            style={{
+              backgroundColor: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-text-primary)',
+              outline: 'none',
+              opacity: aiGenerating ? 0.6 : 1,
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleAiGenerate}
+            disabled={aiGenerating || !aiPrompt.trim()}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium"
+            style={{
+              backgroundColor: aiGenerating || !aiPrompt.trim() ? 'var(--color-surface-3)' : 'var(--color-accent)',
+              color: aiGenerating || !aiPrompt.trim() ? 'var(--color-text-hint)' : '#fff',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {aiGenerating ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Generating…
+              </>
+            ) : (
+              <>
+                <Sparkles size={14} />
+                {aiGenerated ? 'Apply Edit' : 'Generate'}
+              </>
+            )}
+          </button>
+        </div>
+
+        {aiError && (
+          <p className="mt-2 text-xs" style={{ color: '#ef4444' }}>
+            {aiError}
+          </p>
+        )}
+        {!aiError && !aiGenerating && aiGenerated && (
+          <p className="mt-2 text-xs" style={{ color: '#22c55e' }}>
+            Plan generated — review below and save when ready.
+          </p>
+        )}
+      </div>
+
+      {/* ── Template fields ────────────────────────────────────────────────────── */}
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div>
           <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
@@ -474,6 +712,20 @@ export default function MealPlanEditor({
           <PlanTypeToggle value={planType} onChange={setPlanType} />
         </div>
       </div>
+
+      {meals.length > 0 && (
+        <div className="flex items-center gap-6 px-4 py-3 mb-6" style={{
+          backgroundColor: 'var(--color-surface-1)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+        }}>
+          <span className="text-xs font-medium" style={{ color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Daily Total</span>
+          <Stat label="kcal" value={planTotals.calories} color="var(--color-text-primary)" />
+          <Stat label="P" value={planTotals.proteinG} suffix="g" color={COLOR_PROTEIN} />
+          <Stat label="C" value={planTotals.carbsG} suffix="g" color={COLOR_CARBS} />
+          <Stat label="F" value={planTotals.fatG} suffix="g" color={COLOR_FAT} />
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-base" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
@@ -622,9 +874,10 @@ function PlanTypeToggle({
         display: 'inline-flex',
       }}
     >
-      {(['training', 'rest'] as const).map((t) => {
+      {(['training', 'rest', 'overall'] as const).map((t) => {
         const active = value === t
-        const accent = t === 'training' ? '#3b82f6' : '#22c55e'
+        const accent = t === 'training' ? '#3b82f6' : t === 'rest' ? '#22c55e' : '#a855f7'
+        const label = t === 'training' ? 'Training Day' : t === 'rest' ? 'Rest Day' : 'Overall'
         return (
           <button
             key={t}
@@ -639,7 +892,7 @@ function PlanTypeToggle({
               cursor: 'pointer',
             }}
           >
-            {t === 'training' ? 'Training Day' : 'Rest Day'}
+            {label}
           </button>
         )
       })}

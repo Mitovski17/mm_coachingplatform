@@ -16,7 +16,7 @@ function adminClient() {
   )
 }
 
-export type PlanType = 'training' | 'rest'
+export type PlanType = 'training' | 'rest' | 'overall'
 
 export type MealPlanTemplate = {
   id: string

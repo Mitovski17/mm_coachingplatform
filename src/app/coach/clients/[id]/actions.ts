@@ -17,6 +17,25 @@ export type ClientProfile = {
   name: string
   email: string
   createdAt: string
+  workspaceId: string
+}
+
+export type BodyMetric = {
+  id: string
+  workspaceId: string
+  clientId: string
+  recordedDate: string
+  weight: number | null
+  bodyFatPct: number | null
+  waistCm: number | null
+  chestCm: number | null
+  hipsCm: number | null
+  leftArmCm: number | null
+  rightArmCm: number | null
+  leftThighCm: number | null
+  rightThighCm: number | null
+  notes: string | null
+  createdAt: string
 }
 
 export type WorkoutCompliance = {
@@ -172,7 +191,7 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
   const admin = adminClient()
   const { data, error } = await admin
     .from('clients')
-    .select('id, full_name, email, created_at')
+    .select('id, full_name, email, created_at, workspace_id')
     .eq('id', clientId)
     .single()
   if (error || !data) throw new Error(error?.message ?? 'Client not found')
@@ -181,6 +200,7 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
     name: data.full_name,
     email: data.email,
     createdAt: data.created_at,
+    workspaceId: data.workspace_id,
   }
 }
 
@@ -512,6 +532,78 @@ export async function getLatestDigest(clientId: string): Promise<AiDigest | null
     ragStatus: data.rag_status as 'red' | 'yellow' | 'green',
     createdAt: data.created_at,
   }
+}
+
+// ─── Body metrics ─────────────────────────────────────────────────────────────
+
+function mapBodyMetric(row: Record<string, unknown>): BodyMetric {
+  return {
+    id: row.id as string,
+    workspaceId: row.workspace_id as string,
+    clientId: row.client_id as string,
+    recordedDate: row.recorded_date as string,
+    weight: row.weight != null ? Number(row.weight) : null,
+    bodyFatPct: row.body_fat_pct != null ? Number(row.body_fat_pct) : null,
+    waistCm: row.waist_cm != null ? Number(row.waist_cm) : null,
+    chestCm: row.chest_cm != null ? Number(row.chest_cm) : null,
+    hipsCm: row.hips_cm != null ? Number(row.hips_cm) : null,
+    leftArmCm: row.left_arm_cm != null ? Number(row.left_arm_cm) : null,
+    rightArmCm: row.right_arm_cm != null ? Number(row.right_arm_cm) : null,
+    leftThighCm: row.left_thigh_cm != null ? Number(row.left_thigh_cm) : null,
+    rightThighCm: row.right_thigh_cm != null ? Number(row.right_thigh_cm) : null,
+    notes: row.notes as string | null,
+    createdAt: row.created_at as string,
+  }
+}
+
+export async function saveBodyMetric(payload: {
+  clientId: string
+  workspaceId: string
+  recordedDate: string
+  weight?: number
+  bodyFatPct?: number
+  waistCm?: number
+  chestCm?: number
+  hipsCm?: number
+  leftArmCm?: number
+  rightArmCm?: number
+  leftThighCm?: number
+  rightThighCm?: number
+  notes?: string
+}): Promise<BodyMetric> {
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('body_metrics')
+    .insert({
+      client_id: payload.clientId,
+      workspace_id: payload.workspaceId,
+      recorded_date: payload.recordedDate,
+      weight: payload.weight ?? null,
+      body_fat_pct: payload.bodyFatPct ?? null,
+      waist_cm: payload.waistCm ?? null,
+      chest_cm: payload.chestCm ?? null,
+      hips_cm: payload.hipsCm ?? null,
+      left_arm_cm: payload.leftArmCm ?? null,
+      right_arm_cm: payload.rightArmCm ?? null,
+      left_thigh_cm: payload.leftThighCm ?? null,
+      right_thigh_cm: payload.rightThighCm ?? null,
+      notes: payload.notes ?? null,
+    })
+    .select()
+    .single()
+  if (error || !data) throw new Error(error?.message ?? 'Failed to save body metric')
+  return mapBodyMetric(data as Record<string, unknown>)
+}
+
+export async function getBodyMetrics(clientId: string): Promise<BodyMetric[]> {
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('body_metrics')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('recorded_date', { ascending: false })
+  if (error || !data) return []
+  return data.map((r) => mapBodyMetric(r as Record<string, unknown>))
 }
 
 export async function getClientAssignments(

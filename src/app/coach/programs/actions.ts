@@ -19,6 +19,15 @@ export type Template = {
   createdAt: string
 }
 
+export type ExerciseSetRow = {
+  id?: string
+  setNumber: number
+  targetReps: number
+  targetWeight?: string | null
+  rpe?: string | null
+  notes?: string | null
+}
+
 export type TemplateExerciseRow = {
   id: string
   exerciseId: string
@@ -29,6 +38,7 @@ export type TemplateExerciseRow = {
   targetReps: string
   restSeconds: number
   notes: string | null
+  sets: ExerciseSetRow[]
 }
 
 export type TemplateWithExercises = {
@@ -50,6 +60,9 @@ export type Exercise = {
   name: string
   muscleGroup: string
   equipment: string
+  imageUrl?: string | null
+  description?: string | null
+  workspaceId?: string | null
 }
 
 export type ProgramDayPreview = {
@@ -114,6 +127,60 @@ export async function getAllExercises(): Promise<Exercise[]> {
   }))
 }
 
+export async function getAllExercisesForWorkspace(workspaceId: string): Promise<Exercise[]> {
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('exercises')
+    .select('id, name, muscle_group, equipment, image_url, description, workspace_id')
+    .or(`workspace_id.is.null,workspace_id.eq.${workspaceId}`)
+    .order('muscle_group', { ascending: true })
+    .order('name', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((e) => ({
+    id: e.id,
+    name: e.name,
+    muscleGroup: e.muscle_group,
+    equipment: e.equipment,
+    imageUrl: e.image_url ?? null,
+    description: e.description ?? null,
+    workspaceId: e.workspace_id ?? null,
+  }))
+}
+
+export async function updateCustomExercise(
+  exerciseId: string,
+  workspaceId: string,
+  payload: { name: string; muscleGroup: string; equipment: string; description?: string }
+): Promise<void> {
+  const admin = adminClient()
+  const { error } = await admin
+    .from('exercises')
+    .update({
+      name: payload.name,
+      muscle_group: payload.muscleGroup,
+      equipment: payload.equipment,
+      description: payload.description ?? null,
+    })
+    .eq('id', exerciseId)
+    .eq('workspace_id', workspaceId)
+  if (error) throw new Error(error.message)
+  revalidateTag('programs', 'max')
+}
+
+export async function deleteCustomExercise(
+  exerciseId: string,
+  workspaceId: string
+): Promise<void> {
+  const admin = adminClient()
+  const { error } = await admin
+    .from('exercises')
+    .delete()
+    .eq('id', exerciseId)
+    .eq('workspace_id', workspaceId)
+  if (error) throw new Error(error.message)
+  revalidateTag('programs', 'max')
+}
+
 const _getTemplatesCached = unstable_cache(
   async (workspaceId: string): Promise<Template[]> => {
     const admin = adminClient()
@@ -170,8 +237,38 @@ export async function getTemplate(templateId: string): Promise<TemplateWithExerc
     .order('sort_order', { ascending: true })
   if (e2) throw new Error(e2.message)
 
+  const exerciseIds = (rows ?? []).map((r) => r.id)
+  let setsByExercise = new Map<string, ExerciseSetRow[]>()
+  if (exerciseIds.length > 0) {
+    const { data: setRows, error: e3 } = await admin
+      .from('workout_template_exercise_sets')
+      .select('id, template_exercise_id, set_number, target_reps, target_weight, rpe, notes')
+      .in('template_exercise_id', exerciseIds)
+      .order('set_number', { ascending: true })
+    if (e3) throw new Error(e3.message)
+    for (const s of setRows ?? []) {
+      const list = setsByExercise.get(s.template_exercise_id) ?? []
+      list.push({
+        id: s.id,
+        setNumber: s.set_number,
+        targetReps: s.target_reps,
+        targetWeight: s.target_weight ?? null,
+        rpe: s.rpe ?? null,
+        notes: s.notes ?? null,
+      })
+      setsByExercise.set(s.template_exercise_id, list)
+    }
+  }
+
   const exercises: TemplateExerciseRow[] = (rows ?? []).map((r) => {
     const ex = r.exercises as unknown as { name: string; muscle_group: string } | null
+    const savedSets = setsByExercise.get(r.id)
+    const sets: ExerciseSetRow[] = savedSets && savedSets.length > 0
+      ? savedSets
+      : Array.from({ length: r.target_sets }, (_, i) => ({
+          setNumber: i + 1,
+          targetReps: Number(r.target_reps) || 10,
+        }))
     return {
       id: r.id,
       exerciseId: r.exercise_id,
@@ -182,6 +279,7 @@ export async function getTemplate(templateId: string): Promise<TemplateWithExerc
       targetReps: r.target_reps,
       restSeconds: r.rest_seconds,
       notes: r.notes,
+      sets,
     }
   })
 
@@ -203,10 +301,15 @@ export async function upsertTemplate(payload: {
     id?: string
     exerciseId: string
     sortOrder: number
-    targetSets: number
-    targetReps: string
     restSeconds: number
     notes?: string
+    sets: Array<{
+      setNumber: number
+      targetReps: number
+      targetWeight?: string
+      rpe?: string
+      notes?: string
+    }>
   }>
 }): Promise<{ id: string }> {
   const admin = adminClient()
@@ -236,7 +339,7 @@ export async function upsertTemplate(payload: {
     templateId = data.id
   }
 
-  // Replace all exercises
+  // Replace all exercises (cascade deletes sets too)
   const { error: delErr } = await admin
     .from('workout_template_exercises')
     .delete()
@@ -248,15 +351,33 @@ export async function upsertTemplate(payload: {
       template_id: templateId!,
       exercise_id: ex.exerciseId,
       sort_order: ex.sortOrder,
-      target_sets: ex.targetSets,
-      target_reps: ex.targetReps,
+      target_sets: ex.sets.length,
+      target_reps: String(ex.sets[0]?.targetReps ?? 10),
       rest_seconds: ex.restSeconds,
       notes: ex.notes ?? null,
     }))
-    const { error: insErr } = await admin
+    const { data: insertedExercises, error: insErr } = await admin
       .from('workout_template_exercises')
       .insert(insertRows)
-    if (insErr) throw new Error(insErr.message)
+      .select('id')
+    if (insErr || !insertedExercises) throw new Error(insErr?.message ?? 'Failed to insert exercises')
+
+    const setInserts = payload.exercises.flatMap((ex, idx) =>
+      ex.sets.map((s) => ({
+        template_exercise_id: insertedExercises[idx].id,
+        set_number: s.setNumber,
+        target_reps: s.targetReps,
+        target_weight: s.targetWeight || null,
+        rpe: s.rpe || null,
+        notes: s.notes || null,
+      }))
+    )
+    if (setInserts.length > 0) {
+      const { error: setsErr } = await admin
+        .from('workout_template_exercise_sets')
+        .insert(setInserts)
+      if (setsErr) throw new Error(setsErr.message)
+    }
   }
 
   revalidateTag('programs', 'max')
@@ -446,4 +567,31 @@ export async function deleteProgram(programId: string): Promise<void> {
   const { error } = await admin.from('workout_programs').delete().eq('id', programId)
   if (error) throw new Error(error.message)
   revalidateTag('programs', 'max')
+}
+
+export async function createCustomExercise(payload: {
+  workspaceId: string
+  name: string
+  muscleGroup: string
+  equipment: string
+}): Promise<Exercise> {
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('exercises')
+    .insert({
+      workspace_id: payload.workspaceId,
+      name: payload.name,
+      muscle_group: payload.muscleGroup,
+      equipment: payload.equipment,
+    })
+    .select('id, name, muscle_group, equipment')
+    .single()
+  if (error || !data) throw new Error(error?.message ?? 'Failed to create exercise')
+  revalidateTag('programs', 'max')
+  return {
+    id: data.id,
+    name: data.name,
+    muscleGroup: data.muscle_group,
+    equipment: data.equipment,
+  }
 }

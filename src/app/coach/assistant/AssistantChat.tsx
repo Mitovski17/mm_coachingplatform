@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Save, RefreshCw, CheckCircle, Plus, MessageSquare } from 'lucide-react'
+import { Send, RefreshCw, CheckCircle, Plus, MessageSquare, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -56,16 +56,30 @@ type MealPlanJSON = {
   meals: MealPlanMeal[]
 }
 
-type MealPlanDraft = {
+type MealPlanCard = {
   plan: MealPlanJSON
   clientId: string
   clientName: string
-  messageId: string
+  planName: string
+  planType: 'training' | 'rest'
+  saving: boolean
+  result: 'idle' | 'saved' | { error: string }
 }
 
 // ── Constants & helpers ───────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'coach_assistant_conversations'
+
+const MEAL_PLAN_KEYWORDS = ['meal plan', 'nutrition plan', 'diet']
+const ACTION_KEYWORDS = ['create', 'build', 'make', 'generate']
+
+function isMealPlanIntent(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    MEAL_PLAN_KEYWORDS.some((k) => lower.includes(k)) &&
+    ACTION_KEYWORDS.some((k) => lower.includes(k))
+  )
+}
 
 function loadFromStorage(): StoredConversation[] {
   try {
@@ -100,22 +114,18 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [mealPlanDraft, setMealPlanDraft] = useState<MealPlanDraft | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [planNameInput, setPlanNameInput] = useState('')
-  const [saveResult, setSaveResult] = useState<{ success: true } | { success: false; error: string } | null>(null)
+  const [mealPlanCards, setMealPlanCards] = useState<Record<string, MealPlanCard>>({})
   const [conversations, setConversations] = useState<StoredConversation[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Load conversation history on mount
   useEffect(() => {
     setConversations(loadFromStorage())
   }, [])
 
-  // Auto-save when messages settle (skip while streaming)
   useEffect(() => {
     if (!activeConversationId || messages.length === 0) return
     if (messages.some((m) => m.streaming)) return
@@ -132,14 +142,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  useEffect(() => {
-    if (mealPlanDraft) {
-      setPlanNameInput(mealPlanDraft.plan.name)
-      setSaveResult(null)
-    }
-  }, [mealPlanDraft])
+  }, [messages, mealPlanCards])
 
   const adjustHeight = () => {
     const el = textareaRef.current
@@ -150,9 +153,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
 
   const handleNewConversation = useCallback(() => {
     setMessages([])
-    setMealPlanDraft(null)
-    setSaveResult(null)
-    setPlanNameInput('')
+    setMealPlanCards({})
     setActiveConversationId(null)
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
@@ -161,9 +162,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
 
   const handleLoadConversation = useCallback((conv: StoredConversation) => {
     setMessages(conv.messages)
-    setMealPlanDraft(null)
-    setSaveResult(null)
-    setPlanNameInput('')
+    setMealPlanCards({})
     setActiveConversationId(conv.id)
     setInput('')
   }, [])
@@ -172,12 +171,13 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
     const text = input.trim()
     if (!text || loading) return
 
-    // Build API history before mutating state
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     const historyForApi = messages
       .filter((m) => !m.streaming && m.content.trim() !== '')
       .map(({ role, content }) => ({ role, content }))
 
-    // Create conversation on first message
     let convId = activeConversationId
     if (!convId) {
       convId = crypto.randomUUID()
@@ -191,37 +191,98 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
       })
     }
 
+    const userMsgId = crypto.randomUUID()
     const assistantId = crypto.randomUUID()
     setMessages((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), role: 'user', content: text },
+      { id: userMsgId, role: 'user', content: text },
       { id: assistantId, role: 'assistant', content: '', streaming: true },
     ])
     setInput('')
     setLoading(true)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
-    try {
-      const requestBody: Record<string, unknown> = {
-        messages: [...historyForApi, { role: 'user', content: text }],
-        workspace_id: workspaceId,
-      }
-      if (mealPlanDraft) {
-        requestBody.draft_plan = mealPlanDraft.plan
-        requestBody.client_id = mealPlanDraft.clientId
-      }
+    // ── Meal plan intent → generate endpoint ──────────────────────────────────
+    if (isMealPlanIntent(text)) {
+      try {
+        const res = await fetch('/api/meal-plan/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: text,
+            workspace_id: workspaceId,
+            conversation_history: historyForApi,
+          }),
+          signal: controller.signal,
+        })
 
+        const data = await res.json() as {
+          display_summary?: string
+          plan?: MealPlanJSON
+          client_id?: string
+          client_name?: string
+          error?: string
+        }
+
+        if (!res.ok || !data.plan) {
+          const errorMsg = data.error ?? `HTTP ${res.status}`
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content: `Error: ${errorMsg}`, streaming: false } : m
+            )
+          )
+        } else {
+          const summary = data.display_summary ?? ''
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content: summary, streaming: false } : m
+            )
+          )
+          setMealPlanCards((prev) => ({
+            ...prev,
+            [assistantId]: {
+              plan: data.plan!,
+              clientId: data.client_id!,
+              clientName: data.client_name!,
+              planName: data.plan!.name,
+              planType: data.plan!.plan_type,
+              saving: false,
+              result: 'idle',
+            },
+          }))
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m))
+          )
+        } else {
+          const msg = err instanceof Error ? err.message : 'Something went wrong'
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content: `Error: ${msg}`, streaming: false } : m
+            )
+          )
+        }
+      } finally {
+        abortControllerRef.current = null
+        setLoading(false)
+      }
+      return
+    }
+
+    // ── Regular chat → streaming endpoint ─────────────────────────────────────
+    try {
       const res = await fetch('/api/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          messages: [...historyForApi, { role: 'user', content: text }],
+          workspace_id: workspaceId,
+        }),
+        signal: controller.signal,
       })
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
-
-      const incomingClientId = res.headers.get('X-Meal-Plan-Client-Id')
-      const incomingClientName = res.headers.get('X-Meal-Plan-Client-Name')
-        ? decodeURIComponent(res.headers.get('X-Meal-Plan-Client-Name')!)
-        : null
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -235,71 +296,68 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
           prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m))
         )
       }
-
-      if (incomingClientId && incomingClientName) {
-        const extractRes = await fetch('/api/meal-plan/extract', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: accumulated }),
-        })
-        if (extractRes.ok) {
-          const data = await extractRes.json() as { plan?: MealPlanJSON }
-          if (data.plan) {
-            setMealPlanDraft({
-              plan: data.plan,
-              clientId: incomingClientId,
-              clientName: incomingClientName,
-              messageId: assistantId,
-            })
-          }
-        }
-      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong'
-      setMessages((prev) =>
-        prev.map((m) => (m.id === assistantId ? { ...m, content: `Error: ${msg}` } : m))
-      )
+      if (err instanceof Error && err.name === 'AbortError') {
+        // finalize whatever was streamed so far
+      } else {
+        const msg = err instanceof Error ? err.message : 'Something went wrong'
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: `Error: ${msg}` } : m))
+        )
+      }
     } finally {
       setMessages((prev) =>
         prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m))
       )
+      abortControllerRef.current = null
       setLoading(false)
     }
-  }, [input, loading, workspaceId, mealPlanDraft, messages, activeConversationId])
+  }, [input, loading, workspaceId, messages, activeConversationId])
 
-  const handleSavePlan = useCallback(async () => {
-    if (!mealPlanDraft || saving) return
-    setSaving(true)
+  const handleSaveCard = useCallback(
+    async (messageId: string) => {
+      const card = mealPlanCards[messageId]
+      if (!card || card.saving || card.result === 'saved') return
 
-    try {
-      const effectiveName = planNameInput.trim() || mealPlanDraft.plan.name
-      const res = await fetch('/api/meal-plan/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: mealPlanDraft.clientId,
-          workspace_id: workspaceId,
-          plan: { ...mealPlanDraft.plan, name: effectiveName },
-        }),
-      })
+      setMealPlanCards((prev) => ({
+        ...prev,
+        [messageId]: { ...prev[messageId], saving: true },
+      }))
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`)
+      try {
+        const res = await fetch('/api/meal-plan/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: card.clientId,
+            workspace_id: workspaceId,
+            plan: { ...card.plan, name: card.planName.trim() || card.plan.name, plan_type: card.planType },
+          }),
+        })
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`)
+        }
+
+        setMealPlanCards((prev) => ({
+          ...prev,
+          [messageId]: { ...prev[messageId], saving: false, result: 'saved' },
+        }))
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Save failed'
+        setMealPlanCards((prev) => ({
+          ...prev,
+          [messageId]: { ...prev[messageId], saving: false, result: { error: msg } },
+        }))
       }
+    },
+    [mealPlanCards, workspaceId]
+  )
 
-      setSaveResult({ success: true })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Save failed'
-      setSaveResult({ success: false, error: msg })
-    } finally {
-      setSaving(false)
-    }
-  }, [mealPlanDraft, planNameInput, saving, workspaceId])
-
-  const handleRefine = useCallback(() => {
-    textareaRef.current?.focus()
-  }, [])
+  const handleStop = () => {
+    abortControllerRef.current?.abort()
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -314,10 +372,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Header */}
       <div style={{ padding: '32px 24px 24px', flexShrink: 0 }}>
-        <h1
-          className="text-2xl"
-          style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
-        >
+        <h1 className="text-2xl" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
           Assistant
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
@@ -341,7 +396,6 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
             overflow: 'hidden',
           }}
         >
-          {/* New conversation */}
           <div style={{ padding: '12px', flexShrink: 0, borderBottom: '1px solid var(--color-border)' }}>
             <button
               type="button"
@@ -367,7 +421,6 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
             </button>
           </div>
 
-          {/* Conversation list */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {conversations.length === 0 ? (
               <div
@@ -394,28 +447,18 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                       padding: '10px 12px',
                       border: 'none',
                       borderBottom: '1px solid var(--color-border)',
-                      backgroundColor: isActive
-                        ? 'var(--color-surface-3)'
-                        : 'transparent',
+                      backgroundColor: isActive ? 'var(--color-surface-3)' : 'transparent',
                       cursor: 'pointer',
                       transition: 'background-color 0.12s',
                     }}
                   >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 7,
-                      }}
-                    >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
                       <MessageSquare
                         size={12}
                         style={{
                           flexShrink: 0,
                           marginTop: 2,
-                          color: isActive
-                            ? 'var(--color-accent)'
-                            : 'var(--color-text-hint)',
+                          color: isActive ? 'var(--color-accent)' : 'var(--color-text-hint)',
                         }}
                       />
                       <div style={{ minWidth: 0 }}>
@@ -423,9 +466,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                           style={{
                             fontSize: '0.78rem',
                             fontWeight: isActive ? 500 : 400,
-                            color: isActive
-                              ? 'var(--color-text-primary)'
-                              : 'var(--color-text-secondary)',
+                            color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
@@ -433,13 +474,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                         >
                           {conv.title}
                         </div>
-                        <div
-                          style={{
-                            fontSize: '0.7rem',
-                            color: 'var(--color-text-hint)',
-                            marginTop: 2,
-                          }}
-                        >
+                        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-hint)', marginTop: 2 }}>
                           {relativeTime(conv.createdAt)}
                         </div>
                       </div>
@@ -482,8 +517,9 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {messages.map((msg) => {
+                  const card = mealPlanCards[msg.id]
                   return (
-                    <div key={msg.id}>
+                    <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div
                         style={{
                           display: 'flex',
@@ -580,7 +616,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                                   ),
                                 }}
                               >
-                                {msg.content}
+                                {msg.content || (msg.streaming ? '' : '')}
                               </ReactMarkdown>
                               {msg.streaming && (
                                 <span
@@ -592,149 +628,155 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                               )}
                             </div>
                           )}
-                          {msg.role === 'user' && msg.streaming && (
-                            <span
-                              className="animate-pulse"
-                              style={{ display: 'inline-block', marginLeft: 2, color: 'rgba(255,255,255,0.7)' }}
-                            >
-                              ▋
-                            </span>
-                          )}
                         </div>
                       </div>
 
+                      {/* Inline save card attached to this message */}
+                      {card && (
+                        <div
+                          style={{
+                            marginLeft: 0,
+                            maxWidth: 420,
+                            borderRadius: 'var(--radius-lg)',
+                            border: '1px solid var(--color-border)',
+                            backgroundColor: 'var(--color-surface-1)',
+                            padding: '16px 18px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 12,
+                          }}
+                        >
+                          {card.result === 'saved' ? (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                color: '#22c55e',
+                                fontSize: '0.875rem',
+                                fontWeight: 500,
+                              }}
+                            >
+                              <CheckCircle size={18} />
+                              Saved — assigned to {card.clientName}
+                            </div>
+                          ) : (
+                            <>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-hint)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Meal Plan
+                                </span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                  For: <strong style={{ color: 'var(--color-text-primary)' }}>{card.clientName}</strong>
+                                </span>
+                              </div>
+
+                              {/* Plan name input */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                                  Plan name
+                                </label>
+                                <input
+                                  type="text"
+                                  value={card.planName}
+                                  onChange={(e) =>
+                                    setMealPlanCards((prev) => ({
+                                      ...prev,
+                                      [msg.id]: { ...prev[msg.id], planName: e.target.value },
+                                    }))
+                                  }
+                                  style={{
+                                    backgroundColor: 'var(--color-surface-3)',
+                                    border: '1px solid var(--color-border)',
+                                    borderRadius: 'var(--radius-md)',
+                                    padding: '7px 10px',
+                                    color: 'var(--color-text-primary)',
+                                    fontSize: '0.875rem',
+                                    outline: 'none',
+                                  }}
+                                />
+                              </div>
+
+                              {/* Plan type selector */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                                  Plan type
+                                </label>
+                                <select
+                                  value={card.planType}
+                                  onChange={(e) =>
+                                    setMealPlanCards((prev) => ({
+                                      ...prev,
+                                      [msg.id]: { ...prev[msg.id], planType: e.target.value as 'training' | 'rest' },
+                                    }))
+                                  }
+                                  style={{
+                                    backgroundColor: 'var(--color-surface-3)',
+                                    border: '1px solid var(--color-border)',
+                                    borderRadius: 'var(--radius-md)',
+                                    padding: '7px 10px',
+                                    color: 'var(--color-text-primary)',
+                                    fontSize: '0.875rem',
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <option value="training">Training day</option>
+                                  <option value="rest">Rest day</option>
+                                </select>
+                              </div>
+
+                              {/* Error */}
+                              {typeof card.result === 'object' && (
+                                <div style={{ fontSize: '0.8rem', color: '#f87171' }}>
+                                  {card.result.error}
+                                </div>
+                              )}
+
+                              {/* Save button */}
+                              <button
+                                type="button"
+                                onClick={() => handleSaveCard(msg.id)}
+                                disabled={card.saving}
+                                style={{
+                                  alignSelf: 'flex-start',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 7,
+                                  padding: '9px 18px',
+                                  borderRadius: 'var(--radius-md)',
+                                  border: 'none',
+                                  backgroundColor: card.saving
+                                    ? 'var(--color-surface-3)'
+                                    : 'var(--color-accent)',
+                                  color: card.saving ? 'var(--color-text-hint)' : '#fff',
+                                  fontSize: '0.875rem',
+                                  fontWeight: 600,
+                                  cursor: card.saving ? 'not-allowed' : 'pointer',
+                                  transition: 'background-color 0.15s',
+                                }}
+                              >
+                                {card.saving ? (
+                                  <>
+                                    <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                    Saving…
+                                  </>
+                                ) : (
+                                  'Save & Assign'
+                                )}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
-
-                {/* Persistent meal plan save card */}
-                {mealPlanDraft && (
-                  <div
-                    style={{
-                      borderRadius: 'var(--radius-lg)',
-                      border: '1px solid var(--color-border)',
-                      backgroundColor: 'var(--color-surface-1)',
-                      padding: '16px 18px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 12,
-                    }}
-                  >
-                    {saveResult?.success ? (
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          color: '#22c55e',
-                          fontSize: '0.875rem',
-                          fontWeight: 500,
-                        }}
-                      >
-                        <CheckCircle size={18} />
-                        <span>
-                          &ldquo;{planNameInput.trim() || mealPlanDraft.plan.name}&rdquo; saved and assigned to {mealPlanDraft.clientName}.
-                        </span>
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-hint)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Meal Plan
-                          </span>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                            For: <strong style={{ color: 'var(--color-text-primary)' }}>{mealPlanDraft.clientName}</strong>
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <label
-                            htmlFor="plan-name-input"
-                            style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500 }}
-                          >
-                            Plan name
-                          </label>
-                          <input
-                            id="plan-name-input"
-                            type="text"
-                            value={planNameInput}
-                            onChange={(e) => setPlanNameInput(e.target.value)}
-                            style={{
-                              backgroundColor: 'var(--color-surface-3)',
-                              border: '1px solid var(--color-border)',
-                              borderRadius: 'var(--radius-md)',
-                              padding: '7px 10px',
-                              color: 'var(--color-text-primary)',
-                              fontSize: '0.875rem',
-                              outline: 'none',
-                            }}
-                          />
-                        </div>
-                        {saveResult && !saveResult.success && (
-                          <div style={{ fontSize: '0.8rem', color: '#f87171' }}>
-                            {saveResult.error}
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleSavePlan}
-                          disabled={saving}
-                          style={{
-                            alignSelf: 'flex-start',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 7,
-                            padding: '9px 18px',
-                            borderRadius: 'var(--radius-md)',
-                            border: 'none',
-                            backgroundColor: saving ? 'var(--color-surface-3)' : 'var(--color-accent)',
-                            color: saving ? 'var(--color-text-hint)' : '#fff',
-                            fontSize: '0.875rem',
-                            fontWeight: 600,
-                            cursor: saving ? 'not-allowed' : 'pointer',
-                            transition: 'background-color 0.15s',
-                          }}
-                        >
-                          {saving ? (
-                            <>
-                              <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                              Saving…
-                            </>
-                          ) : (
-                            <>
-                              <Save size={14} />
-                              Save Plan
-                            </>
-                          )}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
 
                 <div ref={messagesEndRef} />
               </div>
             )}
           </div>
-
-          {/* Refinement mode banner */}
-          {mealPlanDraft && !saving && !saveResult?.success && (
-            <div
-              style={{
-                flexShrink: 0,
-                borderTop: '1px solid var(--color-border)',
-                padding: '8px 16px',
-                backgroundColor: 'var(--color-surface-1)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: '0.78rem',
-                color: 'var(--color-text-muted)',
-              }}
-            >
-              <CheckCircle size={13} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
-              Meal plan ready for {mealPlanDraft.clientName}. Type to refine, or save using the card above.
-            </div>
-          )}
 
           {/* Input bar */}
           <div
@@ -756,11 +798,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                 adjustHeight()
               }}
               onKeyDown={handleKeyDown}
-              placeholder={
-                mealPlanDraft
-                  ? `Refine the meal plan for ${mealPlanDraft.clientName}…`
-                  : 'Message assistant…'
-              }
+              placeholder="Message assistant…"
               rows={1}
               style={{
                 flex: 1,
@@ -778,27 +816,49 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                 maxHeight: '200px',
               }}
             />
-            <button
-              type="button"
-              onClick={sendMessage}
-              disabled={!canSend}
-              style={{
-                width: 38,
-                height: 38,
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: canSend ? 'var(--color-accent)' : 'var(--color-surface-3)',
-                color: canSend ? '#fff' : 'var(--color-text-hint)',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                cursor: canSend ? 'pointer' : 'not-allowed',
-                transition: 'background-color 0.15s, color 0.15s',
-              }}
-            >
-              <Send size={16} />
-            </button>
+            {loading ? (
+              <button
+                type="button"
+                onClick={handleStop}
+                style={{
+                  width: 38,
+                  height: 38,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(239,68,68,0.15)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Square size={14} fill="#ef4444" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={sendMessage}
+                disabled={!canSend}
+                style={{
+                  width: 38,
+                  height: 38,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: canSend ? 'var(--color-accent)' : 'var(--color-surface-3)',
+                  color: canSend ? '#fff' : 'var(--color-text-hint)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: canSend ? 'pointer' : 'not-allowed',
+                  transition: 'background-color 0.15s, color 0.15s',
+                }}
+              >
+                <Send size={16} />
+              </button>
+            )}
           </div>
         </div>
       </div>

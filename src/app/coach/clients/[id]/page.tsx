@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import {
+  getBodyMetrics,
   getCheckinHistory,
   getClientAssignments,
   getClientProfile,
@@ -31,6 +32,7 @@ export default async function ClientDetailPage({
     checkins,
     assignments,
     initialDigest,
+    bodyMetrics,
   ] = await Promise.all([
     getClientProfile(clientId),
     getWorkoutCompliance(clientId),
@@ -40,6 +42,7 @@ export default async function ClientDetailPage({
     getCheckinHistory(clientId),
     getClientAssignments(clientId),
     getLatestDigest(clientId),
+    getBodyMetrics(clientId),
   ])
 
   const photos = await getProgressPhotos(clientId)
@@ -76,6 +79,7 @@ export default async function ClientDetailPage({
         photos={photos}
         redFlags={redFlags}
         initialDigest={initialDigest}
+        bodyMetrics={bodyMetrics}
       />
     </div>
   )

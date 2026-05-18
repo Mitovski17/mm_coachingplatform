@@ -1,5 +1,4 @@
-export const dynamic = 'force-dynamic'
-
+import { unstable_cache } from 'next/cache'
 import { getCurrentClient, getActiveMealPlan, getDayLogs } from './actions'
 import { getTodayTemplate } from '../workouts/actions'
 import NutritionClient from './NutritionClient'
@@ -8,6 +7,12 @@ function todayISO(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+const getCachedMealPlan = unstable_cache(
+  getActiveMealPlan,
+  ['meal-plan'],
+  { revalidate: 60 }
+)
 
 export default async function ClientNutritionPage() {
   const client = await getCurrentClient()
@@ -28,8 +33,8 @@ export default async function ClientNutritionPage() {
   }
 
   const [mealPlanTraining, mealPlanRest, todayLogs, todayTemplate] = await Promise.all([
-    getActiveMealPlan(client.id, 'training'),
-    getActiveMealPlan(client.id, 'rest'),
+    getCachedMealPlan(client.id, 'training'),
+    getCachedMealPlan(client.id, 'rest'),
     getDayLogs(client.id, today),
     getTodayTemplate(client.id),
   ])

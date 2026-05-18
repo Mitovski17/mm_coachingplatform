@@ -2,50 +2,49 @@ export const dynamic = 'force-dynamic'
 
 import { cookies } from 'next/headers'
 import Link from 'next/link'
+import { Check, Bell, ChevronRight, Dumbbell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import {
-  getClientId,
-  getTodayTemplate,
-  type TodayTemplate,
-} from './workouts/actions'
+import { getClientId, getTodayTemplate, type TodayTemplate } from './workouts/actions'
 import { getDayLogs, type DayLog } from './nutrition/actions'
 import { getHomeStats, type HomeStats } from './home-actions'
 import { getNextSundayMidnight } from '@/lib/checkin-window'
-import CheckinWidget from './CheckinWidget'
+
+// ─── Nutrition targets (defaults until client has a meal plan) ───────────────
+const CAL_TARGET  = 2400
+const PRO_TARGET  = 180
+const CARB_TARGET = 260
+const FAT_TARGET  = 75
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getInitials(name: string): string {
+  const p = name.trim().split(/\s+/)
+  return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : name.slice(0, 2).toUpperCase()
+}
+
+function getFirstName(name: string): string {
+  return name.trim().split(/\s+/)[0] ?? name
+}
 
 function getGreeting(): string {
-  const hour = new Date().getUTCHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 17) return 'Good afternoon'
+  const h = new Date().getUTCHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
   return 'Good evening'
 }
 
-function getWeekLabel(): string {
+function getDateLine(): string {
   const now = new Date()
-  const dayOfWeek = now.getUTCDay()
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-  const monday = new Date(now)
-  monday.setUTCDate(now.getUTCDate() - daysSinceMonday)
-  return monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const day = now.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()
+  const mon = now.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()
+  const d   = now.getDate()
+  return `${day} · ${mon} ${d}`
 }
 
-function getCurrentDayOfWeek(): number {
-  const day = new Date().getUTCDay()
-  return day === 0 ? 7 : day
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  return name.slice(0, 2).toUpperCase()
-}
-
-function formatWorkoutDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
+/** Returns 0=Mon..6=Sun for any date */
+function dayIdx(date: Date): number {
+  const d = date.getUTCDay()
+  return d === 0 ? 6 : d - 1
 }
 
 function daysAgo(dateStr: string): string {
@@ -55,38 +54,30 @@ function daysAgo(dateStr: string): string {
   return `${days} days ago`
 }
 
-async function resolveClientAndData(): Promise<{
-  today: TodayTemplate | null
-  logs: DayLog[]
-  stats: HomeStats | null
-}> {
+// ─── Data ────────────────────────────────────────────────────────────────────
+
+async function resolveData() {
   let email: string | null = null
 
   if (process.env.NODE_ENV === 'development') {
-    const cookieStore = await cookies()
-    const raw = cookieStore.get('dev_mock_email')?.value
+    const cs = await cookies()
+    const raw = cs.get('dev_mock_email')?.value
     if (raw) email = decodeURIComponent(raw)
   }
 
   if (!email) {
     try {
-      const supabase = await createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const sb = await createClient()
+      const { data: { user } } = await sb.auth.getUser()
       email = user?.email ?? null
-    } catch {
-      return { today: null, logs: [], stats: null }
-    }
+    } catch { return null }
   }
 
-  if (!email) return { today: null, logs: [], stats: null }
-
+  if (!email) return null
   const client = await getClientId(email)
-  if (!client) return { today: null, logs: [], stats: null }
+  if (!client) return null
 
-  const isoToday = (() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  })()
+  const isoToday = new Date().toISOString().slice(0, 10)
 
   const [today, logs, stats] = await Promise.all([
     getTodayTemplate(client.id),
@@ -97,405 +88,420 @@ async function resolveClientAndData(): Promise<{
   return { today, logs, stats }
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default async function ClientHomePage() {
-  const { today, logs, stats } = await resolveClientAndData()
+  const data = await resolveData()
+  const today    = data?.today   ?? null
+  const logs     = data?.logs    ?? []
+  const stats    = data?.stats   ?? null
 
-  const greeting = getGreeting()
   const clientName = stats?.clientName ?? 'there'
-  const initials = stats?.clientName ? getInitials(stats.clientName) : '?'
+  const initials   = stats?.clientName ? getInitials(stats.clientName) : '?'
 
-  const workoutsLogged = stats?.workoutsLogged ?? 0
-  const workoutsTarget = stats?.workoutsTarget ?? 0
-  const workoutsOnTrack = workoutsTarget > 0 && workoutsLogged >= workoutsTarget
+  // ── Rolling 7-day strip ──────────────────────────────────────────────────
+  const now      = new Date()
+  const todayIdx = dayIdx(now)
 
-  const sleepQuality = stats?.sleepQuality ?? null
-  const sleepColor =
-    sleepQuality == null
-      ? 'var(--color-text-primary)'
-      : sleepQuality >= 7
-      ? '#22c55e'
-      : sleepQuality >= 5
-      ? '#f59e0b'
-      : '#ef4444'
+  // Build last 7 days ending today
+  const strip = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now)
+    d.setUTCDate(now.getUTCDate() - (6 - i))
+    return d
+  })
 
-  const bodyWeight = stats?.bodyWeight ?? null
-  const bodyWeightTrend = stats?.bodyWeightTrend ?? null
+  const completedSet = new Set(
+    (stats?.recentWorkouts ?? []).map((w) => {
+      const d = new Date(w.performedAt)
+      return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`
+    })
+  )
 
-  const caloriesAvg = stats?.caloriesAvg ?? null
-  const caloriesTrend = stats?.caloriesTrend ?? null
+  const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+
+  // ── Nutrition totals ─────────────────────────────────────────────────────
+  const totals = logs.reduce(
+    (acc, l) => ({
+      cal:    acc.cal    + l.calories,
+      pro:    acc.pro    + l.proteinG,
+      carbs:  acc.carbs  + l.carbsG,
+      fat:    acc.fat    + l.fatG,
+    }),
+    { cal: 0, pro: 0, carbs: 0, fat: 0 }
+  )
+  const remaining   = Math.max(CAL_TARGET - Math.round(totals.cal), 0)
+  const calConsumed = Math.round(totals.cal)
+  const proG        = Math.round(totals.pro)
+  const carbG       = Math.round(totals.carbs)
+  const fatG        = Math.round(totals.fat)
+
+  // ── Calorie ring SVG ─────────────────────────────────────────────────────
+  const R   = 68
+  const SW  = 10
+  const CX  = 84
+  const CY  = 84
+  const circ = 2 * Math.PI * R
+  const pct  = Math.min(calConsumed / CAL_TARGET, 1)
+  const dash = circ * (1 - pct)
+
+  const checkinDue = !(stats?.checkinSubmittedThisWeek ?? false)
+  const nextSunMs  = getNextSundayMidnight().getTime()
+
+  const estimatedDuration = today ? Math.round((today.exerciseCount * 9) / 5) * 5 : 0
 
   return (
-    <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
-      {/* Header */}
-      <div
-        className="flex items-center justify-between"
-        style={{ padding: '52px 20px 20px' }}
-      >
+    <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 16 }}>
+
+      {/* ── Header ── */}
+      <div style={{ padding: '52px 20px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
-            {greeting}, {clientName}
-          </h1>
-          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
-            Week of {getWeekLabel()} · Day {getCurrentDayOfWeek()} of 7
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', letterSpacing: '0.06em' }}>
+            {getDateLine()}
           </p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.15 }}>
+            {getGreeting()}, {getFirstName(clientName)}
+          </h1>
         </div>
-        <div
-          className="flex items-center justify-center flex-shrink-0"
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            backgroundColor: 'var(--color-surface-3)',
-            color: 'var(--color-text-muted)',
-            fontSize: '14px',
-            fontWeight: 600,
-          }}
-        >
+        <div style={{
+          width: 40, height: 40, borderRadius: '50%',
+          backgroundColor: 'var(--color-surface-3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 13, fontWeight: 700, color: 'var(--color-text-muted)',
+          flexShrink: 0, marginTop: 4,
+        }}>
           {initials}
         </div>
       </div>
 
-      {/* Today's Workout widget */}
-      <div style={{ padding: '0 16px 16px' }}>
-        <TodayWorkoutWidget today={today} />
-      </div>
+      {/* ── Rolling week strip (no card border) ── */}
+      <div style={{ padding: '0 20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {strip.map((date, i) => {
+          const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}`
+          const isToday     = i === 6
+          const isCompleted = completedSet.has(key) && !isToday
+          const letter      = DAY_LETTERS[dayIdx(date)]
 
-      {/* Today's Nutrition widget */}
-      <div style={{ padding: '0 16px 16px' }}>
-        <TodayNutritionWidget logs={logs} />
-      </div>
-
-      {/* Weekly Check-in CTA */}
-      <div style={{ padding: '0 16px 16px' }}>
-        <CheckinWidget
-          submitted={stats?.checkinSubmittedThisWeek ?? false}
-          nextSundayMs={getNextSundayMidnight().getTime()}
-        />
-      </div>
-
-      {/* This Week at a Glance */}
-      <section style={{ padding: '0 16px 16px' }}>
-        <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          This Week
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          {/* Workouts */}
-          <StatCard
-            label="Workouts"
-            value={`${workoutsLogged} / ${workoutsTarget}`}
-            trend={workoutsTarget > 0 ? (workoutsOnTrack ? '↑' : '↓') : ''}
-            trendColor={workoutsTarget > 0 ? (workoutsOnTrack ? '#22c55e' : '#f59e0b') : 'transparent'}
-          />
-          {/* Calories */}
-          <StatCard
-            label="Calories avg"
-            value={caloriesAvg != null ? `${caloriesAvg.toLocaleString()} kcal` : '—'}
-            trend={caloriesTrend === 'up' ? '↑' : caloriesTrend === 'down' ? '↓' : ''}
-            trendColor={caloriesTrend === 'up' ? '#22c55e' : caloriesTrend === 'down' ? '#ef4444' : 'transparent'}
-          />
-          {/* Sleep Quality */}
-          <StatCard
-            label="Sleep Quality"
-            value={sleepQuality != null ? `${sleepQuality} / 10` : '—'}
-            trend=""
-            trendColor="transparent"
-            valueColor={sleepColor}
-          />
-          {/* Body Weight */}
-          <StatCard
-            label="Body Weight"
-            value={bodyWeight != null ? `${bodyWeight} kg` : '—'}
-            trend={bodyWeightTrend === 'up' ? '↑' : bodyWeightTrend === 'down' ? '↓' : ''}
-            trendColor={bodyWeightTrend === 'down' ? '#22c55e' : bodyWeightTrend === 'up' ? '#ef4444' : 'transparent'}
-          />
-        </div>
-      </section>
-
-      {/* Recent Workouts */}
-      {stats?.recentWorkouts && stats.recentWorkouts.length > 0 && (
-        <section style={{ padding: '0 0 16px' }}>
-          <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: '16px' }}>
-            Recent Workouts
-          </h2>
-          <div
-            className="flex gap-3"
-            style={{
-              overflowX: 'auto',
-              paddingLeft: '16px',
-              paddingRight: '16px',
-              paddingBottom: '4px',
-              scrollbarWidth: 'none',
-            }}
-          >
-            {stats.recentWorkouts.map((w) => (
-              <div
-                key={w.id}
-                style={{
-                  flexShrink: 0,
-                  width: '180px',
-                  backgroundColor: 'var(--color-surface-2)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '12px',
-                  padding: '14px',
-                }}
-              >
-                <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
-                  {w.name}
-                </p>
-                <p style={{ fontSize: '12px', color: 'var(--color-text-hint)', margin: '0 0 8px' }}>
-                  {formatWorkoutDate(w.performedAt)}
-                </p>
-                {w.durationMinutes != null && (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      color: 'var(--color-text-muted)',
-                      backgroundColor: 'var(--color-surface-3)',
-                      borderRadius: '6px',
-                      padding: '2px 7px',
-                    }}
-                  >
-                    {w.durationMinutes} min
-                  </span>
-                )}
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <p style={{ fontSize: 10, fontWeight: 600, color: isToday ? 'var(--color-accent)' : 'var(--color-text-hint)', margin: 0, letterSpacing: '0.04em' }}>
+                {letter}
+              </p>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%',
+                backgroundColor: isCompleted ? 'var(--color-accent)' : isToday ? 'transparent' : 'var(--color-surface-2)',
+                border: isToday ? '2px solid var(--color-accent)' : isCompleted ? 'none' : '2px solid var(--color-surface-3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {isCompleted ? (
+                  <Check size={16} color="#fff" strokeWidth={3} />
+                ) : isToday ? (
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--color-accent)' }} />
+                ) : null}
               </div>
-            ))}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── Check-in banner ── */}
+      {checkinDue && (
+        <div style={{ margin: '0 16px 16px' }}>
+          <div style={{
+            backgroundColor: 'var(--color-surface-1)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '3px solid var(--color-accent)',
+            borderRadius: 14,
+            padding: '14px 16px',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            {/* Bell icon in dark square */}
+            <div style={{
+              width: 38, height: 38, borderRadius: 10,
+              backgroundColor: 'rgba(255,92,0,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <Bell size={18} color="var(--color-accent)" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
+                Weekly check-in due today
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: 0 }}>
+                Takes about 3 minutes
+              </p>
+            </div>
+            <Link href="/check-in" style={{
+              backgroundColor: 'var(--color-accent)', color: '#fff',
+              fontSize: 14, fontWeight: 700, borderRadius: 10,
+              padding: '9px 18px', textDecoration: 'none', flexShrink: 0,
+            }}>
+              Start
+            </Link>
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Coach Message */}
+      {/* ── Nutrition card ── */}
+      <div style={{ margin: '0 16px 16px' }}>
+        <div style={{
+          backgroundColor: 'var(--color-surface-1)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 16, padding: '18px',
+        }}>
+          {/* Card header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Today&apos;s Nutrition
+            </p>
+            <Link href="/client/nutrition" style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, color: 'var(--color-text-muted)', textDecoration: 'none' }}>
+              Log meal <ChevronRight size={14} />
+            </Link>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            {/* Large ring */}
+            <div style={{ flexShrink: 0, position: 'relative' }}>
+              <svg width={CX * 2} height={CY * 2} viewBox={`0 0 ${CX * 2} ${CY * 2}`}>
+                <circle cx={CX} cy={CY} r={R} fill="none" stroke="var(--color-surface-3)" strokeWidth={SW} />
+                <circle cx={CX} cy={CY} r={R} fill="none"
+                  stroke="var(--color-accent)" strokeWidth={SW}
+                  strokeLinecap="round"
+                  strokeDasharray={circ} strokeDashoffset={dash}
+                  transform={`rotate(-90 ${CX} ${CY})`}
+                />
+              </svg>
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Remaining
+                </p>
+                <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
+                  {remaining.toLocaleString()}
+                </p>
+                <p style={{ fontSize: 10, color: 'var(--color-text-hint)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.3 }}>
+                  {calConsumed.toLocaleString()} / {CAL_TARGET.toLocaleString()}<br />kcal
+                </p>
+              </div>
+            </div>
+
+            {/* Macro bars */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <MacroRow label="Protein" value={proG} target={PRO_TARGET} color="#22c55e" />
+              <MacroRow label="Carbs"   value={carbG} target={CARB_TARGET} color="#3b82f6" />
+              <MacroRow label="Fat"     value={fatG}  target={FAT_TARGET}  color="#f59e0b" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Workout card ── */}
+      <div style={{ margin: '0 16px 16px' }}>
+        <WorkoutCard today={today} estimatedDuration={estimatedDuration} />
+      </div>
+
+      {/* ── This Week stats ── */}
+      <div style={{ padding: '0 16px' }}>
+        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          This Week
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <StatCard
+            label="Workouts"
+            value={`${stats?.workoutsLogged ?? 0} / ${stats?.workoutsTarget ?? 0}`}
+          />
+          <StatCard
+            label="Avg Calories"
+            value={stats?.caloriesAvg != null ? `${stats.caloriesAvg.toLocaleString()} kcal` : '—'}
+          />
+          <StatCard
+            label="Sleep Quality"
+            value={stats?.sleepQuality != null ? `${stats.sleepQuality} / 10` : '—'}
+            valueColor={
+              stats?.sleepQuality == null ? undefined
+              : stats.sleepQuality >= 7 ? '#22c55e'
+              : stats.sleepQuality >= 5 ? '#f59e0b'
+              : '#ef4444'
+            }
+          />
+          <StatCard
+            label="Body Weight"
+            value={stats?.bodyWeight != null ? `${stats.bodyWeight} kg` : '—'}
+            trend={stats?.bodyWeightTrend === 'down' ? '↓' : stats?.bodyWeightTrend === 'up' ? '↑' : undefined}
+            trendColor={stats?.bodyWeightTrend === 'down' ? '#22c55e' : '#ef4444'}
+          />
+        </div>
+      </div>
+
+      {/* ── Coach note ── */}
       {stats?.coachNote && (
-        <section style={{ padding: '0 16px 16px' }}>
-          <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <div style={{ margin: '16px 16px 0' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             Coach
-          </h2>
-          <div
-            style={{
-              backgroundColor: 'var(--color-surface-1)',
-              border: '1px solid var(--color-border)',
-              borderRadius: '14px',
-              padding: '16px',
-            }}
-          >
-            <div className="flex items-center gap-3" style={{ marginBottom: '10px' }}>
-              <div
-                className="flex items-center justify-center flex-shrink-0"
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--color-accent-dim)',
-                  color: 'var(--color-accent)',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                }}
-              >
+          </p>
+          <div style={{
+            backgroundColor: 'var(--color-surface-1)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 14, padding: 16,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%',
+                backgroundColor: 'var(--color-accent-dim)', color: 'var(--color-accent)',
+                fontSize: 12, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
                 MC
               </div>
               <div>
-                <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-secondary)', margin: 0 }}>
-                  Your coach left a note:
-                </p>
+                <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-secondary)', margin: 0 }}>Your coach left a note</p>
                 {stats.coachNoteDate && (
-                  <p style={{ fontSize: '11px', color: 'var(--color-text-hint)', margin: '2px 0 0' }}>
-                    {daysAgo(stats.coachNoteDate)}
-                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: '1px 0 0' }}>{daysAgo(stats.coachNoteDate)}</p>
                 )}
               </div>
             </div>
-            <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 14, color: 'var(--color-text-muted)', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
               &ldquo;{stats.coachNote}&rdquo;
             </p>
           </div>
-        </section>
+        </div>
       )}
     </div>
   )
 }
 
-function StatCard({
-  label,
-  value,
-  trend,
-  trendColor,
-  valueColor,
-}: {
-  label: string
-  value: string
-  trend: string
-  trendColor: string
-  valueColor?: string
+// ─── Macro row ────────────────────────────────────────────────────────────────
+
+function MacroRow({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
+  const pct = Math.min(value / target, 1)
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, alignItems: 'baseline' }}>
+        <span style={{ fontSize: 12, color: 'var(--color-text-hint)' }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+          <span style={{ color: 'var(--color-text-primary)' }}>{value}</span>
+          <span style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>/{target}g</span>
+        </span>
+      </div>
+      <div style={{ height: 4, backgroundColor: 'var(--color-surface-3)', borderRadius: 999 }}>
+        <div style={{ height: '100%', width: `${pct * 100}%`, backgroundColor: color, borderRadius: 999 }} />
+      </div>
+    </div>
+  )
+}
+
+// ─── Stat card ────────────────────────────────────────────────────────────────
+
+function StatCard({ label, value, valueColor, trend, trendColor }: {
+  label: string; value: string; valueColor?: string; trend?: string; trendColor?: string
 }) {
   return (
-    <div
-      style={{
-        backgroundColor: 'var(--color-surface-2)',
-        borderRadius: '12px',
-        padding: '14px 14px 12px',
-        border: '1px solid var(--color-border)',
-      }}
-    >
-      <p style={{ fontSize: '11px', color: 'var(--color-text-hint)', margin: '0 0 4px', fontWeight: 500 }}>
+    <div style={{
+      backgroundColor: 'var(--color-surface-1)',
+      border: '1px solid var(--color-border)',
+      borderRadius: 12, padding: '14px',
+    }}>
+      <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
         {label}
       </p>
-      <div className="flex items-baseline gap-1.5">
-        <span style={{ fontSize: '18px', fontWeight: 700, color: valueColor ?? 'var(--color-text-primary)', lineHeight: 1.1 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+        <span style={{ fontSize: 18, fontWeight: 700, color: valueColor ?? 'var(--color-text-primary)', lineHeight: 1 }}>
           {value}
         </span>
-        {trend && (
-          <span style={{ fontSize: '14px', color: trendColor, fontWeight: 600 }}>
-            {trend}
-          </span>
+        {trend && trendColor && (
+          <span style={{ fontSize: 16, color: trendColor, fontWeight: 700 }}>{trend}</span>
         )}
       </div>
     </div>
   )
 }
 
-function TodayNutritionWidget({ logs }: { logs: DayLog[] }) {
-  const totals = logs.reduce(
-    (acc, l) => ({
-      calories: acc.calories + l.calories,
-      proteinG: acc.proteinG + l.proteinG,
-      carbsG: acc.carbsG + l.carbsG,
-      fatG: acc.fatG + l.fatG,
-    }),
-    { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
-  )
+// ─── Workout card ─────────────────────────────────────────────────────────────
 
-  return (
-    <Link
-      href="/client/nutrition"
-      style={{
-        display: 'block',
-        backgroundColor: 'var(--color-surface-1)',
-        border: '1px solid var(--color-border)',
-        borderRadius: '14px',
-        padding: '14px 16px',
-        textDecoration: 'none',
-      }}
-    >
-      <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-        <p
-          style={{
-            fontSize: '11px',
-            fontWeight: 600,
-            color: 'var(--color-text-muted)',
-            margin: 0,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-          }}
-        >
-          Today&apos;s Nutrition
-        </p>
-        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-          {Math.round(totals.calories)} kcal
-        </span>
-      </div>
-      {logs.length === 0 ? (
-        <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: 0 }}>
-          No meals logged today
-        </p>
-      ) : (
-        <div className="grid grid-cols-3 gap-3">
-          <MiniMacro label="Protein" value={Math.round(totals.proteinG)} color="#3b82f6" />
-          <MiniMacro label="Carbs" value={Math.round(totals.carbsG)} color="#f97316" />
-          <MiniMacro label="Fat" value={Math.round(totals.fatG)} color="#ef4444" />
-        </div>
-      )}
-    </Link>
-  )
-}
-
-function MiniMacro({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div>
-      <p style={{ fontSize: 10, color: 'var(--color-text-hint)', fontWeight: 600, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-        {label}
-      </p>
-      <p style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 700, margin: '0 0 4px' }}>
-        {value}g
-      </p>
-      <div style={{ height: 3, backgroundColor: 'var(--color-surface-3)', borderRadius: 999 }}>
-        <div style={{ height: '100%', width: value > 0 ? '100%' : '0%', backgroundColor: color, borderRadius: 999 }} />
-      </div>
-    </div>
-  )
-}
-
-function TodayWorkoutWidget({ today }: { today: TodayTemplate | null }) {
+function WorkoutCard({ today, estimatedDuration }: { today: TodayTemplate | null; estimatedDuration: number }) {
   if (!today) {
     return (
-      <div
-        style={{
-          backgroundColor: 'var(--color-surface-1)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '14px',
-          padding: '14px 16px',
-        }}
-      >
-        <p
-          style={{
-            fontSize: '11px',
-            fontWeight: 600,
-            color: 'var(--color-text-muted)',
-            margin: '0 0 4px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-          }}
-        >
-          Today
+      <div style={{
+        backgroundColor: 'var(--color-surface-1)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 16, padding: '18px',
+      }}>
+        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          Today&apos;s Workout
         </p>
-        <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', margin: 0 }}>
-          Rest day — recovery matters
-        </p>
+        <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>Rest Day</p>
+        <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: 0 }}>Recovery is part of the program.</p>
       </div>
     )
   }
 
+  const visible = today.exerciseNames.slice(0, 3)
+  const extra   = today.exerciseCount - 3
+
   return (
-    <div
-      style={{
-        backgroundColor: 'var(--color-surface-1)',
-        border: '1px solid var(--color-border)',
-        borderRadius: '16px',
-        padding: '16px 18px',
-      }}
-    >
-      <p
-        style={{
-          fontSize: '11px',
-          fontWeight: 600,
-          color: 'var(--color-text-muted)',
-          margin: '0 0 4px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-        }}
-      >
-        Today&apos;s Workout
-      </p>
-      <p style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
-        {today.templateName}
-      </p>
-      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
-        {today.exerciseCount} {today.exerciseCount === 1 ? 'exercise' : 'exercises'}
-      </p>
+    <div style={{
+      backgroundColor: 'var(--color-surface-1)',
+      border: '1px solid var(--color-border)',
+      borderRadius: 16, padding: '18px',
+    }}>
+      {/* Top row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Today&apos;s Workout
+          </p>
+          <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 3px', lineHeight: 1.15 }}>
+            {today.templateName}
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: 0 }}>
+            {today.exerciseCount} exercises{estimatedDuration > 0 ? ` · ~${estimatedDuration} min` : ''}
+          </p>
+        </div>
+        {/* Icon button */}
+        <div style={{
+          width: 42, height: 42, borderRadius: 12,
+          backgroundColor: 'var(--color-surface-3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <Dumbbell size={20} color="var(--color-text-muted)" />
+        </div>
+      </div>
+
+      {/* Exercise pills */}
+      {visible.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+          {visible.map((name, i) => (
+            <span key={i} style={{
+              fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)',
+              backgroundColor: 'var(--color-surface-3)', borderRadius: 20, padding: '5px 12px',
+            }}>
+              {name}
+            </span>
+          ))}
+          {extra > 0 && (
+            <span style={{
+              fontSize: 12, fontWeight: 500, color: 'var(--color-accent)',
+              backgroundColor: 'var(--color-accent-dim)', borderRadius: 20, padding: '5px 12px',
+            }}>
+              +{extra} more
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* CTA button */}
       <Link
         href={`/client/workouts/session?templateId=${encodeURIComponent(today.templateId)}&templateName=${encodeURIComponent(today.templateName)}`}
         style={{
-          display: 'block',
-          textAlign: 'center',
-          backgroundColor: '#ffffff',
-          color: '#000000',
-          borderRadius: '10px',
-          padding: '11px',
-          fontSize: '14px',
-          fontWeight: 700,
-          textDecoration: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          backgroundColor: 'var(--color-accent)', color: '#fff',
+          borderRadius: 14, padding: '15px',
+          fontSize: 16, fontWeight: 800, textDecoration: 'none',
+          letterSpacing: '-0.01em',
         }}
       >
-        Start Workout
+        Start Workout →
       </Link>
     </div>
   )

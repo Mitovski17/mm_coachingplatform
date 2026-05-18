@@ -606,6 +606,17 @@ export async function getBodyMetrics(clientId: string): Promise<BodyMetric[]> {
   return data.map((r) => mapBodyMetric(r as Record<string, unknown>))
 }
 
+export async function saveCoachNotes(
+  checkinId: string,
+  notes: string
+): Promise<void> {
+  const admin = adminClient()
+  await admin
+    .from('checkins')
+    .update({ coach_notes: notes })
+    .eq('id', checkinId)
+}
+
 export async function getClientAssignments(
   clientId: string
 ): Promise<ClientAssignments> {

@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { House, Dumbbell, UtensilsCrossed, TrendingUp } from 'lucide-react'
+import { House, Dumbbell, Apple, BarChart2, User } from 'lucide-react'
 
 const NAV = [
-  { label: 'Home', href: '/client', Icon: House },
-  { label: 'Workouts', href: '/client/workouts', Icon: Dumbbell },
-  { label: 'Nutrition', href: '/client/nutrition', Icon: UtensilsCrossed },
-  { label: 'Progress', href: '/client/progress', Icon: TrendingUp },
+  { label: 'Home',     href: '/client',           Icon: House },
+  { label: 'Train',    href: '/client/workouts',   Icon: Dumbbell },
+  { label: 'Food',     href: '/client/nutrition',  Icon: Apple },
+  { label: 'Progress', href: '/client/progress',   Icon: BarChart2 },
+  { label: 'Profile',  href: '/client/profile',    Icon: User },
 ] as const
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -16,14 +17,14 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-base)' }}>
-      <main style={{ paddingBottom: '64px' }}>
+      <main style={{ paddingBottom: '76px' }}>
         {children}
       </main>
 
       <nav
         className="fixed bottom-0 left-0 right-0 flex items-stretch"
         style={{
-          height: '64px',
+          height: '68px',
           backgroundColor: 'var(--color-surface-1)',
           borderTop: '1px solid var(--color-border)',
           paddingBottom: 'env(safe-area-inset-bottom)',
@@ -36,14 +37,23 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             <Link
               key={href}
               href={href}
-              className="flex flex-col items-center justify-center flex-1 gap-1 text-xs font-medium transition-colors"
-              style={{
-                color: active ? 'var(--color-text-primary)' : 'var(--color-text-hint)',
-                textDecoration: 'none',
-              }}
+              className="flex flex-col items-center justify-center flex-1 gap-1 transition-colors"
+              style={{ color: active ? 'var(--color-accent)' : 'var(--color-text-hint)', textDecoration: 'none' }}
             >
-              <Icon size={20} />
-              <span style={{ fontSize: '10px', fontWeight: active ? 600 : 400 }}>{label}</span>
+              <div
+                style={{
+                  width: 38,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 8,
+                  backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
+                }}
+              >
+                <Icon size={20} />
+              </div>
+              <span style={{ fontSize: '10px', fontWeight: active ? 600 : 400, lineHeight: 1 }}>{label}</span>
             </Link>
           )
         })}

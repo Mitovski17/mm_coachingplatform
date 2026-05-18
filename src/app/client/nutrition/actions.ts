@@ -310,3 +310,24 @@ export async function deleteNutritionLog(logId: string): Promise<void> {
   const { error } = await admin.from('nutrition_logs').delete().eq('id', logId)
   if (error) throw new Error(error.message)
 }
+
+export async function updateNutritionLogQuantity(
+  logId: string,
+  newQty: number,
+  origQty: number,
+  origCal: number,
+  origP: number,
+  origC: number,
+  origF: number
+): Promise<void> {
+  const ratio = newQty / origQty
+  const admin = adminClient()
+  const { error } = await admin.from('nutrition_logs').update({
+    quantity: newQty,
+    calories: Math.round(origCal * ratio * 10) / 10,
+    protein_g: Math.round(origP * ratio * 10) / 10,
+    carbs_g: Math.round(origC * ratio * 10) / 10,
+    fat_g: Math.round(origF * ratio * 10) / 10,
+  }).eq('id', logId)
+  if (error) throw new Error(error.message)
+}

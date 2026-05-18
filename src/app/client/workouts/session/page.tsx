@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, X } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
   getClientId,
@@ -13,15 +13,7 @@ import {
   type LastSession,
 } from '../actions'
 
-const MUSCLE_COLORS: Record<string, string> = {
-  chest: '#ef4444',
-  back: '#3b82f6',
-  legs: '#22c55e',
-  shoulders: '#f59e0b',
-  arms: '#a855f7',
-  core: '#06b6d4',
-  cardio: '#ec4899',
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type SetRow = {
   setNumber: number
@@ -37,677 +29,565 @@ type ExerciseState = {
   targetSets: number
   targetReps: string
   restSeconds: number
+  notes: string | null
   previousSets: Array<{ weightKg: number; reps: number }>
   currentSets: SetRow[]
   overloadIndicator: 'up' | 'down' | 'same' | null
 }
 
-type RestTimerState = { active: boolean; secondsLeft: number; totalSeconds: number }
-
-function firstNumberOf(reps: string): string {
-  const m = reps.match(/\d+/)
-  return m ? m[0] : ''
+type RestTimer = {
+  active: boolean
+  secondsLeft: number
+  totalSeconds: number
+  exerciseId: string | null
 }
 
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+type ModalState = { title: string; body: string; onConfirm: () => void }
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+
+function firstNum(s: string): string { return s.match(/\d+/)?.[0] ?? '' }
+function fmt(s: number): string {
+  return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
 }
+function parseF(v: string): number | null { const n = parseFloat(v); return v.trim() && !isNaN(n) ? n : null }
+function parseI(v: string): number | null { const n = parseInt(v, 10); return v.trim() && !isNaN(n) ? n : null }
+
+const MUSCLE_COLORS: Record<string, string> = {
+  chest: '#ef4444', back: '#3b82f6', legs: '#22c55e',
+  shoulders: '#f59e0b', arms: '#a855f7', core: '#06b6d4', cardio: '#ec4899',
+}
+
+// ─── Confirm modal ────────────────────────────────────────────────────────────
+
+function ConfirmModal({ modal, onClose }: { modal: ModalState; onClose: () => void }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.6)' }}>
+      <div style={{
+        backgroundColor: 'var(--color-surface-1)', borderRadius: 16, padding: 28,
+        maxWidth: 320, width: 'calc(100% - 40px)', margin: 'auto',
+        position: 'relative', top: '50%', transform: 'translateY(-50%)',
+      }}>
+        <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 8px' }}>
+          {modal.title}
+        </h2>
+        <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: '0 0 24px', lineHeight: 1.5 }}>
+          {modal.body}
+        </p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              flex: 1, backgroundColor: 'var(--color-surface-3)', color: 'var(--color-text-secondary)',
+              borderRadius: 10, padding: 12, fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => { modal.onConfirm(); onClose() }}
+            style={{
+              flex: 1, backgroundColor: '#ef4444', color: '#fff',
+              borderRadius: 10, padding: 12, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer',
+            }}
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page shell ───────────────────────────────────────────────────────────────
 
 export default function SessionPage() {
   return (
-    <Suspense fallback={<LoadingScreen />}>
+    <Suspense fallback={<Spinner />}>
       <SessionInner />
     </Suspense>
   )
 }
 
-function LoadingScreen() {
-  return (
-    <div
-      className="flex items-center justify-center"
-      style={{ minHeight: '60vh', color: 'var(--color-text-muted)', fontSize: 14 }}
-    >
-      Loading session…
-    </div>
-  )
+function Spinner() {
+  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--color-text-hint)', fontSize: 14 }}>Loading…</div>
 }
 
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
 function SessionInner() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const templateId = searchParams.get('templateId') ?? ''
-  const templateNameParam = searchParams.get('templateName') ?? ''
+  const router  = useRouter()
+  const params  = useSearchParams()
+  const templateId        = params.get('templateId') ?? ''
+  const templateNameParam = params.get('templateName') ?? ''
 
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [clientInfo, setClientInfo] = useState<{ id: string; workspace_id: string } | null>(null)
-  const [templateName, setTemplateName] = useState(templateNameParam)
-  const [exercises, setExercises] = useState<ExerciseState[]>([])
-  const [notes, setNotes] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [restTimer, setRestTimer] = useState<RestTimerState>({
-    active: false,
-    secondsLeft: 0,
-    totalSeconds: 0,
-  })
-  const startedAtRef = useRef<Date>(new Date())
-  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [loading,      setLoading]  = useState(true)
+  const [loadError,    setError]    = useState<string | null>(null)
+  const [clientInfo,   setClient]   = useState<{ id: string; workspace_id: string } | null>(null)
+  const [templateName, setTName]    = useState(templateNameParam)
+  const [exercises,    setExercises]= useState<ExerciseState[]>([])
+  const [sessionNotes, setNotes]    = useState('')
+  const [saving,       setSaving]   = useState(false)
+  const [modal,        setModal]    = useState<ModalState | null>(null)
+  const [quitHover,    setQuitHover]= useState(false)
 
-  // ── Initial load ────────────────────────────────────────────────────────
+  const startRef = useRef<Date>(new Date())
+  const [elapsed, setElapsed] = useState(0)
+
+  const [rest, setRest] = useState<RestTimer>({ active: false, secondsLeft: 0, totalSeconds: 0, exerciseId: null })
+
+  // ── Load ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
-
     async function init() {
       try {
         if (!templateId) throw new Error('Missing templateId')
-
-        // Resolve client by email
         let email: string | null = null
-        const mockCookie = document.cookie
-          .split('; ')
-          .find((row) => row.startsWith('dev_mock_email='))
-          ?.split('=')[1]
-        if (mockCookie) {
-          email = decodeURIComponent(mockCookie)
-        } else {
-          const supabase = createClient()
-          const { data: { user } } = await supabase.auth.getUser()
+        const mc = document.cookie.split('; ').find((r) => r.startsWith('dev_mock_email='))?.split('=')[1]
+        if (mc) email = decodeURIComponent(mc)
+        else {
+          const sb = createClient()
+          const { data: { user } } = await sb.auth.getUser()
           email = user?.email ?? null
         }
-        if (!email) {
-          router.replace('/login')
-          return
-        }
+        if (!email) { router.replace('/login'); return }
 
-        const [client, template] = await Promise.all([
-          getClientId(email),
-          getTemplateWithExercises(templateId),
-        ])
-
-        if (!client) {
-          router.replace('/login')
-          return
-        }
+        const [client, template] = await Promise.all([getClientId(email), getTemplateWithExercises(templateId)])
+        if (!client) { router.replace('/login'); return }
 
         const last = await getLastSessionForTemplate(client.id, templateId)
-
         if (cancelled) return
 
-        setClientInfo(client)
-        setTemplateName(template.name)
-        setExercises(buildInitialExerciseStates(template.exercises, last))
+        setClient(client)
+        setTName(template.name)
+        setExercises(buildStates(template.exercises, last))
         setLoading(false)
       } catch (e) {
-        if (!cancelled) {
-          setLoadError(e instanceof Error ? e.message : 'Failed to load workout')
-          setLoading(false)
-        }
+        if (!cancelled) { setError(e instanceof Error ? e.message : 'Failed to load'); setLoading(false) }
       }
     }
-
     init()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId])
 
-  // ── Elapsed timer ─────────────────────────────────────────────────────
+  // ── Elapsed timer ────────────────────────────────────────────────────────
   useEffect(() => {
-    const id = setInterval(() => {
-      const diff = Math.floor((Date.now() - startedAtRef.current.getTime()) / 1000)
-      setElapsedSeconds(diff)
-    }, 1000)
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current.getTime()) / 1000)), 1000)
     return () => clearInterval(id)
   }, [])
 
-  // ── Rest timer ────────────────────────────────────────────────────────
+  // ── Rest timer ───────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!restTimer.active) return
+    if (!rest.active) return
     const id = setInterval(() => {
-      setRestTimer((t) => {
-        if (!t.active) return t
-        if (t.secondsLeft <= 1) {
-          try {
-            navigator.vibrate?.([300, 100, 300])
-          } catch {
-            // ignore
-          }
-          return { ...t, active: false, secondsLeft: 0 }
+      setRest((r) => {
+        if (!r.active) return r
+        if (r.secondsLeft <= 1) {
+          try { navigator.vibrate?.([300, 100, 300]) } catch { /* ok */ }
+          return { ...r, active: false, secondsLeft: 0 }
         }
-        return { ...t, secondsLeft: t.secondsLeft - 1 }
+        return { ...r, secondsLeft: r.secondsLeft - 1 }
       })
     }, 1000)
     return () => clearInterval(id)
-  }, [restTimer.active])
+  }, [rest.active])
 
-  // ── Mutators ──────────────────────────────────────────────────────────
-  const updateSet = useCallback(
-    (exerciseId: string, setNumber: number, patch: Partial<SetRow>) => {
-      setExercises((prev) =>
-        prev.map((ex) => {
-          if (ex.exerciseId !== exerciseId) return ex
-          return {
-            ...ex,
-            currentSets: ex.currentSets.map((s) =>
-              s.setNumber === setNumber ? { ...s, ...patch } : s
-            ),
-          }
-        })
-      )
-    },
-    []
-  )
+  // ── Mutators ─────────────────────────────────────────────────────────────
+  const updateSet = useCallback((exerciseId: string, setNumber: number, patch: Partial<SetRow>) => {
+    setExercises((prev) => prev.map((ex) => {
+      if (ex.exerciseId !== exerciseId) return ex
+      return { ...ex, currentSets: ex.currentSets.map((s) => s.setNumber === setNumber ? { ...s, ...patch } : s) }
+    }))
+  }, [])
 
-  const toggleSetDone = useCallback(
-    (exerciseId: string, setNumber: number) => {
-      setExercises((prev) => {
-        return prev.map((ex) => {
-          if (ex.exerciseId !== exerciseId) return ex
-          const newSets = ex.currentSets.map((s) =>
-            s.setNumber === setNumber ? { ...s, done: !s.done } : s
-          )
-          const wasDone = ex.currentSets.find((s) => s.setNumber === setNumber)?.done ?? false
-          const nowDone = !wasDone
-          const indicator = computeOverload(newSets, ex.previousSets)
-
-          // Trigger rest timer only when transitioning to done
-          if (nowDone) {
-            setRestTimer({
-              active: true,
-              secondsLeft: ex.restSeconds,
-              totalSeconds: ex.restSeconds,
-            })
-          }
-
-          return { ...ex, currentSets: newSets, overloadIndicator: indicator }
-        })
-      })
-    },
-    []
-  )
+  const toggleSetDone = useCallback((exerciseId: string, setNumber: number) => {
+    setExercises((prev) => prev.map((ex) => {
+      if (ex.exerciseId !== exerciseId) return ex
+      const wasDone = ex.currentSets.find((s) => s.setNumber === setNumber)?.done ?? false
+      const newSets = ex.currentSets.map((s) => s.setNumber === setNumber ? { ...s, done: !s.done } : s)
+      if (!wasDone) setRest({ active: true, secondsLeft: ex.restSeconds, totalSeconds: ex.restSeconds, exerciseId })
+      return { ...ex, currentSets: newSets, overloadIndicator: computeOverload(newSets, ex.previousSets) }
+    }))
+  }, [])
 
   const addSet = useCallback((exerciseId: string) => {
-    setExercises((prev) =>
-      prev.map((ex) => {
-        if (ex.exerciseId !== exerciseId) return ex
-        const last = ex.currentSets[ex.currentSets.length - 1]
-        const nextNumber = (last?.setNumber ?? 0) + 1
-        return {
-          ...ex,
-          currentSets: [
-            ...ex.currentSets,
-            {
-              setNumber: nextNumber,
-              weightKg: last?.weightKg ?? '',
-              reps: last?.reps ?? firstNumberOf(ex.targetReps),
-              done: false,
-            },
-          ],
-        }
-      })
-    )
+    setExercises((prev) => prev.map((ex) => {
+      if (ex.exerciseId !== exerciseId) return ex
+      const last = ex.currentSets[ex.currentSets.length - 1]
+      return {
+        ...ex,
+        currentSets: [...ex.currentSets, {
+          setNumber: (last?.setNumber ?? 0) + 1,
+          weightKg: last?.weightKg ?? '',
+          reps: last?.reps ?? firstNum(ex.targetReps),
+          done: false,
+        }],
+      }
+    }))
   }, [])
 
-  // ── Quit ──────────────────────────────────────────────────────────────
-  const handleQuit = () => {
-    if (confirm('Quit workout? Your progress will be lost.')) {
-      router.push('/client/workouts')
-    }
-  }
-
-  // ── Save ──────────────────────────────────────────────────────────────
-  const totalLoggedSets = useMemo(
-    () =>
-      exercises.reduce(
-        (acc, ex) => acc + ex.currentSets.filter((s) => s.reps.trim() !== '').length,
-        0
-      ),
+  // ── Progress ─────────────────────────────────────────────────────────────
+  const completedExercises = useMemo(() =>
+    exercises.filter((ex) => ex.currentSets.length > 0 && ex.currentSets.every((s) => s.done)).length,
     [exercises]
   )
 
-  const exercisesWithSets = useMemo(
-    () => exercises.filter((ex) => ex.currentSets.some((s) => s.reps.trim() !== '')).length,
-    [exercises]
-  )
-
-  const handleFinish = async () => {
+  // ── Save ─────────────────────────────────────────────────────────────────
+  const handleSaveSession = async () => {
     if (!clientInfo) return
-    if (
-      !confirm(
-        `Finish workout? ${totalLoggedSets} set${totalLoggedSets === 1 ? '' : 's'} logged across ${exercisesWithSets} exercise${exercisesWithSets === 1 ? '' : 's'}`
-      )
-    ) {
-      return
-    }
-
     setSaving(true)
     try {
-      const durationMinutes = Math.max(1, Math.round((Date.now() - startedAtRef.current.getTime()) / 60000))
-      const performedAt = new Date().toISOString()
       await saveWorkoutSession({
         clientId: clientInfo.id,
         workspaceId: clientInfo.workspace_id,
-        templateId,
-        templateName,
-        notes,
-        durationMinutes,
-        performedAt,
+        templateId, templateName, notes: sessionNotes,
+        durationMinutes: Math.max(1, Math.round((Date.now() - startRef.current.getTime()) / 60000)),
+        performedAt: new Date().toISOString(),
         exercises: exercises.map((ex) => ({
           exerciseId: ex.exerciseId,
-          sets: ex.currentSets
-            .filter((s) => s.reps.trim() !== '')
-            .map((s) => ({
-              setNumber: s.setNumber,
-              weightKg: parseFloatOrNull(s.weightKg),
-              reps: parseIntOrNull(s.reps),
-            })),
+          sets: ex.currentSets.filter((s) => s.reps.trim()).map((s) => ({
+            setNumber: s.setNumber, weightKg: parseF(s.weightKg), reps: parseI(s.reps),
+          })),
         })),
       })
       router.push('/client/workouts')
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to save workout')
+      alert(e instanceof Error ? e.message : 'Failed to save')
       setSaving(false)
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────
-  if (loading) return <LoadingScreen />
-  if (loadError) {
-    return (
-      <div
-        className="flex items-center justify-center"
-        style={{ minHeight: '60vh', padding: 24, color: '#ef4444', fontSize: 14, textAlign: 'center' }}
-      >
-        {loadError}
-      </div>
-    )
+  // ── Finish click ──────────────────────────────────────────────────────────
+  const handleFinishClick = () => {
+    if (!clientInfo) return
+    const totalSets = exercises.reduce((a, ex) => a + ex.currentSets.length, 0)
+    const completedSets = exercises.reduce((a, ex) => a + ex.currentSets.filter((s) => s.done).length, 0)
+
+    if (totalSets > 0 && completedSets === totalSets) {
+      handleSaveSession()
+    } else {
+      setModal({
+        title: 'Finish early?',
+        body: `You've completed ${completedSets} of ${totalSets} sets. Save this partial session?`,
+        onConfirm: handleSaveSession,
+      })
+    }
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
+  if (loading)   return <Spinner />
+  if (loadError) return <div style={{ padding: 24, color: '#ef4444', fontSize: 14, textAlign: 'center' }}>{loadError}</div>
+
+  const progPct = exercises.length > 0 ? (completedExercises / exercises.length) * 100 : 0
+
   return (
-    <div style={{ paddingBottom: 80 }}>
-      {/* Header */}
-      <div
-        className="flex items-center"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 40,
-          backgroundColor: 'var(--color-surface-1)',
-          borderBottom: '1px solid var(--color-border)',
-          padding: '14px 16px',
-          maxWidth: '480px',
-          margin: '0 auto',
-          gap: 8,
-        }}
-      >
-        <button
-          type="button"
-          onClick={handleQuit}
-          aria-label="Quit workout"
-          style={{
-            width: 32,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'transparent',
-            border: 'none',
-            color: 'var(--color-text-muted)',
-            cursor: 'pointer',
-            padding: 0,
-            flexShrink: 0,
-          }}
-        >
-          <X size={20} />
-        </button>
-        <p
-          style={{
-            fontSize: 15,
-            fontWeight: 600,
-            color: 'var(--color-text-primary)',
-            margin: 0,
-            flex: 1,
-            textAlign: 'center',
-          }}
-        >
-          {templateName}
-        </p>
-        <div className="flex items-center" style={{ gap: 8, flexShrink: 0 }}>
-          <p
-            style={{
-              fontSize: 13,
-              color: 'var(--color-text-muted)',
-              margin: 0,
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {formatElapsed(elapsedSeconds)}
-          </p>
+    <div style={{ paddingBottom: 32, maxWidth: 480, margin: '0 auto' }}>
+
+      {/* ── Header ── */}
+      <div style={{ padding: '48px 20px 20px' }}>
+        {/* Button row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <button
             type="button"
-            onClick={handleFinish}
+            onMouseEnter={() => setQuitHover(true)}
+            onMouseLeave={() => setQuitHover(false)}
+            onClick={() => setModal({
+              title: 'Quit workout?',
+              body: 'Your progress will not be saved. Are you sure you want to quit?',
+              onConfirm: () => router.push('/client/workouts'),
+            })}
+            style={{
+              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: quitHover ? '#ef4444' : 'var(--color-surface-3)',
+              border: 'none',
+              color: '#fff', cursor: 'pointer', fontSize: 18, fontWeight: 700, lineHeight: 1,
+              transition: 'background-color 0.15s',
+            }}
+            aria-label="Quit"
+          >
+            ×
+          </button>
+          <button
+            type="button"
+            onClick={handleFinishClick}
             disabled={saving}
             style={{
-              backgroundColor: '#ffffff',
-              color: '#000000',
-              border: 'none',
-              borderRadius: 8,
-              padding: '6px 14px',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.7 : 1,
+              backgroundColor: saving ? 'var(--color-surface-3)' : 'var(--color-accent)',
+              color: saving ? 'var(--color-text-muted)' : '#fff',
+              borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+              border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
             }}
           >
-            {saving ? 'Saving…' : 'Finish'}
+            {saving ? 'Saving…' : 'Finish Workout'}
           </button>
         </div>
-      </div>
 
-      <div className="mx-auto" style={{ maxWidth: '480px', paddingTop: 72 }}>
-        <div style={{ padding: '0 16px' }}>
-          {exercises.map((ex) => (
-            <ExerciseCard
-              key={ex.exerciseId}
-              exercise={ex}
-              onUpdateSet={updateSet}
-              onToggleDone={toggleSetDone}
-              onAddSet={addSet}
-            />
-          ))}
+        {/* Workout name */}
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 6px', lineHeight: 1.1 }}>
+          {templateName}
+        </h1>
 
-          {/* Notes */}
-          <div style={{ margin: '8px 0 16px' }}>
-            <p
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'var(--color-text-muted)',
-                margin: '0 0 8px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-              }}
-            >
-              Session Notes
-            </p>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="How did it feel? Any PRs, issues, or things to flag for your coach..."
-              rows={3}
-              style={{
-                width: '100%',
-                backgroundColor: 'var(--color-surface-2)',
-                border: '1px solid var(--color-border)',
-                borderRadius: '12px',
-                color: 'var(--color-text-primary)',
-                padding: '12px',
-                fontSize: 14,
-                fontFamily: 'inherit',
-                resize: 'none',
-                outline: 'none',
-                lineHeight: 1.5,
-              }}
-            />
-          </div>
+        {/* Elapsed + exercise count */}
+        <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: '0 0 10px', fontVariantNumeric: 'tabular-nums' }}>
+          {fmt(elapsed)} elapsed · {completedExercises} of {exercises.length} exercises
+        </p>
+
+        {/* Progress bar */}
+        <div style={{ height: 3, backgroundColor: 'var(--color-surface-3)', borderRadius: 999 }}>
+          <div style={{ height: '100%', width: `${progPct}%`, backgroundColor: 'var(--color-accent)', borderRadius: 999, transition: 'width 0.4s ease' }} />
         </div>
       </div>
 
-      {/* Rest timer overlay */}
-      {restTimer.active && (
-        <RestTimerOverlay
-          state={restTimer}
-          onSkip={() => setRestTimer((t) => ({ ...t, active: false, secondsLeft: 0 }))}
-        />
-      )}
+      {/* ── Exercise cards ── */}
+      <div style={{ padding: '0 16px' }}>
+        {exercises.map((ex) => (
+          <ExerciseCard
+            key={ex.exerciseId}
+            exercise={ex}
+            restTimer={rest}
+            onUpdateSet={updateSet}
+            onToggleDone={toggleSetDone}
+            onAddSet={addSet}
+            onSkipRest={() => setRest((r) => ({ ...r, active: false, secondsLeft: 0 }))}
+          />
+        ))}
+
+        {/* Session notes */}
+        <div style={{ marginTop: 4, marginBottom: 16 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Session Notes
+          </p>
+          <textarea
+            value={sessionNotes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="How did it feel? Any PRs or notes for your coach..."
+            rows={3}
+            style={{
+              width: '100%', backgroundColor: 'var(--color-surface-1)',
+              border: '1px solid var(--color-border)', borderRadius: 12,
+              color: 'var(--color-text-primary)', padding: '12px',
+              fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', lineHeight: 1.5,
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ── Confirm modal ── */}
+      {modal && <ConfirmModal modal={modal} onClose={() => setModal(null)} />}
     </div>
   )
 }
+
+// ─── Exercise card ────────────────────────────────────────────────────────────
 
 function ExerciseCard({
-  exercise,
-  onUpdateSet,
-  onToggleDone,
-  onAddSet,
+  exercise, restTimer, onUpdateSet, onToggleDone, onAddSet, onSkipRest,
 }: {
   exercise: ExerciseState
-  onUpdateSet: (exerciseId: string, setNumber: number, patch: Partial<SetRow>) => void
-  onToggleDone: (exerciseId: string, setNumber: number) => void
-  onAddSet: (exerciseId: string) => void
+  restTimer: RestTimer
+  onUpdateSet: (id: string, num: number, patch: Partial<SetRow>) => void
+  onToggleDone: (id: string, num: number) => void
+  onAddSet: (id: string) => void
+  onSkipRest: () => void
 }) {
-  const muscleColor = MUSCLE_COLORS[exercise.muscleGroup] ?? '#6b7280'
+  const muscleColor = MUSCLE_COLORS[exercise.muscleGroup.toLowerCase()] ?? '#6b7280'
+  const isResting   = restTimer.active && restTimer.exerciseId === exercise.exerciseId
 
   return (
-    <div
-      style={{
-        backgroundColor: 'var(--color-surface-1)',
-        border: '1px solid var(--color-border)',
-        borderRadius: '20px',
-        padding: '16px',
-        marginBottom: '12px',
-      }}
-    >
-      <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
-        <p
-          style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: 'var(--color-text-primary)',
-            margin: 0,
-            flex: 1,
-            minWidth: 0,
-          }}
-        >
-          {exercise.exerciseName}
+    <div style={{
+      backgroundColor: 'var(--color-surface-1)',
+      border: '1px solid var(--color-border)',
+      borderRadius: 20, marginBottom: 12, overflow: 'hidden',
+    }}>
+      <div style={{ padding: '16px 16px 4px' }}>
+        {/* Title row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, flex: 1 }}>
+            {exercise.exerciseName}
+          </p>
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '2px 8px',
+            borderRadius: 999, color: muscleColor,
+            backgroundColor: `${muscleColor}18`,
+            textTransform: 'capitalize', flexShrink: 0,
+          }}>
+            {exercise.muscleGroup}
+          </span>
+          <OverloadBadge indicator={exercise.overloadIndicator} />
+        </div>
+
+        {/* Notes under title */}
+        {exercise.notes && (
+          <div style={{ borderLeft: '2px solid var(--color-accent)', paddingLeft: 10, marginBottom: 8 }}>
+            <p style={{ fontSize: 12, color: 'var(--color-text-hint)', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
+              {exercise.notes}
+            </p>
+          </div>
+        )}
+
+        {/* Target + last session */}
+        <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '0 0 12px' }}>
+          {exercise.targetSets} × {exercise.targetReps}
+          {exercise.previousSets.length > 0 && (
+            <span style={{ color: 'var(--color-text-hint)' }}>
+              {' · '}Last: {exercise.previousSets.map((s) => `${s.weightKg}kg×${s.reps}`).join(' · ')}
+            </span>
+          )}
         </p>
-        <span
+
+        {/* Set rows */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+          {exercise.currentSets.map((s) => {
+            const idx  = s.setNumber - 1
+            const prev = exercise.previousSets[idx] ?? exercise.previousSets[exercise.previousSets.length - 1]
+            const isPR = s.done && prev && parseFloat(s.weightKg) > prev.weightKg
+            return (
+              <SetRowItem
+                key={s.setNumber}
+                row={s}
+                isPR={!!isPR}
+                onChange={(patch) => onUpdateSet(exercise.exerciseId, s.setNumber, patch)}
+                onToggleDone={() => onToggleDone(exercise.exerciseId, s.setNumber)}
+              />
+            )
+          })}
+        </div>
+
+        {/* Add set */}
+        <button
+          type="button"
+          onClick={() => onAddSet(exercise.exerciseId)}
           style={{
-            fontSize: 10,
-            fontWeight: 600,
-            padding: '2px 8px',
-            borderRadius: '999px',
-            backgroundColor: 'var(--color-surface-2)',
-            color: muscleColor,
-            textTransform: 'capitalize',
-            flexShrink: 0,
+            width: '100%', padding: '7px 0', marginBottom: 14,
+            backgroundColor: 'transparent', border: '1px dashed var(--color-border)',
+            borderRadius: 10, color: 'var(--color-text-muted)',
+            fontSize: 13, fontWeight: 500, cursor: 'pointer',
           }}
         >
-          {exercise.muscleGroup}
-        </span>
-        <OverloadBadge indicator={exercise.overloadIndicator} />
+          + Add Set
+        </button>
       </div>
 
-      {exercise.previousSets.length > 0 && (
-        <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: '4px 0 2px' }}>
-          <span style={{ color: 'var(--color-text-muted)' }}>Last session: </span>
-          {exercise.previousSets
-            .map((s) => `${s.weightKg}kg×${s.reps}`)
-            .join(' · ')}
-        </p>
+      {/* Inline rest timer */}
+      {isResting && (
+        <div style={{
+          borderTop: '1px solid var(--color-border)', padding: '12px 16px',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <RestRing pct={restTimer.secondsLeft / (restTimer.totalSeconds || 1)} />
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Rest</p>
+            <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+              {fmt(restTimer.secondsLeft)}
+            </p>
+          </div>
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={onSkipRest}
+            style={{
+              padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              backgroundColor: 'var(--color-surface-3)', color: 'var(--color-text-muted)',
+              border: '1px solid var(--color-border)', cursor: 'pointer',
+            }}
+          >
+            Skip
+          </button>
+        </div>
       )}
-      <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: '0 0 12px' }}>
-        Target: {exercise.targetSets} × {exercise.targetReps}
-      </p>
-
-      <div className="flex flex-col gap-2">
-        {exercise.currentSets.map((s) => {
-          const idx = s.setNumber - 1
-          const prev = exercise.previousSets[idx] ?? (exercise.previousSets.length > 0 ? exercise.previousSets[exercise.previousSets.length - 1] : undefined)
-          return (
-            <SetRowItem
-              key={s.setNumber}
-              row={s}
-              previousWeight={prev?.weightKg ?? null}
-              onChange={(patch) => onUpdateSet(exercise.exerciseId, s.setNumber, patch)}
-              onToggleDone={() => onToggleDone(exercise.exerciseId, s.setNumber)}
-            />
-          )
-        })}
-      </div>
-
-      <button
-        type="button"
-        onClick={() => onAddSet(exercise.exerciseId)}
-        style={{
-          marginTop: 10,
-          padding: '6px 0',
-          width: '100%',
-          backgroundColor: 'transparent',
-          border: '1px dashed var(--color-border)',
-          borderRadius: '10px',
-          color: 'var(--color-text-muted)',
-          fontSize: 13,
-          fontWeight: 500,
-          cursor: 'pointer',
-        }}
-      >
-        + Add Set
-      </button>
     </div>
   )
 }
 
-function OverloadBadge({ indicator }: { indicator: ExerciseState['overloadIndicator'] }) {
-  if (!indicator) return null
-  if (indicator === 'up') {
-    return (
-      <span
-        className="flex items-center gap-1"
-        style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, flexShrink: 0 }}
-      >
-        ↑<span style={{ fontSize: 9, fontWeight: 600 }}>PR pace</span>
-      </span>
-    )
-  }
-  if (indicator === 'same') {
-    return <span style={{ fontSize: 14, color: 'var(--color-text-hint)', fontWeight: 700, flexShrink: 0 }}>=</span>
-  }
-  return <span style={{ fontSize: 14, color: '#ef4444', fontWeight: 700, flexShrink: 0 }}>↓</span>
-}
+// ─── Set row (inline inputs) ──────────────────────────────────────────────────
 
 function SetRowItem({
-  row,
-  previousWeight,
-  onChange,
-  onToggleDone,
+  row, isPR, onChange, onToggleDone,
 }: {
   row: SetRow
-  previousWeight: number | null
+  isPR: boolean
   onChange: (patch: Partial<SetRow>) => void
   onToggleDone: () => void
 }) {
-  const currentWeight = parseFloat(row.weightKg)
-  const isPR =
-    row.done &&
-    previousWeight !== null &&
-    !Number.isNaN(currentWeight) &&
-    currentWeight > previousWeight
-
   return (
-    <div
-      className="flex items-center gap-2"
-      style={{
-        padding: '6px 4px',
-        backgroundColor: row.done ? 'var(--color-surface-2)' : 'transparent',
-        borderRadius: 10,
-        transition: 'background-color 0.15s',
-      }}
-    >
-      <span
-        className="flex items-center justify-center"
-        style={{
-          width: 24,
-          height: 24,
-          borderRadius: '50%',
-          backgroundColor: 'var(--color-surface-2)',
-          color: 'var(--color-text-muted)',
-          fontSize: 11,
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '6px 4px',
+      backgroundColor: row.done ? 'rgba(255,92,0,0.06)' : 'transparent',
+      borderRadius: 10, transition: 'background-color 0.15s',
+    }}>
+      {/* Set number bubble */}
+      <span style={{
+        width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: 'var(--color-surface-2)',
+        color: 'var(--color-text-muted)', fontSize: 11, fontWeight: 600,
+      }}>
         {row.setNumber}
       </span>
+
+      {/* Weight */}
       <input
-        type="number"
-        inputMode="decimal"
+        type="number" inputMode="decimal"
         value={row.weightKg}
         onChange={(e) => onChange({ weightKg: e.target.value })}
         placeholder="0"
         style={{
-          width: 80,
-          textAlign: 'center',
+          width: 76, textAlign: 'center',
           backgroundColor: 'var(--color-surface-2)',
           border: '1px solid var(--color-border)',
-          borderRadius: 10,
-          color: 'var(--color-text-primary)',
-          padding: '8px 0',
-          fontSize: 14,
-          fontWeight: 600,
-          outline: 'none',
+          borderRadius: 10, color: 'var(--color-text-primary)',
+          padding: '8px 0', fontSize: 14, fontWeight: 600, outline: 'none',
         }}
       />
-      <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>kg</span>
-      <span style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '0 2px' }}>×</span>
+      <span style={{ fontSize: 11, color: 'var(--color-text-hint)', flexShrink: 0 }}>kg</span>
+      <span style={{ fontSize: 12, color: 'var(--color-text-hint)', flexShrink: 0 }}>×</span>
+
+      {/* Reps */}
       <input
-        type="number"
-        inputMode="numeric"
+        type="number" inputMode="numeric"
         value={row.reps}
         onChange={(e) => onChange({ reps: e.target.value })}
         placeholder="0"
         style={{
-          width: 70,
-          textAlign: 'center',
+          width: 66, textAlign: 'center',
           backgroundColor: 'var(--color-surface-2)',
           border: '1px solid var(--color-border)',
-          borderRadius: 10,
-          color: 'var(--color-text-primary)',
-          padding: '8px 0',
-          fontSize: 14,
-          fontWeight: 600,
-          outline: 'none',
+          borderRadius: 10, color: 'var(--color-text-primary)',
+          padding: '8px 0', fontSize: 14, fontWeight: 600, outline: 'none',
         }}
       />
+
       <div style={{ flex: 1 }} />
-      {/* PR badge placeholder — fixed width keeps checkmark from shifting */}
-      <div style={{ width: 28, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
-        {isPR && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: '#22c55e',
-              backgroundColor: 'rgba(34, 197, 94, 0.15)',
-              borderRadius: '999px',
-              padding: '2px 6px',
-              letterSpacing: '0.05em',
-            }}
-          >
-            PR
-          </span>
-        )}
-      </div>
+
+      {/* PR badge */}
+      {isPR && (
+        <span style={{
+          fontSize: 10, fontWeight: 700, color: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,0.15)',
+          borderRadius: 999, padding: '2px 6px', flexShrink: 0,
+        }}>
+          PR
+        </span>
+      )}
+
+      {/* Done checkmark */}
       <button
         type="button"
         onClick={onToggleDone}
-        aria-label={row.done ? 'Mark set undone' : 'Mark set done'}
+        aria-label={row.done ? 'Mark undone' : 'Mark done'}
         style={{
-          width: 32,
-          height: 32,
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: row.done ? '#22c55e' : 'transparent',
+          width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: row.done ? 'var(--color-accent)' : 'transparent',
           color: row.done ? '#fff' : 'var(--color-text-hint)',
           border: row.done ? 'none' : '1.5px solid var(--color-border)',
           cursor: 'pointer',
-          flexShrink: 0,
         }}
       >
         <Check size={16} strokeWidth={3} />
@@ -716,124 +596,55 @@ function SetRowItem({
   )
 }
 
-function RestTimerOverlay({
-  state,
-  onSkip,
-}: {
-  state: RestTimerState
-  onSkip: () => void
-}) {
-  const pct = state.totalSeconds > 0 ? (state.secondsLeft / state.totalSeconds) * 100 : 0
+// ─── Overload badge ───────────────────────────────────────────────────────────
+
+function OverloadBadge({ indicator }: { indicator: ExerciseState['overloadIndicator'] }) {
+  if (!indicator) return null
+  if (indicator === 'up')   return <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, flexShrink: 0 }}>↑ PR pace</span>
+  if (indicator === 'same') return <span style={{ fontSize: 14, color: 'var(--color-text-hint)', fontWeight: 700, flexShrink: 0 }}>=</span>
+  return <span style={{ fontSize: 14, color: '#ef4444', fontWeight: 700, flexShrink: 0 }}>↓</span>
+}
+
+// ─── Rest ring ────────────────────────────────────────────────────────────────
+
+function RestRing({ pct }: { pct: number }) {
+  const R = 16, SW = 3, C = 20, circ = 2 * Math.PI * R
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 64,
-        left: 0,
-        right: 0,
-        height: 56,
-        zIndex: 50,
-        backgroundColor: 'var(--color-surface-2)',
-        borderTop: '1px solid var(--color-border)',
-        padding: '0 16px',
-        display: 'flex',
-        alignItems: 'center',
-      }}
-    >
-      {/* Progress line at top */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          height: 2,
-          width: `${pct}%`,
-          backgroundColor: '#f97316',
-          transition: 'width 1s linear',
-        }}
+    <svg width={C * 2} height={C * 2} viewBox={`0 0 ${C * 2} ${C * 2}`} style={{ flexShrink: 0 }}>
+      <circle cx={C} cy={C} r={R} fill="none" stroke="var(--color-surface-3)" strokeWidth={SW} />
+      <circle cx={C} cy={C} r={R} fill="none" stroke="var(--color-accent)" strokeWidth={SW}
+        strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)}
+        transform={`rotate(-90 ${C} ${C})`}
+        style={{ transition: 'stroke-dashoffset 1s linear' }}
       />
-      <span
-        style={{
-          fontSize: 10,
-          fontWeight: 600,
-          color: 'var(--color-text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-        }}
-      >
-        REST
-      </span>
-      <span
-        style={{
-          fontSize: 18,
-          fontWeight: 700,
-          color: '#ffffff',
-          fontVariantNumeric: 'tabular-nums',
-          marginLeft: 8,
-        }}
-      >
-        {formatElapsed(state.secondsLeft)}
-      </span>
-      <div style={{ flex: 1 }} />
-      <button
-        type="button"
-        onClick={onSkip}
-        style={{
-          backgroundColor: 'var(--color-surface-2)',
-          color: '#ffffff',
-          border: '1px solid var(--color-border)',
-          borderRadius: 8,
-          padding: '4px 12px',
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        Skip
-      </button>
-    </div>
+    </svg>
   )
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────
+// ─── State builders ───────────────────────────────────────────────────────────
 
-function buildInitialExerciseStates(
-  exercises: TemplateExercise[],
-  last: LastSession | null
-): ExerciseState[] {
-  // Group last session sets by exercise
-  const previousByExercise = new Map<string, Array<{ weightKg: number; reps: number }>>()
+function buildStates(exercises: TemplateExercise[], last: LastSession | null): ExerciseState[] {
+  const prevMap = new Map<string, Array<{ weightKg: number; reps: number }>>()
   if (last) {
     for (const s of last.sets) {
       if (s.weightKg === null || s.reps === null) continue
-      const list = previousByExercise.get(s.exerciseId) ?? []
+      const list = prevMap.get(s.exerciseId) ?? []
       list.push({ weightKg: s.weightKg, reps: s.reps })
-      previousByExercise.set(s.exerciseId, list)
+      prevMap.set(s.exerciseId, list)
     }
   }
 
   return exercises.map((ex) => {
-    const prev = previousByExercise.get(ex.exerciseId) ?? []
-    const targetRepsFirst = firstNumberOf(ex.targetReps)
-    const sets: SetRow[] = []
-    for (let i = 0; i < ex.targetSets; i++) {
+    const prev = prevMap.get(ex.exerciseId) ?? []
+    const sets: SetRow[] = Array.from({ length: ex.targetSets }, (_, i) => {
       const p = prev[i]
-      sets.push({
-        setNumber: i + 1,
-        weightKg: p ? String(p.weightKg) : '',
-        reps: p ? String(p.reps) : targetRepsFirst,
-        done: false,
-      })
-    }
+      return { setNumber: i + 1, weightKg: p ? String(p.weightKg) : '', reps: p ? String(p.reps) : firstNum(ex.targetReps), done: false }
+    })
     return {
-      exerciseId: ex.exerciseId,
-      exerciseName: ex.exerciseName,
-      muscleGroup: ex.muscleGroup,
-      targetSets: ex.targetSets,
-      targetReps: ex.targetReps,
-      restSeconds: ex.restSeconds,
-      previousSets: prev,
-      currentSets: sets,
+      exerciseId: ex.exerciseId, exerciseName: ex.exerciseName,
+      muscleGroup: ex.muscleGroup, targetSets: ex.targetSets,
+      targetReps: ex.targetReps, restSeconds: ex.restSeconds,
+      notes: ex.notes, previousSets: prev, currentSets: sets,
       overloadIndicator: null,
     }
   })
@@ -843,28 +654,12 @@ function computeOverload(
   current: SetRow[],
   previous: Array<{ weightKg: number; reps: number }>
 ): ExerciseState['overloadIndicator'] {
-  if (previous.length === 0) return null
-  const doneWeights = current
-    .filter((s) => s.done)
-    .map((s) => parseFloat(s.weightKg))
-    .filter((n) => !Number.isNaN(n) && n > 0)
-  if (doneWeights.length === 0) return null
-  const avgCurrent = doneWeights.reduce((a, b) => a + b, 0) / doneWeights.length
-  const avgPrevious =
-    previous.reduce((a, b) => a + b.weightKg, 0) / previous.length
-  if (avgCurrent > avgPrevious + 0.1) return 'up'
-  if (avgCurrent < avgPrevious - 0.1) return 'down'
+  if (!previous.length) return null
+  const weights = current.filter((s) => s.done).map((s) => parseFloat(s.weightKg)).filter((n) => !isNaN(n) && n > 0)
+  if (!weights.length) return null
+  const avg = weights.reduce((a, b) => a + b, 0) / weights.length
+  const prevAvg = previous.reduce((a, b) => a + b.weightKg, 0) / previous.length
+  if (avg > prevAvg + 0.1) return 'up'
+  if (avg < prevAvg - 0.1) return 'down'
   return 'same'
-}
-
-function parseFloatOrNull(v: string): number | null {
-  if (v.trim() === '') return null
-  const n = parseFloat(v)
-  return Number.isNaN(n) ? null : n
-}
-
-function parseIntOrNull(v: string): number | null {
-  if (v.trim() === '') return null
-  const n = parseInt(v, 10)
-  return Number.isNaN(n) ? null : n
 }

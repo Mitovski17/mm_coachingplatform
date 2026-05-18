@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { format } from 'date-fns'
+import Link from 'next/link'
 import type {
   AiDigest,
   BodyMetric,
@@ -73,65 +74,186 @@ type Props = {
 
 export default function ClientDetailClient(props: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
-  const { profile, redFlags } = props
+  const { profile, assignments, checkins } = props
+
+  // Compute header stats from check-in history
+  const latestCheckin = checkins[0] ?? null
+  const oldestCheckin = checkins[checkins.length - 1] ?? null
+  const currentWeight = latestCheckin?.weight ?? null
+  const startingWeight = oldestCheckin?.weight ?? null
+  const totalChange =
+    currentWeight !== null && startingWeight !== null
+      ? currentWeight - startingWeight
+      : null
+  const changeStr =
+    totalChange !== null
+      ? totalChange >= 0
+        ? `+${totalChange.toFixed(1)} kg`
+        : `${totalChange.toFixed(1)} kg`
+      : '—'
+  const changeColor =
+    totalChange !== null
+      ? totalChange < 0
+        ? '#22c55e'
+        : '#ef4444'
+      : 'var(--color-text-primary)'
+
+  // Submitted this week badge
+  const todayMonday = (() => {
+    const now = new Date()
+    const day = now.getUTCDay()
+    const diff = day === 0 ? -6 : 1 - day
+    const m = new Date(now)
+    m.setUTCDate(now.getUTCDate() + diff)
+    m.setUTCHours(0, 0, 0, 0)
+    return m.toISOString().split('T')[0]
+  })()
+  const submittedThisWeek =
+    latestCheckin?.weekStartDate === todayMonday
+
+  // Week number estimate from check-in count
+  const weekNum = checkins.length
 
   return (
     <div>
-      {/* Client header */}
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <div className="flex items-center gap-4 min-w-0">
-          <div
-            className="flex items-center justify-center rounded-full shrink-0"
+      {/* Breadcrumb */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <Link
+          href="/coach/clients"
+          style={{ fontSize: 12, color: 'var(--color-text-hint)', textDecoration: 'none' }}
+        >
+          CLIENTS
+        </Link>
+        <span style={{ fontSize: 12, color: 'var(--color-text-hint)' }}>›</span>
+        <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>
+          {profile.name.toUpperCase()}
+        </span>
+      </div>
+
+      {/* Title + action buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
+          {profile.name}
+        </h1>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
             style={{
-              width: 56,
-              height: 56,
-              backgroundColor: avatarColor(profile.name),
-              color: '#fff',
+              padding: '8px 16px',
+              fontSize: 13,
               fontWeight: 600,
-              fontSize: 18,
+              color: 'var(--color-text-primary)',
+              backgroundColor: 'transparent',
+              border: '1px solid var(--color-border)',
+              borderRadius: 8,
+              cursor: 'pointer',
             }}
           >
-            {initials(profile.name)}
-          </div>
-          <div className="min-w-0">
-            <div
-              className="truncate"
-              style={{
-                fontSize: 20,
-                fontWeight: 600,
-                color: 'var(--color-text-primary)',
-              }}
-            >
+            Message
+          </button>
+          <button
+            style={{
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#fff',
+              backgroundColor: 'var(--color-accent)',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            Open as client <span style={{ fontSize: 15 }}>→</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Client info card */}
+      <div
+        style={{
+          backgroundColor: 'var(--color-surface-1)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 12,
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        {/* Avatar */}
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            backgroundColor: avatarColor(profile.name),
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          {initials(profile.name)}
+        </div>
+
+        {/* Name + badge + meta */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)' }}>
               {profile.name}
+            </span>
+            {submittedThisWeek && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#22c55e',
+                  backgroundColor: 'rgba(34,197,94,0.12)',
+                  border: '1px solid rgba(34,197,94,0.3)',
+                  borderRadius: 999,
+                  padding: '2px 8px',
+                }}
+              >
+                Submitted
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 12, color: 'var(--color-text-hint)' }}>
+            <span>Started · {format(new Date(profile.createdAt), 'MMM d, yyyy')}</span>
+            {assignments.workoutProgram && (
+              <span>Program · {assignments.workoutProgram.name}</span>
+            )}
+            {assignments.trainingMealPlan && (
+              <span>Plan · {assignments.trainingMealPlan.name}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Week + total change */}
+        <div style={{ display: 'flex', gap: 28, flexShrink: 0 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-hint)', marginBottom: 2 }}>
+              Week
             </div>
-            <div
-              className="text-sm truncate"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              {profile.email}
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)', lineHeight: 1 }}>
+              {weekNum} <span style={{ fontSize: 14, color: 'var(--color-text-hint)', fontWeight: 500 }}>/ —</span>
             </div>
-            <div
-              className="text-xs"
-              style={{ color: 'var(--color-text-hint)' }}
-            >
-              Active since {format(new Date(profile.createdAt), 'MMM yyyy')}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-hint)', marginBottom: 2 }}>
+              Total Change
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: changeColor, lineHeight: 1 }}>
+              {changeStr}
             </div>
           </div>
         </div>
-        {redFlags.length > 0 && (
-          <span
-            className="inline-flex items-center px-3 py-1 text-xs shrink-0"
-            style={{
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-              color: '#ef4444',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-            }}
-          >
-            ⚠ {redFlags.length} {redFlags.length === 1 ? 'alert' : 'alerts'}
-          </span>
-        )}
       </div>
 
       {/* Tab bar */}
@@ -153,7 +275,7 @@ export default function ClientDetailClient(props: Props) {
                 fontWeight: active ? 600 : 500,
                 fontSize: 14,
                 borderBottom: active
-                  ? `2px solid #fff`
+                  ? `2px solid var(--color-accent)`
                   : '2px solid transparent',
                 marginBottom: -1,
               }}

@@ -15,6 +15,7 @@ export type TodayTemplate = {
   templateName: string
   exerciseCount: number
   muscleGroups: string[]
+  exerciseNames: string[]
 }
 
 export type TemplateExercise = {
@@ -126,15 +127,18 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
 
   const { data: exRows } = await admin
     .from('workout_template_exercises')
-    .select('exercises(muscle_group)')
+    .select('exercises(name, muscle_group)')
     .eq('template_id', template.id)
+    .order('sort_order', { ascending: true })
 
   const muscleSet = new Set<string>()
+  const names: string[] = []
   let count = 0
   for (const r of exRows ?? []) {
     count += 1
-    const ex = r.exercises as unknown as { muscle_group: string } | null
+    const ex = r.exercises as unknown as { name: string; muscle_group: string } | null
     if (ex?.muscle_group) muscleSet.add(ex.muscle_group)
+    if (ex?.name) names.push(ex.name)
   }
 
   return {
@@ -142,6 +146,7 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
     templateName: template.name,
     exerciseCount: count,
     muscleGroups: Array.from(muscleSet),
+    exerciseNames: names,
   }
 }
 

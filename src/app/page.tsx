@@ -20,9 +20,14 @@ export default async function RootPage() {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       )
 
-      const {
-        data: { users },
-      } = await svc.auth.admin.listUsers({ perPage: 1000 })
+      let users: Awaited<ReturnType<typeof svc.auth.admin.listUsers>>['data']['users']
+      try {
+        const { data } = await svc.auth.admin.listUsers({ perPage: 1000 })
+        users = data.users
+      } catch (err) {
+        console.warn('[page.tsx] listUsers failed - skipping auth check:', err)
+        redirect('/login')
+      }
       const mockUser = users.find((u) => u.email === mockEmail)
       if (!mockUser) redirect('/login')
 

@@ -8,103 +8,367 @@ import { ensureDefaultTemplate, getClientByEmail, uploadProgressPhoto, submitChe
 import type { Question, ChoiceOption } from './actions'
 import { getSundayStart, getNextSundayMidnight, formatCountdown } from '@/lib/checkin-window'
 
-// ─── Color helpers for the gradient scale ─────────────────────────────────────
+// ─── Color helpers ─────────────────────────────────────────────────────────────
 
-// Maps a 0-1 progress value to a red→orange→green HSL color
 function scaleColor(normalized: number): string {
   const hue = Math.round(normalized * 140)
   return `hsl(${hue}, 75%, 55%)`
 }
 
-// For a value 1-10 (normal or inverted for stress)
 function scaleValueColor(value: number, inverted: boolean): string {
   const raw = (value - 1) / 9
   return scaleColor(inverted ? 1 - raw : raw)
 }
 
-// For adherence options 0/25/50/75/100 → red→green
 function adherenceColor(pct: number): string {
   return scaleColor(pct / 100)
 }
 
-// ─── Emoji map ────────────────────────────────────────────────────────────────
-
-const Q_EMOJI: Record<string, string> = {
-  current_weight:      '⚖️',
-  performance_rating:  '🏆',
-  nutrition_adherence: '🥗',
-  training_adherence:  '🏋️',
-  sleep_quality:       '😴',
-  stress_level:        '😤',
-  energy_level:        '⚡',
-  biggest_win:         '🏅',
-  biggest_challenge:   '🧱',
-  schedule_changes:    '📅',
-  anything_else:       '💬',
-  progress_photo:      '📸',
+function getValueLabel(value: number, id: string): string {
+  const inverted = id === 'stress_level'
+  const normalized = inverted ? 1 - (value - 1) / 9 : (value - 1) / 9
+  if (normalized >= 0.8) return 'Excellent'
+  if (normalized >= 0.65) return 'High'
+  if (normalized >= 0.45) return 'Average'
+  if (normalized >= 0.25) return 'Below average'
+  return 'Low'
 }
 
-// ─── Shared primitives ────────────────────────────────────────────────────────
+// ─── Per-question metadata ─────────────────────────────────────────────────────
+
+const Q_CATEGORY: Record<string, string> = {
+  current_weight:      'BODY',
+  performance_rating:  'TRAINING',
+  nutrition_adherence: 'NUTRITION',
+  training_adherence:  'TRAINING',
+  sleep_quality:       'RECOVERY',
+  stress_level:        'RECOVERY',
+  energy_level:        'ENERGY',
+  biggest_win:         'REFLECTION',
+  biggest_challenge:   'REFLECTION',
+  schedule_changes:    'LIFESTYLE',
+  anything_else:       'NOTES',
+  progress_photo:      'PROGRESS',
+}
+
+const Q_HINT: Record<string, string> = {
+  performance_rating:  'Rate your week overall. 1 = terrible, 10 = personal best.',
+  sleep_quality:       'Average across all nights. 1 = very poor, 10 = excellent.',
+  stress_level:        'Average stress this week. 1 = very calm, 10 = extremely stressed.',
+  energy_level:        'Average across training and rest days. 1 = drained, 10 = energized.',
+  nutrition_adherence: 'Slide to the percentage that best reflects how closely you stuck to your plan.',
+  training_adherence:  'Slide to the percentage that reflects how many sessions you completed.',
+}
+
+const Q_CONTRIBUTORS: Record<string, string[]> = {
+  energy_level:        ['Better sleep', 'Less work stress', 'Hit my protein', 'Walked more', 'Hydration', 'Caffeine timing'],
+  sleep_quality:       ['Earlier bedtime', 'Less screen time', 'Magnesium', 'No caffeine PM', 'Cool room'],
+  stress_level:        ['Meditation', 'Exercise', 'Better sleep', 'Journaling', 'Less work'],
+  performance_rating:  ['Extra rest', 'Better nutrition', 'Good warm up', 'Hit my protein', 'Peaked well'],
+  nutrition_adherence: ['Meal prep', 'Tracked macros', 'Less dining out', 'Avoided junk', 'Hit protein', 'Cooked at home'],
+  training_adherence:  ['Good schedule', 'Workout partner', 'High motivation', 'Good recovery', 'Planned sessions', 'No injuries'],
+}
+
+// ─── Shared primitives ─────────────────────────────────────────────────────────
 
 function Spinner() {
   return (
-    <svg
-      className="animate-spin h-6 w-6"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      style={{ color: 'var(--color-text-hint)' }}
-    >
+    <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" style={{ color: 'var(--color-text-hint)' }}>
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.961 3 8.12l3-2.829z"
-      />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.961 3 8.12l3-2.829z" />
     </svg>
   )
 }
 
-function Wordmark() {
+// ─── Top nav bar ───────────────────────────────────────────────────────────────
+
+function TopNav({
+  step,
+  total,
+  onBack,
+}: {
+  step: number
+  total: number
+  onBack: () => void
+}) {
   return (
-    <div className="flex flex-col mb-8">
-      <span className="text-xl leading-tight" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
-        Mitovski
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        height: 52,
+        padding: '0 16px',
+        flexShrink: 0,
+        position: 'relative',
+      }}
+    >
+      <button
+        type="button"
+        onClick={onBack}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          backgroundColor: 'var(--color-surface-2)',
+          border: '1px solid var(--color-border)',
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+        aria-label="Back"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-secondary)' }}>
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+
+      <span
+        style={{
+          position: 'absolute',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: 'var(--color-text-hint)',
+        }}
+      >
+        Weekly Check-in
       </span>
-      <span className="text-xl leading-tight" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
-        Coaching
+
+      <span
+        style={{
+          marginLeft: 'auto',
+          fontSize: 12,
+          fontWeight: 500,
+          color: 'var(--color-text-hint)',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Step {step + 1} of {total}
       </span>
     </div>
   )
 }
 
-// ─── Answer inputs ────────────────────────────────────────────────────────────
+// ─── Contributor chips ─────────────────────────────────────────────────────────
+
+function ContributorChips({
+  questionId,
+  selected,
+  onChange,
+}: {
+  questionId: string
+  selected: string[]
+  onChange: (v: string[]) => void
+}) {
+  const chips = Q_CONTRIBUTORS[questionId]
+  const [otherOpen, setOtherOpen] = useState(false)
+  const [otherText, setOtherText] = useState('')
+
+  if (!chips) return null
+
+  const toggle = (chip: string) => {
+    onChange(
+      selected.includes(chip) ? selected.filter((c) => c !== chip) : [...selected, chip]
+    )
+  }
+
+  const confirmOther = () => {
+    const val = otherText.trim()
+    if (val && !selected.includes(val)) {
+      onChange([...selected, val])
+    }
+    setOtherText('')
+    setOtherOpen(false)
+  }
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-hint)', marginBottom: 10, letterSpacing: '0.04em' }}>
+        What contributed? <span style={{ fontWeight: 400 }}>(optional)</span>
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {chips.map((chip) => {
+          const active = selected.includes(chip)
+          return (
+            <button
+              key={chip}
+              type="button"
+              onClick={() => toggle(chip)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '6px 12px',
+                fontSize: 13,
+                fontWeight: 500,
+                borderRadius: 999,
+                border: active ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border)',
+                backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
+                color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                cursor: 'pointer',
+                transition: 'all 0.12s ease',
+              }}
+            >
+              {active && (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              )}
+              {chip}
+            </button>
+          )
+        })}
+
+        {/* Other chip */}
+        {!otherOpen ? (
+          <button
+            type="button"
+            onClick={() => setOtherOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              fontSize: 13,
+              fontWeight: 500,
+              borderRadius: 999,
+              border: '1.5px dashed var(--color-border)',
+              backgroundColor: 'transparent',
+              color: 'var(--color-text-hint)',
+              cursor: 'pointer',
+            }}
+          >
+            + Other
+          </button>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', marginTop: 2 }}>
+            <input
+              autoFocus
+              type="text"
+              value={otherText}
+              onChange={(e) => setOtherText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmOther(); if (e.key === 'Escape') setOtherOpen(false) }}
+              placeholder="Describe what helped…"
+              style={{
+                flex: 1,
+                padding: '7px 12px',
+                fontSize: 13,
+                borderRadius: 999,
+                border: '1.5px solid var(--color-accent)',
+                backgroundColor: 'var(--color-surface-2)',
+                color: 'var(--color-text-primary)',
+                outline: 'none',
+              }}
+            />
+            <button
+              type="button"
+              onClick={confirmOther}
+              style={{
+                padding: '7px 14px',
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: 999,
+                border: 'none',
+                backgroundColor: 'var(--color-accent)',
+                color: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={() => setOtherOpen(false)}
+              style={{
+                padding: '7px 10px',
+                fontSize: 12,
+                borderRadius: 999,
+                border: '1px solid var(--color-border)',
+                backgroundColor: 'transparent',
+                color: 'var(--color-text-hint)',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Show added "Other" entries as removable chips */}
+        {selected
+          .filter((s) => !chips.includes(s))
+          .map((custom) => (
+            <button
+              key={custom}
+              type="button"
+              onClick={() => onChange(selected.filter((c) => c !== custom))}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '6px 12px',
+                fontSize: 13,
+                fontWeight: 500,
+                borderRadius: 999,
+                border: '1.5px solid var(--color-accent)',
+                backgroundColor: 'var(--color-accent-dim)',
+                color: 'var(--color-accent)',
+                cursor: 'pointer',
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              {custom}
+            </button>
+          ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Answer inputs ─────────────────────────────────────────────────────────────
 
 function NumberInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div className="relative mt-6">
+    <div style={{ position: 'relative' }}>
       <input
         type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
+        inputMode="decimal"
+        pattern="[0-9.]*"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="0"
-        className="w-full px-4 py-4 text-sm outline-none transition-colors placeholder:text-[#6B6B6B]"
+        placeholder="0.0"
         style={{
+          width: '100%',
+          padding: '18px 56px 18px 20px',
+          fontSize: 22,
+          fontWeight: 600,
           backgroundColor: 'var(--color-surface-2)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-md)',
-          color: 'var(--color-text-secondary)',
-          paddingRight: '3rem',
+          border: '1.5px solid var(--color-border)',
+          borderRadius: 16,
+          color: 'var(--color-text-primary)',
+          outline: 'none',
         }}
-        onFocus={(e) => { e.currentTarget.style.border = '1px solid var(--color-border-strong)' }}
-        onBlur={(e)  => { e.currentTarget.style.border = '1px solid var(--color-border)' }}
+        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)' }}
+        onBlur={(e)  => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
       />
       <span
-        className="absolute right-4 top-1/2 -translate-y-1/2 text-sm pointer-events-none select-none"
-        style={{ color: 'var(--color-text-hint)' }}
+        style={{
+          position: 'absolute',
+          right: 20,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          fontSize: 16,
+          fontWeight: 500,
+          color: 'var(--color-text-hint)',
+          pointerEvents: 'none',
+        }}
       >
         kg
       </span>
@@ -113,15 +377,15 @@ function NumberInput({ value, onChange }: { value: string; onChange: (v: string)
 }
 
 function ScaleSlider({
+  questionId,
   value,
   inverted,
   onChange,
-  onRelease,
 }: {
+  questionId: string
   value: number | undefined
   inverted: boolean
   onChange: (v: number) => void
-  onRelease: () => void
 }) {
   const displayVal = value ?? 5
   const valueColor = scaleValueColor(displayVal, inverted)
@@ -129,24 +393,16 @@ function ScaleSlider({
     ? 'linear-gradient(to right, #22c55e, #f97316 50%, #ef4444)'
     : 'linear-gradient(to right, #ef4444, #f97316 50%, #22c55e)'
 
-  const pointerDownRef = useRef(false)
-
-  const handleRelease = () => {
-    if (pointerDownRef.current) {
-      pointerDownRef.current = false
-      onChange(displayVal)
-      setTimeout(onRelease, 300)
-    }
-  }
+  const ticks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
   return (
-    <div className="mt-8 flex flex-col gap-5">
-      {/* Large value centered above track */}
-      <div className="text-center">
+    <div>
+      {/* Large value centered */}
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <span
           style={{
-            fontSize: '88px',
-            fontWeight: 700,
+            fontSize: 108,
+            fontWeight: 800,
             lineHeight: 1,
             color: valueColor,
             fontVariantNumeric: 'tabular-nums',
@@ -156,9 +412,15 @@ function ScaleSlider({
         >
           {displayVal}
         </span>
+        <span style={{ fontSize: 32, fontWeight: 400, color: 'var(--color-text-hint)', marginLeft: 6, verticalAlign: 'bottom', paddingBottom: 12, display: 'inline-block' }}>
+          / 10
+        </span>
+        <p style={{ fontSize: 14, fontWeight: 600, color: valueColor, marginTop: 6, transition: 'color 0.1s ease' }}>
+          {getValueLabel(displayVal, questionId)}
+        </p>
       </div>
 
-      {/* Horizontal slider — CSS vars cascade into pseudo-elements */}
+      {/* Slider */}
       <div
         style={{
           '--slider-thumb-color': valueColor,
@@ -173,16 +435,26 @@ function ScaleSlider({
           value={displayVal}
           className="checkin-scale-slider w-full"
           onChange={(e) => onChange(Number(e.target.value))}
-          onPointerDown={() => { pointerDownRef.current = true }}
-          onPointerUp={handleRelease}
-          onTouchEnd={handleRelease}
         />
       </div>
 
-      {/* End labels */}
-      <div className="flex justify-between text-xs" style={{ color: 'var(--color-text-hint)' }}>
-        <span>low</span>
-        <span>high</span>
+      {/* Tick numbers */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+        {ticks.map((t) => (
+          <span
+            key={t}
+            style={{
+              fontSize: 11,
+              color: t === displayVal ? valueColor : 'var(--color-text-hint)',
+              fontWeight: t === displayVal ? 700 : 400,
+              transition: 'color 0.1s ease',
+              minWidth: 14,
+              textAlign: 'center',
+            }}
+          >
+            {t}
+          </span>
+        ))}
       </div>
     </div>
   )
@@ -191,53 +463,33 @@ function ScaleSlider({
 function OptionsInput({
   value,
   onChange,
-  onRelease,
 }: {
   value: number | undefined
   onChange: (v: number) => void
-  onRelease: () => void
 }) {
-  // Always 0 / 25 / 50 / 75 / 100 — min=0 max=100 step=25
   const displayVal = value ?? 50
   const valueColor = adherenceColor(displayVal)
   const gradient   = 'linear-gradient(to right, #ef4444, #f97316 50%, #22c55e)'
-
-  const pointerDownRef = useRef(false)
-
-  const handleRelease = () => {
-    if (pointerDownRef.current) {
-      pointerDownRef.current = false
-      onChange(displayVal)
-      setTimeout(onRelease, 300)
-    }
-  }
+  const ticks      = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
   return (
-    <div className="mt-8 flex flex-col gap-5">
-      {/* Value label centered above track */}
-      <div className="text-center">
+    <div>
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <span
           style={{
-            fontSize: '88px',
-            fontWeight: 700,
+            fontSize: 108,
+            fontWeight: 800,
             lineHeight: 1,
             color: valueColor,
             fontVariantNumeric: 'tabular-nums',
             transition: 'color 0.1s ease',
-            display: 'inline-block',
           }}
         >
           {displayVal}%
         </span>
       </div>
 
-      {/* Horizontal slider */}
-      <div
-        style={{
-          '--slider-thumb-color': valueColor,
-          '--slider-gradient': gradient,
-        } as React.CSSProperties}
-      >
+      <div style={{ '--slider-thumb-color': valueColor, '--slider-gradient': gradient } as React.CSSProperties}>
         <input
           type="range"
           min={0}
@@ -246,16 +498,23 @@ function OptionsInput({
           value={displayVal}
           className="checkin-scale-slider w-full"
           onChange={(e) => onChange(Number(e.target.value))}
-          onPointerDown={() => { pointerDownRef.current = true }}
-          onPointerUp={handleRelease}
-          onTouchEnd={handleRelease}
         />
       </div>
 
-      {/* End labels */}
-      <div className="flex justify-between text-xs" style={{ color: 'var(--color-text-hint)' }}>
-        <span>0%</span>
-        <span>100%</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+        {ticks.map((t) => (
+          <span
+            key={t}
+            style={{
+              fontSize: 10,
+              color: t === displayVal ? valueColor : 'var(--color-text-hint)',
+              fontWeight: t === displayVal ? 700 : 400,
+              transition: 'color 0.1s ease',
+            }}
+          >
+            {t}
+          </span>
+        ))}
       </div>
     </div>
   )
@@ -271,7 +530,7 @@ function ChoiceInput({
   onPick: (v: string) => void
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 mt-6">
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 20 }}>
       {options.map((opt) => {
         const active = value === opt.value
         return (
@@ -279,20 +538,22 @@ function ChoiceInput({
             key={opt.value}
             type="button"
             onClick={() => onPick(opt.value)}
-            className="flex flex-col items-center justify-center gap-2 transition-all"
             style={{
-              padding: '1.5rem 0.75rem',
+              padding: '28px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
               backgroundColor: active ? 'var(--color-accent-dim)' : 'var(--color-surface-2)',
               border: active ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
+              borderRadius: 16,
               cursor: 'pointer',
+              transition: 'all 0.12s ease',
+              minHeight: 120,
             }}
           >
-            <span style={{ fontSize: '2.5rem', lineHeight: 1 }}>{opt.emoji}</span>
-            <span
-              className="text-sm font-medium text-center leading-tight"
-              style={{ color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
-            >
+            <span style={{ fontSize: 42, lineHeight: 1 }}>{opt.emoji}</span>
+            <span style={{ fontSize: 14, fontWeight: 500, textAlign: 'center', color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', lineHeight: 1.3 }}>
               {opt.label}
             </span>
           </button>
@@ -305,30 +566,30 @@ function ChoiceInput({
 function TextInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <textarea
-      rows={4}
+      rows={5}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full mt-6 px-4 py-3 text-sm outline-none resize-none transition-colors placeholder:text-[#6B6B6B]"
       placeholder="Type your answer…"
       style={{
+        width: '100%',
+        marginTop: 16,
+        padding: '14px 16px',
+        fontSize: 14,
+        outline: 'none',
+        resize: 'none',
         backgroundColor: 'var(--color-surface-2)',
         border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)',
-        color: 'var(--color-text-secondary)',
+        borderRadius: 12,
+        color: 'var(--color-text-primary)',
+        lineHeight: 1.6,
       }}
-      onFocus={(e) => { e.currentTarget.style.border = '1px solid var(--color-border-strong)' }}
-      onBlur={(e)  => { e.currentTarget.style.border = '1px solid var(--color-border)' }}
+      onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)' }}
+      onBlur={(e)  => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
     />
   )
 }
 
-function PhotoInput({
-  files,
-  onFilesChange,
-}: {
-  files: File[]
-  onFilesChange: (files: File[]) => void
-}) {
+function PhotoInput({ files, onFilesChange }: { files: File[]; onFilesChange: (files: File[]) => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleAdd = (e: ChangeEvent<HTMLInputElement>) => {
@@ -343,26 +604,23 @@ function PhotoInput({
   }
 
   return (
-    <div className="mt-6 flex flex-col gap-3">
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="sr-only"
-        onChange={handleAdd}
-      />
+    <div style={{ marginTop: 16 }}>
+      <input ref={inputRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={handleAdd} />
 
       {files.length === 0 ? (
-        /* Empty state — full-width tap target */
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="w-full py-10 flex flex-col items-center gap-2 transition-colors"
           style={{
+            width: '100%',
+            padding: '40px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 8,
             backgroundColor: 'var(--color-surface-2)',
             border: '1px dashed var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
+            borderRadius: 14,
             color: 'var(--color-text-hint)',
             cursor: 'pointer',
           }}
@@ -372,48 +630,54 @@ function PhotoInput({
             <circle cx="9" cy="9" r="2" />
             <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
           </svg>
-          <span className="text-sm">Tap to add a photo</span>
-          <span className="text-xs" style={{ color: 'var(--color-text-hint)' }}>Up to 3 photos</span>
+          <span style={{ fontSize: 14 }}>Tap to add a photo</span>
+          <span style={{ fontSize: 12, color: 'var(--color-text-hint)' }}>Up to 3 photos</span>
         </button>
       ) : (
-        /* Thumbnail row + add tile */
         <div className="grid grid-cols-3 gap-2">
           {files.map((file, i) => (
             <div key={i} className="relative" style={{ aspectRatio: '1' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={URL.createObjectURL(file)}
-                alt={`Photo ${i + 1}`}
-                className="w-full h-full object-cover"
-                style={{ borderRadius: 'var(--radius-md)' }}
-              />
+              <img src={URL.createObjectURL(file)} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" style={{ borderRadius: 12 }} />
               <button
                 type="button"
                 onClick={() => handleRemove(i)}
-                className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold"
                 style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
                   backgroundColor: 'rgba(0,0,0,0.65)',
                   color: '#fff',
                   border: 'none',
                   cursor: 'pointer',
+                  fontSize: 14,
                   lineHeight: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 ×
               </button>
             </div>
           ))}
-
           {files.length < 3 && (
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-1"
               style={{
                 aspectRatio: '1',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
                 backgroundColor: 'var(--color-surface-2)',
                 border: '1px dashed var(--color-border)',
-                borderRadius: 'var(--radius-md)',
+                borderRadius: 12,
                 color: 'var(--color-text-hint)',
                 cursor: 'pointer',
               }}
@@ -421,7 +685,7 @@ function PhotoInput({
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-              <span className="text-xs">Add</span>
+              <span style={{ fontSize: 11 }}>Add</span>
             </button>
           )}
         </div>
@@ -430,52 +694,11 @@ function PhotoInput({
   )
 }
 
-// ─── Navigation ───────────────────────────────────────────────────────────────
-
-function NavButton({
-  onClick, label, variant = 'primary', disabled, flex,
-}: {
-  onClick: () => void; label: string; variant?: 'primary' | 'ghost'; disabled?: boolean; flex?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${flex ? 'flex-1' : 'w-full'}`}
-      style={{
-        backgroundColor: variant === 'primary' ? 'var(--color-text-primary)' : 'transparent',
-        color: variant === 'primary' ? 'var(--color-base)' : 'var(--color-text-muted)',
-        border: variant === 'primary' ? 'none' : '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)',
-        cursor: 'pointer',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
-
-function SkipLink({ onClick }: { onClick: () => void }) {
-  return (
-    <div className="mt-3 text-center">
-      <button
-        type="button"
-        onClick={onClick}
-        className="text-sm"
-        style={{ color: 'var(--color-text-hint)', background: 'none', border: 'none', cursor: 'pointer' }}
-      >
-        Skip this question
-      </button>
-    </div>
-  )
-}
-
-// ─── Full-screen state screens ────────────────────────────────────────────────
+// ─── Full-screen state screens ─────────────────────────────────────────────────
 
 function LoadingScreen() {
   return (
-    <div className="flex min-h-dvh items-center justify-center" style={{ backgroundColor: 'var(--color-base)' }}>
+    <div style={{ display: 'flex', minHeight: '100dvh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-base)' }}>
       <Spinner />
     </div>
   )
@@ -491,49 +714,30 @@ function CheckinDoneScreen({ justSubmitted }: { justSubmitted: boolean }) {
   }, [])
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-6" style={{ backgroundColor: 'var(--color-base)' }}>
-      <div className="w-full max-w-sm text-center">
-        <Wordmark />
+    <div style={{ display: 'flex', minHeight: '100dvh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px', backgroundColor: 'var(--color-base)' }}>
+      <div style={{ width: '100%', maxWidth: 360, textAlign: 'center' }}>
+        <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>Mitovski</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>Coaching</span>
+        </div>
 
-        <div
-          className="mb-6 flex h-14 w-14 mx-auto items-center justify-center rounded-full"
-          style={{ backgroundColor: 'var(--color-accent-dim)' }}
-        >
+        <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: 'var(--color-accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-accent)' }}>
             <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
             <path d="m9 12 2 2 4-4" />
           </svg>
         </div>
 
-        <h2 className="text-2xl font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 8 }}>
           {justSubmitted ? "You're checked in." : 'Already checked in.'}
         </h2>
-        <p className="text-sm mb-8" style={{ color: 'var(--color-text-muted)' }}>
-          {justSubmitted
-            ? "Your coach will review this shortly. Now let's get back to work."
-            : "Your coach already has your update for this week."}
+        <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 28 }}>
+          {justSubmitted ? "Your coach will review this shortly. Now let's get back to work." : "Your coach already has your update for this week."}
         </p>
 
-        <div
-          style={{
-            backgroundColor: 'var(--color-surface-2)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '20px',
-          }}
-        >
-          <p className="text-xs mb-1" style={{ color: 'var(--color-text-hint)' }}>
-            Next check-in window opens in
-          </p>
-          <p
-            style={{
-              fontSize: '32px',
-              fontWeight: 700,
-              color: 'var(--color-text-primary)',
-              fontVariantNumeric: 'tabular-nums',
-              lineHeight: 1.1,
-            }}
-          >
+        <div style={{ backgroundColor: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 16, padding: 20, marginBottom: 16 }}>
+          <p style={{ fontSize: 12, color: 'var(--color-text-hint)', marginBottom: 4 }}>Next check-in window opens in</p>
+          <p style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
             {formatCountdown(msLeft)}
           </p>
         </div>
@@ -542,13 +746,12 @@ function CheckinDoneScreen({ justSubmitted }: { justSubmitted: boolean }) {
           href="/client"
           style={{
             display: 'block',
-            marginTop: '16px',
             textAlign: 'center',
-            backgroundColor: 'var(--color-text-primary)',
-            color: 'var(--color-base)',
-            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-accent)',
+            color: '#fff',
+            borderRadius: 12,
             padding: '14px',
-            fontSize: '14px',
+            fontSize: 15,
             fontWeight: 600,
             textDecoration: 'none',
           }}
@@ -560,7 +763,7 @@ function CheckinDoneScreen({ justSubmitted }: { justSubmitted: boolean }) {
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Main page ─────────────────────────────────────────────────────────────────
 
 type PageStatus = 'loading' | 'ready' | 'already_submitted' | 'success'
 
@@ -571,6 +774,7 @@ export default function CheckInPage() {
   const [questions, setQuestions]       = useState<Question[]>([])
   const [step, setStep]                 = useState(0)
   const [answers, setAnswers]           = useState<Record<string, string | number>>({})
+  const [contributors, setContributors] = useState<Record<string, string[]>>({})
   const [photoFiles, setPhotoFiles]     = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError]               = useState<string | null>(null)
@@ -626,14 +830,15 @@ export default function CheckInPage() {
     })
   }, [router])
 
-  // ── Derived
   const total         = questions.length
   const currentQ      = questions[step]
-  const progress      = total > 0 ? Math.round(((step + 1) / total) * 100) : 0
+  const progress      = total > 0 ? (step + 1) / total : 0
   const isLast        = step === total - 1
   const currentAnswer = currentQ ? answers[currentQ.id] : undefined
+  const hasAnswer     = currentAnswer !== undefined && currentAnswer !== ''
+  const category      = currentQ ? (Q_CATEGORY[currentQ.id] ?? '') : ''
+  const hint          = currentQ ? (Q_HINT[currentQ.id] ?? '') : ''
 
-  // ── Navigation
   const advance = () => {
     if (!isLast) {
       setStep((s) => s + 1)
@@ -642,7 +847,10 @@ export default function CheckInPage() {
     }
   }
 
-  const back = () => setStep((s) => s - 1)
+  const back = () => {
+    if (step > 0) setStep((s) => s - 1)
+    else router.push('/client')
+  }
 
   const skip = () => {
     setAnswers((prev) => {
@@ -658,13 +866,15 @@ export default function CheckInPage() {
     setAnswers((prev) => ({ ...prev, [currentQ.id]: value }))
   }
 
-  // ── Submission
+  const setContributorForQ = (qId: string, chips: string[]) => {
+    setContributors((prev) => ({ ...prev, [qId]: chips }))
+  }
+
   const handleSubmit = async () => {
     setIsSubmitting(true)
     setError(null)
 
     const photoPaths: string[] = []
-
     if (photoFiles.length > 0) {
       try {
         for (const file of photoFiles) {
@@ -683,6 +893,10 @@ export default function CheckInPage() {
 
     const finalAnswers: Record<string, string | number | string[] | null> = { ...answers }
     if (photoPaths.length > 0) finalAnswers.progress_photo = photoPaths
+    // Attach contributors as a separate key per question
+    for (const [qId, chips] of Object.entries(contributors)) {
+      if (chips.length > 0) finalAnswers[`${qId}_contributors`] = chips
+    }
 
     try {
       await submitCheckin({
@@ -707,147 +921,213 @@ export default function CheckInPage() {
   if (pageStatus === 'success')           return <CheckinDoneScreen justSubmitted={true} />
   if (!currentQ)                          return <LoadingScreen />
 
-  const isAutoAdvance = currentQ.type === 'scale_1_10' || currentQ.type === 'options' || currentQ.type === 'choice'
-  const hasAnswer = currentAnswer !== undefined && currentAnswer !== ''
+  const canProceed =
+    currentQ.optional ||
+    currentQ.type === 'scale_1_10' ||
+    currentQ.type === 'options' ||
+    hasAnswer ||
+    (currentQ.type === 'photo' && photoFiles.length > 0)
 
   return (
-    <div className="flex min-h-dvh flex-col" style={{ backgroundColor: 'var(--color-base)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: 'var(--color-base)' }}>
 
-      {/* ── Progress bar with gradient fill ── */}
-      <div style={{ position: 'relative', height: '3px', flexShrink: 0, backgroundColor: 'var(--color-surface-3)' }}>
-        {/* Full-width gradient, revealed by hiding the right portion */}
+      {/* Top nav */}
+      <TopNav step={step} total={total} onBack={back} />
+
+      {/* Progress bar */}
+      <div style={{ height: 3, flexShrink: 0, backgroundColor: 'var(--color-surface-3)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, #ef4444, #f97316 50%, #22c55e)' }} />
         <div
           style={{
-            position: 'absolute',
-            top: 0, right: 0,
-            width: `${100 - progress}%`,
+            position: 'absolute', top: 0, right: 0,
+            width: `${(1 - progress) * 100}%`,
             height: '100%',
             backgroundColor: 'var(--color-surface-3)',
-            transition: 'width 0.3s ease',
+            transition: 'width 0.35s ease',
           }}
         />
       </div>
 
-      {/* ── Scrollable content ── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="min-h-full flex flex-col justify-center px-6 py-10">
-          <div className="w-full max-w-sm mx-auto">
-            <Wordmark />
+      {/* Scrollable content — fills remaining height */}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          maxWidth: 460,
+          width: '100%',
+          margin: '0 auto',
+          padding: '28px 24px 20px',
+        }}>
 
-            {/* Step counter with emoji */}
-            <p
-              className="mb-4 font-medium"
-              style={{ color: 'var(--color-text-hint)', fontSize: '1rem' }}
-            >
-              {Q_EMOJI[currentQ.id] ?? '•'}&ensp;{step + 1} / {total}
-            </p>
-
-            {/* Question label */}
-            <h2
-              className="text-2xl font-semibold leading-snug mb-1"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              {currentQ.label}
-            </h2>
-
-            {currentQ.optional && (
-              <p className="text-xs mb-1" style={{ color: 'var(--color-text-hint)' }}>
-                Optional
+          {/* Question header — fixed at top */}
+          <div style={{ flexShrink: 0 }}>
+            {category && (
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-accent)', marginBottom: 10 }}>
+                {category}
               </p>
             )}
+            <h2 style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', lineHeight: 1.15, marginBottom: hint ? 10 : 0 }}>
+              {currentQ.label}
+            </h2>
+            {hint && (
+              <p style={{ fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+                {hint}
+              </p>
+            )}
+            {currentQ.optional && !hint && (
+              <p style={{ fontSize: 13, color: 'var(--color-text-hint)', marginTop: 6 }}>Optional</p>
+            )}
+          </div>
 
-            {/* Answer UI */}
+          {/* Answer section — expands to fill remaining space, content centered vertically */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 0 }}>
+
             {currentQ.type === 'number' && (
-              <NumberInput
-                value={(currentAnswer as string) ?? ''}
-                onChange={setAnswer}
-              />
+              <NumberInput value={(currentAnswer as string) ?? ''} onChange={setAnswer} />
             )}
 
             {currentQ.type === 'scale_1_10' && (
-              <ScaleSlider
-                value={currentAnswer as number | undefined}
-                inverted={currentQ.id === 'stress_level'}
-                onChange={setAnswer}
-                onRelease={advance}
-              />
+              <>
+                <ScaleSlider
+                  questionId={currentQ.id}
+                  value={currentAnswer as number | undefined}
+                  inverted={currentQ.id === 'stress_level'}
+                  onChange={setAnswer}
+                />
+                {Q_CONTRIBUTORS[currentQ.id] && (
+                  <ContributorChips
+                    questionId={currentQ.id}
+                    selected={contributors[currentQ.id] ?? []}
+                    onChange={(chips) => setContributorForQ(currentQ.id, chips)}
+                  />
+                )}
+              </>
             )}
 
             {currentQ.type === 'options' && (
-              <OptionsInput
-                value={currentAnswer as number | undefined}
-                onChange={setAnswer}
-                onRelease={advance}
-              />
+              <>
+                <OptionsInput
+                  value={currentAnswer as number | undefined}
+                  onChange={setAnswer}
+                />
+                {Q_CONTRIBUTORS[currentQ.id] && (
+                  <ContributorChips
+                    questionId={currentQ.id}
+                    selected={contributors[currentQ.id] ?? []}
+                    onChange={(chips) => setContributorForQ(currentQ.id, chips)}
+                  />
+                )}
+              </>
             )}
 
             {currentQ.type === 'choice' && currentQ.choiceOptions && (
               <ChoiceInput
                 options={currentQ.choiceOptions}
                 value={currentAnswer as string | undefined}
-                onPick={(v) => { setAnswer(v); setTimeout(advance, 300) }}
+                onPick={setAnswer}
               />
             )}
 
             {currentQ.type === 'text' && (
-              <TextInput
-                value={(currentAnswer as string) ?? ''}
-                onChange={setAnswer}
-              />
+              <TextInput value={(currentAnswer as string) ?? ''} onChange={setAnswer} />
             )}
 
             {currentQ.type === 'photo' && (
               <PhotoInput files={photoFiles} onFilesChange={setPhotoFiles} />
             )}
 
-            {/* Error */}
             {error && (
-              <div
-                className="mt-4 px-4 py-3 text-sm"
-                style={{
-                  backgroundColor: 'var(--color-surface-2)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--color-text-secondary)',
-                }}
-              >
+              <div style={{ marginTop: 16, padding: '12px 16px', fontSize: 13, backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, color: '#ef4444' }}>
                 {error}
               </div>
             )}
-
-            {/* Navigation */}
-            <div className="mt-6 flex flex-col gap-3">
-              {/* Scale / options: skip link only (auto-advance handles proceed) */}
-              {isAutoAdvance && currentQ.optional && (
-                <SkipLink onClick={skip} />
-              )}
-              {isAutoAdvance && step > 0 && (
-                <NavButton onClick={back} label="Back" variant="ghost" />
-              )}
-
-              {/* Number / text / photo: explicit Next/Submit button */}
-              {!isAutoAdvance && (
-                <div className="flex gap-3">
-                  {step > 0 && <NavButton onClick={back} label="Back" variant="ghost" flex />}
-                  <NavButton
-                    onClick={advance}
-                    label={isSubmitting ? 'Submitting…' : isLast ? 'Submit' : 'Next'}
-                    disabled={
-                      isSubmitting ||
-                      (!currentQ.optional && (currentQ.type === 'text' || currentQ.type === 'number') && !hasAnswer) ||
-                      (!currentQ.optional && currentQ.type === 'photo' && photoFiles.length === 0)
-                    }
-                    flex={step > 0}
-                  />
-                </div>
-              )}
-
-              {/* Skip link for optional number / text / photo */}
-              {!isAutoAdvance && currentQ.optional && (
-                <SkipLink onClick={skip} />
-              )}
-            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Sticky bottom navigation */}
+      <div
+        style={{
+          flexShrink: 0,
+          padding: '10px 22px 28px',
+          borderTop: '1px solid var(--color-border)',
+          backgroundColor: 'var(--color-base)',
+        }}
+      >
+        {currentQ.optional && (currentQ.type === 'text' || currentQ.type === 'number' || currentQ.type === 'photo') && (
+          <button
+            type="button"
+            onClick={skip}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'center',
+              fontSize: 13,
+              color: 'var(--color-text-hint)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              marginBottom: 8,
+              padding: '6px 0',
+            }}
+          >
+            Skip this question
+          </button>
+        )}
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          {step > 0 && (
+            <button
+              type="button"
+              onClick={back}
+              style={{
+                flex: '0 0 auto',
+                padding: '0 22px',
+                height: 56,
+                fontSize: 15,
+                fontWeight: 600,
+                borderRadius: 14,
+                border: '1.5px solid var(--color-border)',
+                backgroundColor: 'transparent',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Back
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={advance}
+            disabled={isSubmitting || !canProceed}
+            style={{
+              flex: 1,
+              height: 56,
+              fontSize: 16,
+              fontWeight: 700,
+              borderRadius: 14,
+              border: 'none',
+              backgroundColor: canProceed ? 'var(--color-accent)' : 'var(--color-surface-3)',
+              color: canProceed ? '#fff' : 'var(--color-text-hint)',
+              cursor: canProceed ? 'pointer' : 'default',
+              transition: 'background-color 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }}
+          >
+            {isSubmitting ? 'Submitting…' : isLast ? 'Submit' : (
+              <>
+                Next
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

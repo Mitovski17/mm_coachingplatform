@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Sparkles, Loader2 } from 'lucide-react'
+import { ArrowLeft, ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Sparkles, Loader2, BarChart2 } from 'lucide-react'
 import {
   upsertTemplate,
   createCustomExercise,
@@ -42,6 +42,17 @@ function makeDefaultSets(count = 3): SetRow[] {
 }
 
 const MUSCLE_GROUP_ORDER = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio']
+
+const MUSCLE_GROUP_COLORS: Record<string, string> = {
+  chest: '#f97316',
+  back: '#3b82f6',
+  legs: '#22c55e',
+  shoulders: '#eab308',
+  arms: '#a855f7',
+  core: '#06b6d4',
+  cardio: '#ef4444',
+  glutes: '#ec4899',
+}
 
 function muscleGroupLabel(g: string): string {
   return g.charAt(0).toUpperCase() + g.slice(1)
@@ -112,6 +123,26 @@ export default function TemplateEditor({
     for (const ex of exerciseList) m.set(ex.id, ex)
     return m
   }, [exerciseList])
+
+  const volumeDistribution = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const ex of exercises) {
+      if (!ex.muscleGroup) continue
+      const g = ex.muscleGroup.toLowerCase()
+      counts[g] = (counts[g] || 0) + ex.sets.length
+    }
+    const total = Object.values(counts).reduce((a, b) => a + b, 0)
+    const ordered = [...MUSCLE_GROUP_ORDER, 'glutes']
+    return ordered
+      .filter((g) => counts[g] > 0)
+      .map((g) => ({
+        group: g,
+        count: counts[g],
+        pct: total > 0 ? Math.round((counts[g] / total) * 100) : 0,
+      }))
+  }, [exercises])
+
+  const totalSets = useMemo(() => exercises.reduce((acc, ex) => acc + ex.sets.length, 0), [exercises])
 
   const addExercise = () => {
     setExercises((prev) => [
@@ -337,435 +368,767 @@ export default function TemplateEditor({
   }
 
   return (
-    <div className="px-6 py-8 max-w-4xl pb-32">
-      {/* Back link */}
-      <Link
-        href="/coach/programs"
-        className="inline-flex items-center gap-1 text-sm mb-4"
-        style={{ color: 'var(--color-text-muted)', textDecoration: 'none' }}
-      >
-        <ArrowLeft size={14} />
-        Back to programs
-      </Link>
-
-      {/* AI panel */}
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* Top header bar */}
       <div
-        className="mb-6 p-4"
         style={{
-          backgroundColor: 'var(--color-surface-2)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-xl)',
+          borderBottom: '1px solid var(--color-border)',
+          backgroundColor: 'var(--color-surface-1)',
+          padding: '12px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          position: 'sticky',
+          top: 0,
+          zIndex: 20,
         }}
       >
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles size={15} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
-          <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-            {aiGenerated ? 'Edit with AI' : 'Generate with AI'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Link
+            href="/coach/programs"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: '0.75rem',
+              color: 'var(--color-text-hint)',
+              textDecoration: 'none',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              fontWeight: 500,
+            }}
+          >
+            <ArrowLeft size={12} />
+            Programs
+          </Link>
+          <span style={{ color: 'var(--color-border)', fontSize: '0.75rem' }}>›</span>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--color-text-hint)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              fontWeight: 500,
+            }}
+          >
+            Templates
           </span>
-          <span className="text-xs" style={{ color: 'var(--color-text-hint)' }}>
-            {aiGenerated ? 'Describe what you want to change' : 'Describe the workout and AI will build the full template'}
+          <span style={{ color: 'var(--color-border)', fontSize: '0.75rem' }}>›</span>
+          <span
+            style={{
+              fontSize: '0.8rem',
+              color: 'var(--color-text-primary)',
+              fontWeight: 600,
+            }}
+          >
+            {name || 'New Template'}
           </span>
         </div>
 
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={aiPrompt}
-            onChange={(e) => setAiPrompt(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleAiGenerate() }}
-            placeholder={aiGenerated ? 'e.g. add a drop set to the last exercise, increase volume on chest' : 'e.g. Push Day - hypertrophy focus, 4 exercises, pyramid sets'}
-            className="flex-1 px-3 py-2 text-sm"
-            disabled={aiGenerating}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--color-text-hint)' }}>
+            Editing template
+          </span>
+          <Link
+            href="/coach/programs"
             style={{
-              backgroundColor: 'var(--color-surface-3)',
+              padding: '6px 14px',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              color: 'var(--color-text-muted)',
+              backgroundColor: 'transparent',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)',
-              color: 'var(--color-text-primary)',
-              outline: 'none',
-              opacity: aiGenerating ? 0.6 : 1,
-              fontFamily: 'inherit',
+              textDecoration: 'none',
+              cursor: 'pointer',
             }}
-          />
+          >
+            Cancel
+          </Link>
           <button
             type="button"
-            onClick={handleAiGenerate}
-            disabled={aiGenerating || !aiPrompt.trim()}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium"
+            onClick={handleSave}
+            disabled={saving}
             style={{
-              backgroundColor: aiGenerating || !aiPrompt.trim() ? 'var(--color-surface-3)' : 'var(--color-accent)',
-              color: aiGenerating || !aiPrompt.trim() ? 'var(--color-text-hint)' : '#fff',
-              borderRadius: 'var(--radius-md)',
+              padding: '6px 16px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              backgroundColor: 'var(--color-accent)',
+              color: '#fff',
               border: 'none',
-              cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
-              flexShrink: 0,
-              whiteSpace: 'nowrap',
+              borderRadius: 'var(--radius-md)',
+              cursor: saving ? 'not-allowed' : 'pointer',
+              opacity: saving ? 0.6 : 1,
               fontFamily: 'inherit',
             }}
           >
-            {aiGenerating ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Generating…
-              </>
-            ) : (
-              <>
-                <Sparkles size={14} />
-                {aiGenerated ? 'Apply Edit' : 'Generate'}
-              </>
-            )}
+            {saving ? 'Saving…' : 'Save Template'}
           </button>
         </div>
-
-        {aiError && (
-          <p className="mt-2 text-xs" style={{ color: '#ef4444' }}>
-            {aiError}
-          </p>
-        )}
-        {!aiError && !aiGenerating && aiGenerated && (
-          <p className="mt-2 text-xs" style={{ color: '#22c55e' }}>
-            Template generated — review below and save when ready.
-          </p>
-        )}
       </div>
 
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
-          {initialData ? initialData.name : 'New Template'}
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          Build a reusable workout you can assign to any client&apos;s program
-        </p>
-      </div>
+      {/* Two-column layout — fills viewport height below the header */}
+      <div style={{ display: 'flex', height: 'calc(100vh - 53px)', overflow: 'hidden' }}>
+        {/* Left: main editor */}
+        <div className="no-scrollbar" style={{ flex: '0 0 55%', overflowY: 'auto', padding: '28px 32px 80px' }}>
+          {/* AI panel */}
+          <div
+            style={{
+              marginBottom: 24,
+              padding: 16,
+              backgroundColor: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-xl)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Sparkles size={15} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
+              <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                {aiGenerated ? 'Edit with AI' : 'Generate with AI'}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-hint)' }}>
+                {aiGenerated
+                  ? 'Describe what you want to change'
+                  : 'Describe the workout and AI will build the full template'}
+              </span>
+            </div>
 
-      {/* Name */}
-      <div className="mb-4">
-        <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
-          Template name
-        </label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Upper A, Pull Day, Leg Day 1"
-          className="w-full text-base"
-          style={inputStyle()}
-        />
-      </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAiGenerate() }}
+                placeholder={
+                  aiGenerated
+                    ? 'e.g. add a drop set to the last exercise, increase volume on chest'
+                    : 'e.g. Push Day - hypertrophy focus, 4 exercises, pyramid sets'
+                }
+                disabled={aiGenerating}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  fontSize: '0.85rem',
+                  backgroundColor: 'var(--color-surface-3)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--color-text-primary)',
+                  outline: 'none',
+                  opacity: aiGenerating ? 0.6 : 1,
+                  fontFamily: 'inherit',
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleAiGenerate}
+                disabled={aiGenerating || !aiPrompt.trim()}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  backgroundColor:
+                    aiGenerating || !aiPrompt.trim()
+                      ? 'var(--color-surface-3)'
+                      : 'var(--color-accent)',
+                  color:
+                    aiGenerating || !aiPrompt.trim() ? 'var(--color-text-hint)' : '#fff',
+                  borderRadius: 'var(--radius-md)',
+                  border: 'none',
+                  cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {aiGenerating ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} />
+                    {aiGenerated ? 'Apply Edit' : 'Generate'}
+                  </>
+                )}
+              </button>
+            </div>
 
-      {/* Notes */}
-      <div className="mb-8">
-        <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
-          Notes (optional)
-        </label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Any notes for this template..."
-          rows={2}
-          className="w-full text-sm resize-none"
-          style={{ ...inputStyle(), lineHeight: 1.5 }}
-        />
-      </div>
+            {aiError && (
+              <p style={{ marginTop: 8, fontSize: '0.75rem', color: '#ef4444' }}>{aiError}</p>
+            )}
+            {!aiError && !aiGenerating && aiGenerated && (
+              <p style={{ marginTop: 8, fontSize: '0.75rem', color: '#22c55e' }}>
+                Template generated — review below and save when ready.
+              </p>
+            )}
+          </div>
 
-      {/* Exercises section */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-base" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
-          Exercises
-        </h2>
-        <button
-          type="button"
-          onClick={addExercise}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium"
-          style={{
-            backgroundColor: 'var(--color-surface-2)',
-            color: 'var(--color-text-primary)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={14} />
-          Add Exercise
-        </button>
-      </div>
+          {/* Template name */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-text-hint)', marginBottom: 6 }}>
+              Template name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Upper A, Pull Day, Leg Day 1"
+              style={{ ...inputStyle(), width: '100%', fontSize: '1rem' }}
+            />
+          </div>
 
-      {exercises.length === 0 ? (
-        <div
-          className="flex items-center justify-center py-12 text-sm"
-          style={{
-            color: 'var(--color-text-hint)',
-            border: '1px dashed var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-          }}
-        >
-          No exercises yet. Click &quot;Add Exercise&quot; to start.
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {exercises.map((ex, i) => (
-            <div
-              key={ex.tempId}
-              className="px-4 py-4"
+          {/* Notes */}
+          <div style={{ marginBottom: 32 }}>
+            <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-text-hint)', marginBottom: 6 }}>
+              Notes (optional)
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any notes for this template..."
+              rows={2}
+              style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem', lineHeight: 1.5, resize: 'none' }}
+            />
+          </div>
+
+          {/* Exercises header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h2 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              Exercises
+            </h2>
+            <button
+              type="button"
+              onClick={addExercise}
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                fontSize: '0.825rem',
+                fontWeight: 500,
                 backgroundColor: 'var(--color-surface-2)',
+                color: 'var(--color-text-primary)',
                 border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-xl)',
+                borderRadius: 'var(--radius-md)',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
               }}
             >
-              <div className="flex items-start gap-3">
-                {/* Drag handle + reorder */}
-                <div className="flex flex-col items-center gap-1 pt-1.5" style={{ flexShrink: 0 }}>
-                  <GripVertical size={14} style={{ color: 'var(--color-text-hint)' }} />
-                  <button
-                    type="button"
-                    onClick={() => moveExercise(ex.tempId, -1)}
-                    disabled={i === 0}
-                    title="Move up"
-                    className="inline-flex items-center justify-center"
-                    style={iconBtnStyle(i === 0)}
-                  >
-                    <ChevronUp size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveExercise(ex.tempId, 1)}
-                    disabled={i === exercises.length - 1}
-                    title="Move down"
-                    className="inline-flex items-center justify-center"
-                    style={iconBtnStyle(i === exercises.length - 1)}
-                  >
-                    <ChevronDown size={12} />
-                  </button>
-                </div>
+              <Plus size={14} />
+              Add Exercise
+            </button>
+          </div>
 
-                {/* Main content */}
-                <div className="flex-1 min-w-0">
-                  {/* Top row: exercise selector + rest + notes */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
-                    {/* Exercise selector */}
-                    <div className="md:col-span-5">
-                      <label className="block text-xs mb-1" style={{ color: 'var(--color-text-hint)' }}>
-                        Exercise
-                      </label>
-                      <select
-                        value={ex.exerciseId}
-                        onChange={(e) => setExerciseSelection(ex.tempId, e.target.value)}
-                        className="w-full text-sm"
-                        style={inputStyle()}
-                      >
-                        <option value="">— Select exercise —</option>
-                        {exercisesByGroup.map(([group, list]) => (
-                          <optgroup key={group} label={muscleGroupLabel(group)}>
-                            {list.map((opt) => (
-                              <option key={opt.id} value={opt.id}>
-                                {opt.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setCustomModalForTempId(ex.tempId)}
+          {exercises.length === 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '48px 0',
+                fontSize: '0.875rem',
+                color: 'var(--color-text-hint)',
+                border: '1px dashed var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+              }}
+            >
+              No exercises yet. Click &quot;Add Exercise&quot; to start.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {exercises.map((ex, i) => (
+                <div
+                  key={ex.tempId}
+                  style={{
+                    padding: '16px',
+                    backgroundColor: 'var(--color-surface-2)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-xl)',
+                  }}
+                >
+                  {/* Muscle group pill */}
+                  {ex.muscleGroup && (
+                    <div style={{ marginBottom: 10 }}>
+                      <span
                         style={{
-                          background: 'none',
-                          border: 'none',
-                          padding: '4px 0 0',
-                          fontSize: '0.75rem',
-                          color: 'var(--color-accent)',
-                          cursor: 'pointer',
-                          fontFamily: 'inherit',
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          fontSize: '0.68rem',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderRadius: 999,
+                          backgroundColor: `${MUSCLE_GROUP_COLORS[ex.muscleGroup.toLowerCase()] ?? '#6b7280'}22`,
+                          color: MUSCLE_GROUP_COLORS[ex.muscleGroup.toLowerCase()] ?? '#6b7280',
+                          border: `1px solid ${MUSCLE_GROUP_COLORS[ex.muscleGroup.toLowerCase()] ?? '#6b7280'}44`,
                         }}
                       >
-                        + Custom exercise
+                        {ex.muscleGroup}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    {/* Drag handle + reorder */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 6, flexShrink: 0 }}>
+                      <GripVertical size={14} style={{ color: 'var(--color-text-hint)' }} />
+                      <button
+                        type="button"
+                        onClick={() => moveExercise(ex.tempId, -1)}
+                        disabled={i === 0}
+                        title="Move up"
+                        style={iconBtnStyle(i === 0)}
+                      >
+                        <ChevronUp size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveExercise(ex.tempId, 1)}
+                        disabled={i === exercises.length - 1}
+                        title="Move down"
+                        style={iconBtnStyle(i === exercises.length - 1)}
+                      >
+                        <ChevronDown size={12} />
                       </button>
                     </div>
 
-                    {/* Rest */}
-                    <div className="md:col-span-2">
-                      <label className="block text-xs mb-1" style={{ color: 'var(--color-text-hint)' }}>
-                        Rest (s)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={15}
-                        value={ex.restSeconds}
-                        onChange={(e) =>
-                          updateExercise(ex.tempId, { restSeconds: Math.max(0, Number(e.target.value) || 0) })
-                        }
-                        className="w-full text-sm"
-                        style={inputStyle()}
-                      />
-                    </div>
-
-                    {/* Notes */}
-                    <div className="md:col-span-5">
-                      <label className="block text-xs mb-1" style={{ color: 'var(--color-text-hint)' }}>
-                        Notes
-                      </label>
-                      <input
-                        type="text"
-                        value={ex.notes}
-                        onChange={(e) => updateExercise(ex.tempId, { notes: e.target.value })}
-                        placeholder="e.g. pause at bottom"
-                        className="w-full text-sm"
-                        style={inputStyle()}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Sets table */}
-                  <div>
-                    <div
-                      className="grid text-xs mb-1"
-                      style={{
-                        gridTemplateColumns: '32px 64px 96px 64px 1fr 28px',
-                        gap: '6px',
-                        color: 'var(--color-text-hint)',
-                        padding: '0 4px',
-                      }}
-                    >
-                      <span>Set</span>
-                      <span>Reps</span>
-                      <span>Weight</span>
-                      <span>RPE</span>
-                      <span>Notes</span>
-                      <span />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      {ex.sets.map((s) => (
-                        <div
-                          key={s.tempId}
-                          className="grid items-center"
-                          style={{
-                            gridTemplateColumns: '32px 64px 96px 64px 1fr 28px',
-                            gap: '6px',
-                          }}
-                        >
-                          <span
-                            className="text-sm text-center"
-                            style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}
+                    {/* Main content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Top row: exercise selector + rest + notes */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 80px 1fr',
+                          gap: 12,
+                          marginBottom: 16,
+                        }}
+                      >
+                        {/* Exercise selector */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 4 }}>
+                            Exercise
+                          </label>
+                          <select
+                            value={ex.exerciseId}
+                            onChange={(e) => setExerciseSelection(ex.tempId, e.target.value)}
+                            style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
                           >
-                            {s.setNumber}
-                          </span>
-                          <input
-                            type="number"
-                            min={1}
-                            value={s.targetReps}
-                            onChange={(e) =>
-                              updateSet(ex.tempId, s.tempId, {
-                                targetReps: Math.max(1, Number(e.target.value) || 1),
-                              })
-                            }
-                            className="text-sm"
-                            style={{ ...inputStyle(), padding: '6px 8px' }}
-                          />
-                          <input
-                            type="text"
-                            value={s.targetWeight}
-                            onChange={(e) => updateSet(ex.tempId, s.tempId, { targetWeight: e.target.value })}
-                            placeholder="e.g. 80kg"
-                            className="text-sm"
-                            style={{ ...inputStyle(), padding: '6px 8px' }}
-                          />
-                          <input
-                            type="text"
-                            value={s.rpe}
-                            onChange={(e) => updateSet(ex.tempId, s.tempId, { rpe: e.target.value })}
-                            placeholder="e.g. 8"
-                            className="text-sm"
-                            style={{ ...inputStyle(), padding: '6px 8px' }}
-                          />
-                          <input
-                            type="text"
-                            value={s.notes}
-                            onChange={(e) => updateSet(ex.tempId, s.tempId, { notes: e.target.value })}
-                            placeholder="optional"
-                            className="text-sm"
-                            style={{ ...inputStyle(), padding: '6px 8px' }}
-                          />
+                            <option value="">— Select exercise —</option>
+                            {exercisesByGroup.map(([group, list]) => (
+                              <optgroup key={group} label={muscleGroupLabel(group)}>
+                                {list.map((opt) => (
+                                  <option key={opt.id} value={opt.id}>
+                                    {opt.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
                           <button
                             type="button"
-                            onClick={() => removeSet(ex.tempId, s.tempId)}
-                            title="Remove set"
-                            className="inline-flex items-center justify-center"
+                            onClick={() => setCustomModalForTempId(ex.tempId)}
                             style={{
-                              width: 28,
-                              height: 28,
-                              color: '#ef4444',
-                              backgroundColor: 'transparent',
-                              border: '1px solid var(--color-border)',
-                              borderRadius: 'var(--radius-md)',
+                              background: 'none',
+                              border: 'none',
+                              padding: '4px 0 0',
+                              fontSize: '0.72rem',
+                              color: 'var(--color-accent)',
                               cursor: 'pointer',
-                              flexShrink: 0,
+                              fontFamily: 'inherit',
                             }}
                           >
-                            <Trash2 size={12} />
+                            + Custom exercise
                           </button>
                         </div>
-                      ))}
+
+                        {/* Rest */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 4 }}>
+                            Rest (s)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={15}
+                            value={ex.restSeconds}
+                            onChange={(e) =>
+                              updateExercise(ex.tempId, { restSeconds: Math.max(0, Number(e.target.value) || 0) })
+                            }
+                            style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
+                          />
+                        </div>
+
+                        {/* Notes */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 4 }}>
+                            Notes
+                          </label>
+                          <input
+                            type="text"
+                            value={ex.notes}
+                            onChange={(e) => updateExercise(ex.tempId, { notes: e.target.value })}
+                            placeholder="e.g. pause at bottom"
+                            style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Sets table */}
+                      <div>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '32px 64px 88px 60px 1fr 28px',
+                            gap: 6,
+                            color: 'var(--color-text-hint)',
+                            fontSize: '0.7rem',
+                            padding: '0 4px',
+                            marginBottom: 4,
+                          }}
+                        >
+                          <span>Set</span>
+                          <span>Reps</span>
+                          <span>Weight</span>
+                          <span>RPE</span>
+                          <span>Notes</span>
+                          <span />
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {ex.sets.map((s) => (
+                            <div
+                              key={s.tempId}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '32px 64px 88px 60px 1fr 28px',
+                                gap: 6,
+                                alignItems: 'center',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: '0.875rem',
+                                  textAlign: 'center',
+                                  color: 'var(--color-text-muted)',
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {s.setNumber}
+                              </span>
+                              <input
+                                type="number"
+                                min={1}
+                                value={s.targetReps}
+                                onChange={(e) =>
+                                  updateSet(ex.tempId, s.tempId, {
+                                    targetReps: Math.max(1, Number(e.target.value) || 1),
+                                  })
+                                }
+                                style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}
+                              />
+                              <input
+                                type="text"
+                                value={s.targetWeight}
+                                onChange={(e) => updateSet(ex.tempId, s.tempId, { targetWeight: e.target.value })}
+                                placeholder="80"
+                                style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}
+                              />
+                              <input
+                                type="text"
+                                value={s.rpe}
+                                onChange={(e) => updateSet(ex.tempId, s.tempId, { rpe: e.target.value })}
+                                placeholder="8"
+                                style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}
+                              />
+                              <input
+                                type="text"
+                                value={s.notes}
+                                onChange={(e) => updateSet(ex.tempId, s.tempId, { notes: e.target.value })}
+                                placeholder="optional"
+                                style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeSet(ex.tempId, s.tempId)}
+                                title="Remove set"
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#ef4444',
+                                  backgroundColor: 'transparent',
+                                  border: '1px solid var(--color-border)',
+                                  borderRadius: 'var(--radius-md)',
+                                  cursor: 'pointer',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => addSet(ex.tempId)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: '6px 4px 0',
+                            fontSize: '0.72rem',
+                            color: 'var(--color-accent)',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          + Add set
+                        </button>
+                      </div>
                     </div>
 
+                    {/* Delete exercise */}
                     <button
                       type="button"
-                      onClick={() => addSet(ex.tempId)}
+                      onClick={() => removeExercise(ex.tempId)}
+                      title="Remove exercise"
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: '6px 4px 0',
-                        fontSize: '0.75rem',
-                        color: 'var(--color-accent)',
+                        width: 30,
+                        height: 30,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginTop: 20,
+                        color: '#ef4444',
+                        backgroundColor: 'transparent',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
                         cursor: 'pointer',
-                        fontFamily: 'inherit',
+                        flexShrink: 0,
                       }}
                     >
-                      + Add set
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 </div>
-
-                {/* Delete exercise */}
-                <button
-                  type="button"
-                  onClick={() => removeExercise(ex.tempId)}
-                  title="Remove exercise"
-                  className="inline-flex items-center justify-center mt-5"
-                  style={{
-                    width: 32,
-                    height: 32,
-                    color: '#ef4444',
-                    backgroundColor: 'transparent',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-md)',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* Error */}
-      {error && (
+          {/* Error */}
+          {error && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: '8px 16px',
+                fontSize: '0.875rem',
+                backgroundColor: 'rgba(239,68,68,0.12)',
+                color: '#ef4444',
+                border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: 'var(--radius-md)',
+              }}
+            >
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Right: sidebar */}
         <div
-          className="mt-4 px-4 py-2 text-sm"
+          className="no-scrollbar"
           style={{
-            backgroundColor: 'rgba(239,68,68,0.12)',
-            color: '#ef4444',
-            border: '1px solid rgba(239,68,68,0.25)',
-            borderRadius: 'var(--radius-md)',
+            flex: '1 1 45%',
+            borderLeft: '1px solid var(--color-border)',
+            padding: '28px 32px',
+            overflowY: 'auto',
+            backgroundColor: 'var(--color-surface-1)',
           }}
         >
-          {error}
+          {/* Stats summary */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 8,
+              marginBottom: 24,
+            }}
+          >
+            <div
+              style={{
+                padding: '12px 14px',
+                backgroundColor: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+              }}
+            >
+              <p style={{ fontSize: '0.65rem', color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                Exercises
+              </p>
+              <p style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
+                {exercises.length}
+              </p>
+            </div>
+            <div
+              style={{
+                padding: '12px 14px',
+                backgroundColor: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+              }}
+            >
+              <p style={{ fontSize: '0.65rem', color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                Total Sets
+              </p>
+              <p style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
+                {totalSets}
+              </p>
+            </div>
+          </div>
+
+          {/* Weekly volume distribution */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+              <BarChart2 size={14} style={{ color: 'var(--color-text-hint)' }} />
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.07em',
+                  color: 'var(--color-text-hint)',
+                }}
+              >
+                Volume Distribution
+              </span>
+            </div>
+
+            {volumeDistribution.length === 0 ? (
+              <p style={{ fontSize: '0.8rem', color: 'var(--color-text-hint)', fontStyle: 'italic' }}>
+                Add exercises to see volume breakdown.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {volumeDistribution.map(({ group, pct }) => {
+                  const color = MUSCLE_GROUP_COLORS[group] ?? '#6b7280'
+                  return (
+                    <div key={group}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                          {muscleGroupLabel(group)}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-hint)' }}>
+                          {pct}%
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          height: 8,
+                          borderRadius: 999,
+                          backgroundColor: 'var(--color-surface-3)',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            borderRadius: 999,
+                            backgroundColor: color,
+                            transition: 'width 0.3s ease',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Exercise list summary */}
+          {exercises.length > 0 && (
+            <div style={{ marginTop: 28 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                <span
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.07em',
+                    color: 'var(--color-text-hint)',
+                  }}
+                >
+                  Exercise List
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {exercises.map((ex, i) => (
+                  <div
+                    key={ex.tempId}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 10px',
+                      backgroundColor: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        color: 'var(--color-text-hint)',
+                        width: 16,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    {ex.muscleGroup && (
+                      <span
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          backgroundColor: MUSCLE_GROUP_COLORS[ex.muscleGroup.toLowerCase()] ?? '#6b7280',
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p
+                        style={{
+                          fontSize: '0.78rem',
+                          color: ex.exerciseName ? 'var(--color-text-primary)' : 'var(--color-text-hint)',
+                          fontWeight: 500,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {ex.exerciseName || 'Unselected'}
+                      </p>
+                      <p style={{ fontSize: '0.68rem', color: 'var(--color-text-hint)' }}>
+                        {ex.sets.length} {ex.sets.length === 1 ? 'set' : 'sets'}
+                        {ex.restSeconds > 0 ? ` · ${ex.restSeconds}s rest` : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Custom exercise modal */}
       {customModalForTempId && (
@@ -783,46 +1146,6 @@ export default function TemplateEditor({
           onClose={() => setCustomModalForTempId(null)}
         />
       )}
-
-      {/* Sticky action bar */}
-      <div
-        className="fixed bottom-0 left-0 right-0 px-6 py-3 flex items-center justify-end gap-3"
-        style={{
-          backgroundColor: 'var(--color-surface-1)',
-          borderTop: '1px solid var(--color-border)',
-          marginLeft: 'var(--coach-sidebar-margin, 0)',
-        }}
-      >
-        <Link
-          href="/coach/programs"
-          className="px-4 py-2 text-sm font-medium"
-          style={{
-            color: 'var(--color-text-muted)',
-            backgroundColor: 'transparent',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            textDecoration: 'none',
-          }}
-        >
-          Cancel
-        </Link>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="px-4 py-2 text-sm font-medium"
-          style={{
-            backgroundColor: 'var(--color-accent)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            cursor: saving ? 'not-allowed' : 'pointer',
-            opacity: saving ? 0.6 : 1,
-          }}
-        >
-          {saving ? 'Saving…' : 'Save Template'}
-        </button>
-      </div>
     </div>
   )
 }
@@ -886,12 +1209,12 @@ function CustomExerciseModal({
           padding: '24px',
         }}
       >
-        <h2 className="text-base mb-5" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
+        <h2 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
           New Custom Exercise
         </h2>
 
-        <div className="mb-4">
-          <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-text-hint)', marginBottom: 6 }}>
             Name
           </label>
           <input
@@ -900,20 +1223,18 @@ function CustomExerciseModal({
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Banded Hip Thrust"
             autoFocus
-            className="w-full text-sm"
-            style={inputStyle()}
+            style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
           />
         </div>
 
-        <div className="mb-4">
-          <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-text-hint)', marginBottom: 6 }}>
             Muscle Group
           </label>
           <select
             value={muscleGroup}
             onChange={(e) => setMuscleGroup(e.target.value)}
-            className="w-full text-sm"
-            style={inputStyle()}
+            style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
           >
             {['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'glutes'].map((g) => (
               <option key={g} value={g}>
@@ -923,15 +1244,14 @@ function CustomExerciseModal({
           </select>
         </div>
 
-        <div className="mb-5">
-          <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-text-hint)', marginBottom: 6 }}>
             Equipment
           </label>
           <select
             value={equipment}
             onChange={(e) => setEquipment(e.target.value)}
-            className="w-full text-sm"
-            style={inputStyle()}
+            style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
           >
             {['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight', 'kettlebell', 'resistance band', 'other'].map((eq) => (
               <option key={eq} value={eq}>
@@ -943,8 +1263,10 @@ function CustomExerciseModal({
 
         {error && (
           <div
-            className="mb-4 px-3 py-2 text-xs"
             style={{
+              marginBottom: 16,
+              padding: '8px 12px',
+              fontSize: '0.75rem',
               backgroundColor: 'rgba(239,68,68,0.12)',
               color: '#ef4444',
               border: '1px solid rgba(239,68,68,0.25)',
@@ -955,12 +1277,14 @@ function CustomExerciseModal({
           </div>
         )}
 
-        <div className="flex justify-end gap-2">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium"
             style={{
+              padding: '8px 16px',
+              fontSize: '0.875rem',
+              fontWeight: 500,
               color: 'var(--color-text-muted)',
               backgroundColor: 'transparent',
               border: '1px solid var(--color-border)',
@@ -975,8 +1299,10 @@ function CustomExerciseModal({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium"
             style={{
+              padding: '8px 16px',
+              fontSize: '0.875rem',
+              fontWeight: 500,
               backgroundColor: 'var(--color-accent)',
               color: '#fff',
               border: 'none',
@@ -1010,6 +1336,9 @@ function iconBtnStyle(disabled: boolean): React.CSSProperties {
   return {
     width: 22,
     height: 22,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     color: disabled ? 'var(--color-text-hint)' : 'var(--color-text-muted)',
     backgroundColor: 'transparent',
     border: '1px solid var(--color-border)',

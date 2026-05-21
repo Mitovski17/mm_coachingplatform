@@ -480,31 +480,34 @@ export async function getCheckinHistory(clientId: string): Promise<Checkin[]> {
 }
 
 export async function getProgressPhotos(
-  clientId: string
+  clientId: string,
+  checkins: Checkin[]
 ): Promise<ProgressPhoto[]> {
   const admin = adminClient()
-  const checkins = await getCheckinHistory(clientId)
-  const photos: ProgressPhoto[] = []
+
+  const toSign: { path: string; submittedAt: string; weekStartDate: string }[] = []
   for (const ci of checkins) {
     for (const path of ci.photoPaths) {
       if (!path) continue
+      toSign.push({ path, submittedAt: ci.submittedAt, weekStartDate: ci.weekStartDate })
+    }
+  }
+
+  if (toSign.length === 0) return []
+
+  const results = await Promise.all(
+    toSign.map(async ({ path, submittedAt, weekStartDate }) => {
       const { data } = await admin.storage
         .from('progress-photos')
         .createSignedUrl(path, 3600)
-      if (data?.signedUrl) {
-        photos.push({
-          url: data.signedUrl,
-          submittedAt: ci.submittedAt,
-          weekStartDate: ci.weekStartDate,
-        })
-      }
-    }
-  }
-  photos.sort(
-    (a, b) =>
-      new Date(a.weekStartDate).getTime() - new Date(b.weekStartDate).getTime()
+      if (!data?.signedUrl) return null
+      return { url: data.signedUrl, submittedAt, weekStartDate } as ProgressPhoto
+    })
   )
-  return photos
+
+  return results
+    .filter((p): p is ProgressPhoto => p !== null)
+    .sort((a, b) => new Date(a.weekStartDate).getTime() - new Date(b.weekStartDate).getTime())
 }
 
 export async function getLatestDigest(clientId: string): Promise<AiDigest | null> {

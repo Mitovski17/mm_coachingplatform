@@ -45,7 +45,7 @@ export default async function ClientDetailPage({
     getBodyMetrics(clientId),
   ])
 
-  const photos = await getProgressPhotos(clientId)
+  const photos = await getProgressPhotos(clientId, checkins)
 
   const hasMealPlan =
     !!assignments.trainingMealPlan || !!assignments.restMealPlan

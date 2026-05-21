@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ensureDefaultTemplate, getClientByEmail, uploadProgressPhoto, submitCheckin } from './actions'
+import { ensureDefaultTemplate, getClientByEmail, uploadProgressPhoto, submitCheckin, getExistingCheckin } from './actions'
 import type { Question, ChoiceOption } from './actions'
 import { getSundayStart, getNextSundayMidnight, formatCountdown } from '@/lib/checkin-window'
 
@@ -806,16 +806,9 @@ export default function CheckInPage() {
       setClientId(client.id)
       setWorkspaceId(client.workspace_id)
 
-      const supabase = createClient()
       const weekStart = getSundayStart()
-      const { data: existing } = await supabase
-        .from('checkins')
-        .select('id')
-        .eq('client_id', client.id)
-        .eq('week_start_date', weekStart)
-        .maybeSingle()
-
-      if (existing) { setPageStatus('already_submitted'); return }
+      const alreadySubmitted = await getExistingCheckin(client.id, weekStart)
+      if (alreadySubmitted) { setPageStatus('already_submitted'); return }
 
       const template = await ensureDefaultTemplate(client.workspace_id)
       setTemplateId(template.id)

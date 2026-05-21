@@ -116,6 +116,20 @@ export async function ensureDefaultTemplate(workspaceId: string): Promise<Checki
   return created as CheckinTemplate
 }
 
+export async function getExistingCheckin(
+  clientId: string,
+  weekStartDate: string
+): Promise<boolean> {
+  const admin = adminClient()
+  const { data } = await admin
+    .from('checkins')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('week_start_date', weekStartDate)
+    .maybeSingle()
+  return data !== null
+}
+
 export async function submitCheckin(payload: {
   workspace_id: string
   client_id: string

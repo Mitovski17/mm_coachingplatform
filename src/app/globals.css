@@ -197,3 +197,7 @@
   box-shadow: 0 2px 16px rgba(0,0,0,0.35);
 }
 .checkin-scale-slider:active::-moz-range-thumb { cursor: grabbing; }
+
+/* Hide scrollbars while keeping scroll functionality */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

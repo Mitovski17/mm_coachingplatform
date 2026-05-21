@@ -66,7 +66,7 @@ Rules:
 - Use realistic food quantities and accurate macros (do not estimate wildly)
 - If the description asks for multiple options per meal, include them as separate option objects with labels "A", "B", etc.
 - Meal names should be: Breakfast, Lunch, Dinner, Snack, Pre-workout, Post-workout (or similar)
-- plan_type should be "training" unless description says rest day
+- plan_type should be "training" for training days, "rest" for rest days, "overall" for plans that apply every day regardless of training
 - All macro values must be numbers, not strings
 - The calories field per food must be the actual calories at the given quantity (not per 100g)
 - Match the calorie and macro targets specified in the description as closely as possible

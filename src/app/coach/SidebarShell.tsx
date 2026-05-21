@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, ListChecks, LayoutList, Settings, UtensilsCrossed, MessageSquare } from 'lucide-react'
+import { Users, ListChecks, LayoutList, Settings, UtensilsCrossed, MessageSquare, Inbox } from 'lucide-react'
 
 const NAV = [
   { label: 'Clients', href: '/coach/dashboard', Icon: Users },
   { label: 'Check-ins', href: '/coach/check-ins', Icon: ListChecks },
+  { label: 'Messages', href: '/coach/messages', Icon: Inbox },
   { label: 'Training Programs', href: '/coach/programs', Icon: LayoutList },
   { label: 'Meal Plans', href: '/coach/meal-plans', Icon: UtensilsCrossed },
   { label: 'Assistant', href: '/coach/assistant', Icon: MessageSquare },
@@ -21,9 +22,11 @@ const LS_KEY = 'coach_sidebar_collapsed'
 export default function SidebarShell({
   children,
   pendingCount = 0,
+  unreadMessageCount = 0,
 }: {
   children: React.ReactNode
   pendingCount?: number
+  unreadMessageCount?: number
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
@@ -181,6 +184,20 @@ export default function SidebarShell({
                       }}
                     />
                   )}
+                  {href === '/coach/messages' && unreadMessageCount > 0 && (
+                    <span
+                      className="absolute"
+                      style={{
+                        top: -3,
+                        right: -3,
+                        width: 7,
+                        height: 7,
+                        borderRadius: '50%',
+                        backgroundColor: active ? '#ffffff' : '#ef4444',
+                        display: 'block',
+                      }}
+                    />
+                  )}
                 </div>
                 {!collapsed && (
                   <span className="whitespace-nowrap flex items-center gap-1.5">
@@ -199,6 +216,22 @@ export default function SidebarShell({
                         }}
                       >
                         {pendingCount}
+                      </span>
+                    )}
+                    {href === '/coach/messages' && unreadMessageCount > 0 && (
+                      <span
+                        className="inline-flex items-center justify-center text-xs font-semibold"
+                        style={{
+                          minWidth: 18,
+                          height: 18,
+                          borderRadius: '9999px',
+                          backgroundColor: active ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.18)',
+                          color: active ? '#fff' : '#ef4444',
+                          padding: '0 5px',
+                          lineHeight: 1,
+                        }}
+                      >
+                        {unreadMessageCount}
                       </span>
                     )}
                   </span>

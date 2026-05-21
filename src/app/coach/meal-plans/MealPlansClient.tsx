@@ -125,6 +125,7 @@ function TemplatesPanel({
 }) {
   const training = templates.filter((t) => t.planType === 'training')
   const rest = templates.filter((t) => t.planType === 'rest')
+  const overall = templates.filter((t) => t.planType === 'overall')
 
   return (
     <>
@@ -151,6 +152,12 @@ function TemplatesPanel({
         <Section title="Training Day" planType="training" items={training} onDelete={onDelete} deleting={deleting} />
         <Section title="Rest Day" planType="rest" items={rest} onDelete={onDelete} deleting={deleting} />
       </div>
+
+      {overall.length > 0 && (
+        <div className="mt-4">
+          <Section title="Overall" planType="overall" items={overall} onDelete={onDelete} deleting={deleting} />
+        </div>
+      )}
     </>
   )
 }
@@ -210,7 +217,13 @@ function TemplateCard({
   onDelete: (id: string, name: string) => void
   deleting: boolean
 }) {
-  const isTraining = planType === 'training'
+  const badgeStyle =
+    planType === 'training'
+      ? { bg: 'rgba(59,130,246,0.14)', color: '#60a5fa', label: 'Training' }
+      : planType === 'rest'
+      ? { bg: 'rgba(34,197,94,0.14)', color: '#4ade80', label: 'Rest' }
+      : { bg: 'rgba(249,115,22,0.14)', color: '#f97316', label: 'Overall' }
+
   return (
     <div
       className="px-5 py-4"
@@ -224,12 +237,12 @@ function TemplateCard({
         <span
           className="inline-flex items-center px-2 py-0.5 text-xs font-medium"
           style={{
-            backgroundColor: isTraining ? 'rgba(59,130,246,0.14)' : 'rgba(34,197,94,0.14)',
-            color: isTraining ? '#60a5fa' : '#4ade80',
+            backgroundColor: badgeStyle.bg,
+            color: badgeStyle.color,
             borderRadius: 'var(--radius-sm)',
           }}
         >
-          {isTraining ? 'Training' : 'Rest'}
+          {badgeStyle.label}
         </span>
         <div className="flex items-center gap-1">
           <Link

@@ -21,15 +21,6 @@ const COLOR_PROTEIN = '#3b82f6'
 const COLOR_CARBS = '#f97316'
 const COLOR_FAT = '#ef4444'
 
-const MEAL_ICONS: Record<string, string> = {
-  Breakfast: '☀️',
-  Lunch: '🥗',
-  Dinner: '🍽️',
-  Snack: '🍎',
-  'Pre-workout': '⚡',
-  'Post-workout': '💪',
-}
-
 function isoFromDate(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -228,11 +219,16 @@ export default function NutritionClient({
 
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
-      <div style={{ padding: '52px 20px 12px' }}>
-        <div className="flex items-center justify-between mb-3">
-          <h1 style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
-            Nutrition
-          </h1>
+      <div style={{ padding: '52px 20px 10px' }}>
+        <div className="flex items-start justify-between">
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-hint)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()}
+            </p>
+            <h1 style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-text-primary)', margin: '1px 0 0', lineHeight: 1.1 }}>
+              Food Diary
+            </h1>
+          </div>
           <PlanTypeToggle value={planType} onChange={handleSetPlanType} />
         </div>
       </div>
@@ -371,7 +367,7 @@ function WeekStrip({
 }) {
   const days = useMemo(() => {
     const start = startOfWeek(new Date(selectedDate + 'T00:00:00'))
-    const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+    const labels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
     const arr: { iso: string; label: string; num: number; isToday: boolean }[] = []
     for (let i = 0; i < 7; i++) {
       const d = new Date(start)
@@ -385,13 +381,7 @@ function WeekStrip({
   return (
     <div
       className="flex items-center justify-between"
-      style={{
-        backgroundColor: 'var(--color-surface-1)',
-        borderRadius: 16,
-        border: '1px solid var(--color-border)',
-        padding: 8,
-        gap: 4,
-      }}
+      style={{ gap: 6 }}
     >
       {days.map((d) => {
         const active = d.iso === selectedDate
@@ -403,26 +393,24 @@ function WeekStrip({
             className="flex flex-col items-center justify-center"
             style={{
               flex: 1,
-              padding: '6px 0 4px',
-              backgroundColor: 'transparent',
-              border: 'none',
+              padding: '10px 4px',
+              backgroundColor: active ? 'var(--color-accent)' : 'var(--color-surface-1)',
+              border: '1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-border)'),
+              borderRadius: 14,
               cursor: 'pointer',
-              gap: 4,
+              gap: 5,
+              position: 'relative',
             }}
           >
-            <span style={{ fontSize: 11, color: 'var(--color-text-hint)', fontWeight: 600 }}>
+            <span style={{ fontSize: 10, color: active ? 'rgba(255,255,255,0.8)' : 'var(--color-text-hint)', fontWeight: 700, letterSpacing: '0.04em' }}>
               {d.label}
             </span>
             <span
-              className="flex items-center justify-center"
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                backgroundColor: active ? '#fff' : 'transparent',
-                color: active ? '#000' : 'var(--color-text-primary)',
-                fontWeight: 600,
-                fontSize: 13,
+                fontSize: 15,
+                fontWeight: 700,
+                color: active ? '#fff' : 'var(--color-text-primary)',
+                lineHeight: 1,
               }}
             >
               {d.num}
@@ -438,7 +426,7 @@ function WeekStrip({
                 }}
               />
             )}
-            {(!d.isToday || active) && <span style={{ width: 4, height: 4 }} />}
+            {(!d.isToday || active) && <span style={{ width: 4, height: 4, display: 'block' }} />}
           </button>
         )
       })}
@@ -461,27 +449,34 @@ function CaloriesCard({
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
         borderRadius: 16,
-        padding: '14px 16px 16px',
+        padding: '16px 18px 18px',
       }}
     >
-      <div className="flex items-center justify-between mb-1">
-        <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 500 }}>
-          Calories
-        </span>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Calories
+          </p>
+          <div className="flex items-baseline gap-1.5">
+            <span style={{ fontSize: 36, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
+              {Math.round(current)}
+            </span>
+            {goal !== null && (
+              <span style={{ fontSize: 14, color: 'var(--color-text-hint)' }}>
+                / {Math.round(goal)}
+              </span>
+            )}
+          </div>
+        </div>
         {remaining !== null && (
-          <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>
-            {Math.round(remaining)} remaining
-          </span>
-        )}
-      </div>
-      <div className="flex items-baseline gap-1.5 mb-2">
-        <span style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
-          {Math.round(current)}
-        </span>
-        {goal !== null && (
-          <span style={{ fontSize: 14, color: 'var(--color-text-hint)' }}>
-            / {Math.round(goal)}
-          </span>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Remaining
+            </p>
+            <span style={{ fontSize: 25, fontWeight: 700, color: 'var(--color-accent)', lineHeight: 1 }}>
+              {Math.round(remaining)}
+            </span>
+          </div>
         )}
       </div>
       {goal !== null && (
@@ -497,7 +492,7 @@ function CaloriesCard({
             style={{
               height: '100%',
               width: `${pct * 100}%`,
-              backgroundColor: '#fff',
+              backgroundColor: 'var(--color-accent)',
               transition: 'width 0.2s ease',
             }}
           />
@@ -747,7 +742,6 @@ function MealCard({
     setEditingCustomId(null)
   }
 
-  const icon = MEAL_ICONS[meal.name] ?? '🍴'
   const canLog = !!activeOption && activeOption.foods.length > 0
 
   return (
@@ -761,13 +755,17 @@ function MealCard({
       }}
     >
       <div className="flex items-center gap-2 mb-2">
-        <span style={{ fontSize: 18 }}>{icon}</span>
-        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', flex: 1 }}>
-          {meal.name}
-        </span>
-        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-          {Math.round(totals.calories)} kcal
-        </span>
+        <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 19, fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>
+            {meal.name}
+          </span>
+          <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
+            <Pill value={Math.round(totals.calories)} color="var(--color-text-primary)" bg="var(--color-surface-3)" />
+            <Pill value={Math.round(totals.proteinG)} color={COLOR_PROTEIN} bg="rgba(59,130,246,0.12)" />
+            <Pill value={Math.round(totals.carbsG)} color={COLOR_CARBS} bg="rgba(249,115,22,0.12)" />
+            <Pill value={Math.round(totals.fatG)} color={COLOR_FAT} bg="rgba(239,68,68,0.12)" />
+          </div>
+        </div>
         <button
           type="button"
           onClick={handleCircleTap}
@@ -936,7 +934,7 @@ function MealCard({
                 style={{
                   backgroundColor: 'var(--color-surface-2)',
                   borderRadius: 10,
-                  padding: '6px 10px',
+                  padding: '10px 12px',
                 }}
               >
                 <FoodInner
@@ -991,34 +989,28 @@ function MealCard({
         </div>
       )}
 
-      <div
-        className="mt-3 pt-2"
-        style={{ borderTop: '1px solid var(--color-border)' }}
-      >
-        <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>
-          Total: {Math.round(totals.calories)}cal · {Math.round(totals.proteinG)}g P ·{' '}
-          {Math.round(totals.carbsG)}g C · {Math.round(totals.fatG)}g F
-        </span>
-      </div>
-
-      <div className="mt-2">
+      <div className="mt-3">
         <button
           type="button"
           onClick={onToggleAddFood}
-          className="text-xs"
           style={{
-            color: 'var(--color-text-muted)',
+            width: '100%',
+            color: addFoodOpen ? 'var(--color-text-muted)' : 'var(--color-accent)',
             backgroundColor: 'transparent',
-            border: 'none',
+            border: '1px solid ' + (addFoodOpen ? 'var(--color-border)' : 'rgba(249,115,22,0.3)'),
+            borderRadius: 12,
             cursor: 'pointer',
-            display: 'inline-flex',
+            display: 'flex',
             alignItems: 'center',
-            gap: 4,
-            padding: 0,
+            justifyContent: 'center',
+            gap: 6,
+            padding: '11px 0',
+            fontSize: 14,
+            fontWeight: 600,
           }}
         >
-          <Plus size={12} />
-          {addFoodOpen ? 'Cancel' : 'Add custom food'}
+          <Plus size={15} />
+          {addFoodOpen ? 'Cancel' : 'Add food'}
         </button>
         {addFoodOpen && <AddCustomFood mealName={meal.name} onAdd={onAddCustomFood} />}
       </div>
@@ -1208,11 +1200,11 @@ function FoodInner({
       <div className="flex-1 min-w-0">
         <p
           className="truncate"
-          style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 500, margin: 0 }}
+          style={{ fontSize: 15, color: 'var(--color-text-primary)', fontWeight: 600, margin: 0 }}
         >
           {name}
         </p>
-        <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: '1px 0 0' }}>
+        <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>
           {Math.round(quantity)}{unit}
         </p>
       </div>
@@ -1230,13 +1222,13 @@ function Pill({ value, color, bg }: { value: number; color: string; bg: string }
   return (
     <span
       style={{
-        fontSize: 10,
+        fontSize: 12,
         fontWeight: 700,
         color,
         backgroundColor: bg,
-        padding: '2px 5px',
+        padding: '3px 7px',
         borderRadius: 6,
-        minWidth: 22,
+        minWidth: 26,
         textAlign: 'center',
       }}
     >

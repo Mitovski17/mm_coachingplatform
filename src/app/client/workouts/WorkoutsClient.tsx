@@ -9,11 +9,17 @@ import type { TodayTemplate, HistorySession } from './actions'
 const MUSCLE_COLORS: Record<string, string> = {
   chest: '#ef4444',
   back: '#3b82f6',
-  legs: '#22c55e',
   shoulders: '#f59e0b',
-  arms: '#a855f7',
   core: '#06b6d4',
   cardio: '#ec4899',
+  biceps: '#ef4444',
+  triceps: '#f97316',
+  quads: '#14b8a6',
+  hamstrings: '#10b981',
+  glutes: '#ec4899',
+  calves: '#84cc16',
+  abductors: '#8b5cf6',
+  adductors: '#d946ef',
 }
 
 export default function WorkoutsClient({

@@ -136,7 +136,8 @@ export default function ClientDetailClient(props: Props) {
           {profile.name}
         </h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
+          <Link
+            href={`/coach/messages/${profile.id}`}
             style={{
               padding: '8px 16px',
               fontSize: 13,
@@ -146,10 +147,13 @@ export default function ClientDetailClient(props: Props) {
               border: '1px solid var(--color-border)',
               borderRadius: 8,
               cursor: 'pointer',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
             }}
           >
             Message
-          </button>
+          </Link>
           <button
             style={{
               padding: '8px 16px',

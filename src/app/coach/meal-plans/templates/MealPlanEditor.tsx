@@ -73,7 +73,7 @@ const newId = () => Math.random().toString(36).slice(2, 11)
 type AiFood = { food_name: string; quantity: number; unit: string; calories: number; protein_g: number; carbs_g: number; fat_g: number }
 type AiOption = { label: string; sort_order: number; foods: AiFood[] }
 type AiMeal = { name: string; sort_order: number; options: AiOption[] }
-type AiPlan = { name: string; plan_type: 'training' | 'rest'; notes?: string; recommendations?: string; meals: AiMeal[] }
+type AiPlan = { name: string; plan_type: 'training' | 'rest' | 'overall'; notes?: string; recommendations?: string; meals: AiMeal[] }
 
 function fromAiPlan(plan: AiPlan): { meals: MealEntry[]; name: string; planType: PlanType; notes: string; recommendations: string } {
   const meals: MealEntry[] = plan.meals.map((m) => {
@@ -100,7 +100,8 @@ function fromAiPlan(plan: AiPlan): { meals: MealEntry[]; name: string; planType:
     if (options.length === 0) options.push(emptyOption('A', 0))
     return { tempId: newId(), name: m.name, sortOrder: m.sort_order, options, activeOptionTempId: options[0].tempId }
   })
-  return { meals, name: plan.name ?? '', planType: plan.plan_type === 'rest' ? 'rest' : 'training', notes: plan.notes ?? '', recommendations: plan.recommendations ?? '' }
+  const planType: PlanType = plan.plan_type === 'rest' ? 'rest' : plan.plan_type === 'overall' ? 'overall' : 'training'
+  return { meals, name: plan.name ?? '', planType, notes: plan.notes ?? '', recommendations: plan.recommendations ?? '' }
 }
 
 function computeMacros(food: FoodEntry, quantity: number, unit?: string): FoodEntry {

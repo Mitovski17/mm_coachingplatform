@@ -10,17 +10,27 @@ import {
   type Exercise,
 } from '../actions'
 
-const MUSCLE_GROUPS = ['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Glutes'] as const
+const MUSCLE_GROUPS = [
+  'All',
+  'Chest', 'Back', 'Shoulders', 'Core', 'Cardio',
+  'Biceps', 'Triceps',
+  'Quads', 'Hamstrings', 'Glutes', 'Calves', 'Abductors', 'Adductors',
+] as const
 
 const MUSCLE_COLOR: Record<string, string> = {
   chest: '#3b82f6',
   back: '#22c55e',
-  legs: '#f97316',
   shoulders: '#a855f7',
-  arms: '#ef4444',
   core: '#eab308',
   cardio: '#ec4899',
-  glutes: '#14b8a6',
+  biceps: '#ef4444',
+  triceps: '#f97316',
+  quads: '#14b8a6',
+  hamstrings: '#10b981',
+  glutes: '#06b6d4',
+  calves: '#84cc16',
+  abductors: '#8b5cf6',
+  adductors: '#d946ef',
 }
 
 const EQUIPMENT_OPTIONS = [

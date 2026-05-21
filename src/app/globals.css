@@ -201,3 +201,7 @@
 /* Hide scrollbars while keeping scroll functionality */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Messages list row hover */
+.messages-row { background-color: var(--color-surface-1); transition: background-color 0.15s; }
+.messages-row:hover { background-color: var(--color-surface-2); }

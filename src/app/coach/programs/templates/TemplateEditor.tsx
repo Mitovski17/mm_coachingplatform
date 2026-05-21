@@ -41,17 +41,26 @@ function makeDefaultSets(count = 3): SetRow[] {
   }))
 }
 
-const MUSCLE_GROUP_ORDER = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio']
+const MUSCLE_GROUP_ORDER = [
+  'chest', 'back', 'shoulders', 'core', 'cardio',
+  'biceps', 'triceps',
+  'quads', 'hamstrings', 'glutes', 'calves', 'abductors', 'adductors',
+]
 
 const MUSCLE_GROUP_COLORS: Record<string, string> = {
   chest: '#f97316',
   back: '#3b82f6',
-  legs: '#22c55e',
   shoulders: '#eab308',
-  arms: '#a855f7',
   core: '#06b6d4',
   cardio: '#ef4444',
+  biceps: '#ef4444',
+  triceps: '#f97316',
+  quads: '#14b8a6',
+  hamstrings: '#10b981',
   glutes: '#ec4899',
+  calves: '#84cc16',
+  abductors: '#8b5cf6',
+  adductors: '#d946ef',
 }
 
 function muscleGroupLabel(g: string): string {
@@ -1236,7 +1245,7 @@ function CustomExerciseModal({
             onChange={(e) => setMuscleGroup(e.target.value)}
             style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
           >
-            {['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'glutes'].map((g) => (
+            {['chest', 'back', 'shoulders', 'core', 'cardio', 'biceps', 'triceps', 'quads', 'hamstrings', 'glutes', 'calves', 'abductors', 'adductors'].map((g) => (
               <option key={g} value={g}>
                 {g.charAt(0).toUpperCase() + g.slice(1)}
               </option>

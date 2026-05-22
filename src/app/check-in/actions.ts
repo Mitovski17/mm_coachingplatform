@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { createNotification } from '@/lib/notifications'
 
 export type QuestionType = 'scale_1_10' | 'options' | 'text' | 'photo' | 'number' | 'choice'
 
@@ -143,6 +144,24 @@ export async function submitCheckin(payload: {
     status: 'pending',
   })
   if (error) throw new Error(error.message)
+
+  const { data: clientRow } = await admin
+    .from('clients')
+    .select('coach_id, full_name')
+    .eq('id', payload.client_id)
+    .single()
+
+  if (clientRow?.coach_id) {
+    await createNotification({
+      workspaceId: payload.workspace_id,
+      recipientType: 'coach',
+      recipientId: clientRow.coach_id,
+      type: 'new_checkin',
+      title: 'New check-in submitted',
+      body: `${clientRow.full_name} submitted their weekly check-in`,
+      link: '/coach/check-ins',
+    })
+  }
 }
 
 export async function uploadProgressPhoto(formData: FormData): Promise<string> {

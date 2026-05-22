@@ -311,6 +311,22 @@ export async function deleteNutritionLog(logId: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
+export async function renameCustomMealLogs(
+  clientId: string,
+  date: string,
+  oldMealType: string,
+  newMealType: string
+): Promise<void> {
+  const admin = adminClient()
+  const { error } = await admin
+    .from('nutrition_logs')
+    .update({ meal_type: newMealType })
+    .eq('client_id', clientId)
+    .eq('logged_date', date)
+    .eq('meal_type', oldMealType)
+  if (error) throw new Error(error.message)
+}
+
 export async function updateNutritionLogQuantity(
   logId: string,
   newQty: number,

@@ -1,8 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Check, Bell, ChevronRight, Dumbbell } from 'lucide-react'
+import { Check, Bell, ChevronRight, Dumbbell, MessageCircle, ClipboardList } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getClientId, getTodayTemplate, type TodayTemplate } from './workouts/actions'
 import { getDayLogs, type DayLog } from './nutrition/actions'
@@ -58,9 +59,11 @@ function daysAgo(dateStr: string): string {
 
 async function resolveData() {
   let email: string | null = null
+  let avatarUrl: string | null = null
+
+  const cs = await cookies()
 
   if (process.env.NODE_ENV === 'development') {
-    const cs = await cookies()
     const raw = cs.get('dev_mock_email')?.value
     if (raw) email = decodeURIComponent(raw)
   }
@@ -70,6 +73,7 @@ async function resolveData() {
       const sb = await createClient()
       const { data: { user } } = await sb.auth.getUser()
       email = user?.email ?? null
+      avatarUrl = (user?.user_metadata?.avatar_url as string | undefined) ?? null
     } catch { return null }
   }
 
@@ -78,6 +82,7 @@ async function resolveData() {
   if (!client) return null
 
   const isoToday = new Date().toISOString().slice(0, 10)
+  const onboardingSkipped = cs.get('onboarding_skipped')?.value === '1'
 
   const [today, logs, stats] = await Promise.all([
     getTodayTemplate(client.id),
@@ -85,16 +90,23 @@ async function resolveData() {
     getHomeStats(email, client.id),
   ])
 
-  return { today, logs, stats }
+  // First login — redirect to onboarding unless they explicitly skipped it
+  if (!stats.onboardingComplete && !onboardingSkipped) {
+    redirect('/onboarding')
+  }
+
+  return { today, logs, stats, avatarUrl, onboardingComplete: stats.onboardingComplete }
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function ClientHomePage() {
   const data = await resolveData()
-  const today    = data?.today   ?? null
-  const logs     = data?.logs    ?? []
-  const stats    = data?.stats   ?? null
+  const today             = data?.today             ?? null
+  const logs              = data?.logs              ?? []
+  const stats             = data?.stats             ?? null
+  const avatarUrl         = data?.avatarUrl         ?? null
+  const onboardingComplete = data?.onboardingComplete ?? true
 
   const clientName = stats?.clientName ?? 'there'
   const initials   = stats?.clientName ? getInitials(stats.clientName) : '?'
@@ -162,14 +174,26 @@ export default async function ClientHomePage() {
             {getGreeting()}, {getFirstName(clientName)}
           </h1>
         </div>
-        <div style={{
-          width: 40, height: 40, borderRadius: '50%',
-          backgroundColor: 'var(--color-surface-3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 13, fontWeight: 700, color: 'var(--color-text-muted)',
-          flexShrink: 0, marginTop: 4,
-        }}>
-          {initials}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginTop: 4 }}>
+          <Link href="/client/messages" style={{
+            width: 40, height: 40, borderRadius: '50%',
+            backgroundColor: 'var(--color-surface-3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            textDecoration: 'none', flexShrink: 0,
+          }}>
+            <MessageCircle size={20} color="var(--color-text-muted)" />
+          </Link>
+          <Link href="/client/profile" style={{
+            width: 40, height: 40, borderRadius: '50%',
+            backgroundColor: avatarUrl ? 'transparent' : 'var(--color-surface-3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 700, color: 'var(--color-text-muted)',
+            textDecoration: 'none', flexShrink: 0, overflow: 'hidden',
+          }}>
+            {avatarUrl
+              ? <img src={avatarUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : initials}
+          </Link>
         </div>
       </div>
 
@@ -202,6 +226,43 @@ export default async function ClientHomePage() {
           )
         })}
       </div>
+
+      {/* ── Setup banner (shown when onboarding was skipped) ── */}
+      {!onboardingComplete && (
+        <div style={{ margin: '0 16px 16px' }}>
+          <div style={{
+            backgroundColor: 'var(--color-surface-1)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '3px solid var(--color-accent)',
+            borderRadius: 14,
+            padding: '14px 16px',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 10,
+              backgroundColor: 'rgba(255,92,0,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <ClipboardList size={18} color="var(--color-accent)" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
+                Complete your profile
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: 0 }}>
+                Help your coach personalise your program
+              </p>
+            </div>
+            <Link href="/onboarding" style={{
+              backgroundColor: 'var(--color-accent)', color: '#fff',
+              fontSize: 14, fontWeight: 700, borderRadius: 10,
+              padding: '9px 18px', textDecoration: 'none', flexShrink: 0,
+            }}>
+              Finish
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* ── Check-in banner ── */}
       {checkinDue && (

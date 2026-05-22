@@ -26,6 +26,7 @@ export default function ThreadClient({ conversationId, coachName, initialMessage
 
   // Supabase Realtime subscription
   useEffect(() => {
+    if (!conversationId) return
     const supabase = createClient()
 
     const channel = supabase
@@ -60,7 +61,7 @@ export default function ThreadClient({ conversationId, coachName, initialMessage
 
   const handleSend = async () => {
     const trimmed = inputValue.trim()
-    if (!trimmed || sending) return
+    if (!trimmed || sending || !conversationId) return
 
     setSending(true)
     setInputValue('')

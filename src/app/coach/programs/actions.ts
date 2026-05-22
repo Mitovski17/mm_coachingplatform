@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { unstable_cache, revalidateTag } from 'next/cache'
+import { createNotification } from '@/lib/notifications'
 
 function adminClient() {
   return createClient(
@@ -556,6 +557,18 @@ export async function upsertProgram(payload: {
       .from('workout_program_days')
       .insert(inserts)
     if (insErr) throw new Error(insErr.message)
+  }
+
+  if (payload.isActive) {
+    await createNotification({
+      workspaceId: payload.workspaceId,
+      recipientType: 'client',
+      recipientId: payload.clientId,
+      type: 'program_assigned',
+      title: 'New training program',
+      body: `Your coach assigned you "${payload.name}"`,
+      link: '/client/workouts',
+    })
   }
 
   revalidateTag('programs', 'max')

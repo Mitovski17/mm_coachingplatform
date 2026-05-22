@@ -157,7 +157,7 @@ function SessionInner() {
         if (!email) { router.replace('/login'); return }
 
         const [client, template] = await Promise.all([getClientId(email), getTemplateWithExercises(templateId)])
-        if (!client) { router.replace('/login'); return }
+        if (!client) { router.replace('/client'); return }
 
         const last = await getLastSessionForTemplate(client.id, templateId)
         if (cancelled) return

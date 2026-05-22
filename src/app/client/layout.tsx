@@ -2,15 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { House, Dumbbell, Apple, BarChart2, User, Inbox } from 'lucide-react'
+import { House, Dumbbell, Apple, User } from 'lucide-react'
+import ClientNotificationBell from '@/components/client/ClientNotificationBell'
 
 const NAV = [
-  { label: 'Home',     href: '/client',            Icon: House },
-  { label: 'Train',    href: '/client/workouts',   Icon: Dumbbell },
-  { label: 'Food',     href: '/client/nutrition',  Icon: Apple },
-  { label: 'Progress', href: '/client/progress',   Icon: BarChart2 },
-  { label: 'Messages', href: '/client/messages',   Icon: Inbox },
-  { label: 'Profile',  href: '/client/profile',    Icon: User },
+  { label: 'Home',    href: '/client',           Icon: House },
+  { label: 'Train',   href: '/client/workouts',  Icon: Dumbbell },
+  { label: 'Food',    href: '/client/nutrition', Icon: Apple },
+  { label: 'Profile', href: '/client/profile',   Icon: User },
 ] as const
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -18,7 +17,32 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-base)' }}>
-      <main style={{ paddingBottom: '76px' }}>
+      {/* Fixed top header with notification bell */}
+      <header
+        className="fixed top-0 left-0 right-0 flex items-center justify-between"
+        style={{
+          height: 52,
+          backgroundColor: 'var(--color-surface-1)',
+          borderBottom: '1px solid var(--color-border)',
+          paddingLeft: 16,
+          paddingRight: 12,
+          zIndex: 50,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            color: 'var(--color-text-primary)',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          Mitovski
+        </span>
+        <ClientNotificationBell />
+      </header>
+
+      <main style={{ paddingTop: '52px', paddingBottom: '76px' }}>
         {children}
       </main>
 

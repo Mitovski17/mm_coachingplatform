@@ -27,7 +27,7 @@ async function resolveClient(): Promise<{ id: string; workspace_id: string }> {
   }
 
   const client = await getClientId(email)
-  if (!client) redirect('/login')
+  if (!client) redirect('/client')
   return client
 }
 

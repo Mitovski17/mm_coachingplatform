@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { unstable_cache, revalidateTag } from 'next/cache'
+import { createNotification } from '@/lib/notifications'
 import {
   searchFoods as searchFoodsLib,
   upsertFood as upsertFoodLib,
@@ -413,6 +414,19 @@ export async function upsertClientMealPlanAssignment(payload: {
       if (iErr) throw new Error(iErr.message)
     }
   }
+  const hasAssignment = payload.trainingTemplateId !== null || payload.restTemplateId !== null
+  if (hasAssignment) {
+    await createNotification({
+      workspaceId: payload.workspaceId,
+      recipientType: 'client',
+      recipientId: payload.clientId,
+      type: 'meal_plan_assigned',
+      title: 'Meal plan updated',
+      body: 'Your coach has assigned a new meal plan',
+      link: '/client/nutrition',
+    })
+  }
+
   revalidateTag('meal-plans', 'max')
 }
 

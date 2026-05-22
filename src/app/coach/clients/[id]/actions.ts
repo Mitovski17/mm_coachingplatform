@@ -442,9 +442,7 @@ export async function getCheckinHistory(clientId: string): Promise<Checkin[]> {
   const admin = adminClient()
   const { data, error } = await admin
     .from('checkins')
-    .select(
-      'id, answers, coach_notes, status, reviewed_at, week_start_date, created_at, updated_at'
-    )
+    .select('id, answers, coach_notes, status, reviewed_at, week_start_date, submitted_at')
     .eq('client_id', clientId)
     .order('week_start_date', { ascending: false })
   if (error || !data) return []
@@ -459,7 +457,7 @@ export async function getCheckinHistory(clientId: string): Promise<Checkin[]> {
         : []
     return {
       id: row.id,
-      submittedAt: row.created_at,
+      submittedAt: row.submitted_at,
       weekStartDate: row.week_start_date,
       reviewed: row.status === 'reviewed',
       notes: row.coach_notes,
@@ -486,11 +484,26 @@ export async function getProgressPhotos(
   const admin = adminClient()
 
   const toSign: { path: string; submittedAt: string; weekStartDate: string }[] = []
+
   for (const ci of checkins) {
     for (const path of ci.photoPaths) {
       if (!path) continue
       toSign.push({ path, submittedAt: ci.submittedAt, weekStartDate: ci.weekStartDate })
     }
+  }
+
+  // Also include standalone photos uploaded directly from the progress tab
+  const { data: standalone } = await admin
+    .from('progress_photos')
+    .select('storage_path, uploaded_at')
+    .eq('client_id', clientId)
+
+  for (const sp of standalone ?? []) {
+    toSign.push({
+      path: sp.storage_path,
+      submittedAt: sp.uploaded_at,
+      weekStartDate: sp.uploaded_at.split('T')[0],
+    })
   }
 
   if (toSign.length === 0) return []

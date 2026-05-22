@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Users, ListChecks, LayoutList, Settings, UtensilsCrossed, MessageSquare, Inbox } from 'lucide-react'
+import NotificationBell from '@/components/shared/NotificationBell'
 
 const NAV = [
   { label: 'Clients', href: '/coach/dashboard', Icon: Users },
@@ -23,10 +24,12 @@ export default function SidebarShell({
   children,
   pendingCount = 0,
   unreadMessageCount = 0,
+  coachId = '',
 }: {
   children: React.ReactNode
   pendingCount?: number
   unreadMessageCount?: number
+  coachId?: string
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
@@ -64,8 +67,8 @@ export default function SidebarShell({
           style={{
             height: 64,
             paddingLeft: collapsed ? 0 : '16px',
-            paddingRight: collapsed ? 0 : '16px',
-            justifyContent: collapsed ? 'center' : 'flex-start',
+            paddingRight: collapsed ? 0 : '8px',
+            justifyContent: collapsed ? 'center' : 'space-between',
             borderBottom: '1px solid var(--color-border)',
           }}
         >
@@ -80,6 +83,8 @@ export default function SidebarShell({
               border: 'none',
               cursor: 'pointer',
               padding: 0,
+              flex: collapsed ? undefined : '1 1 0',
+              minWidth: 0,
             }}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -101,7 +106,7 @@ export default function SidebarShell({
               </span>
             </div>
             {!collapsed && (
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <span
                   style={{
                     display: 'block',
@@ -132,6 +137,7 @@ export default function SidebarShell({
               </div>
             )}
           </button>
+          {coachId && <NotificationBell recipientType="coach" recipientId={coachId} />}
         </div>
 
         {/* Nav */}

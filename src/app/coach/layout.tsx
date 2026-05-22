@@ -108,13 +108,39 @@ async function fetchPendingCount(): Promise<number> {
   }
 }
 
+async function fetchCoachId(): Promise<string> {
+  try {
+    if (process.env.NODE_ENV === 'development') {
+      const cookieStore = await cookies()
+      const rawMockEmail = cookieStore.get('dev_mock_email')?.value
+      if (rawMockEmail) {
+        const mockEmail = decodeURIComponent(rawMockEmail)
+        const svc = createServiceClient<Database>(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+        const { data: { users } } = await svc.auth.admin.listUsers({ perPage: 1000 })
+        const adminUser = users.find((u) => u.email === mockEmail)
+        return adminUser?.id ?? ''
+      }
+    }
+
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    return user?.id ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export default async function CoachLayout({ children }: { children: React.ReactNode }) {
-  const [pendingCount, unreadMessageCount] = await Promise.all([
+  const [pendingCount, unreadMessageCount, coachId] = await Promise.all([
     fetchPendingCount(),
     fetchUnreadMessageCount(),
+    fetchCoachId(),
   ])
   return (
-    <SidebarShell pendingCount={pendingCount} unreadMessageCount={unreadMessageCount}>
+    <SidebarShell pendingCount={pendingCount} unreadMessageCount={unreadMessageCount} coachId={coachId}>
       {children}
     </SidebarShell>
   )

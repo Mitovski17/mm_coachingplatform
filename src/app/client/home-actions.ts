@@ -31,6 +31,7 @@ export type HomeStats = {
   coachNote: string | null
   coachNoteDate: string | null
   checkinSubmittedThisWeek: boolean
+  onboardingComplete: boolean
 }
 
 export async function getHomeStats(email: string, clientId: string): Promise<HomeStats> {
@@ -52,7 +53,7 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
     coachNoteResult,
     checkinThisWeekResult,
   ] = await Promise.all([
-    admin.from('clients').select('name').eq('email', email).maybeSingle(),
+    admin.from('clients').select('full_name, onboarding_completed_at').eq('email', email).maybeSingle(),
     admin
       .from('workout_sessions')
       .select('*', { count: 'exact', head: true })
@@ -99,7 +100,8 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
       .eq('week_start_date', weekStart),
   ])
 
-  const clientName = (clientRow.data as { name: string } | null)?.name ?? null
+  const clientName = (clientRow.data as { full_name: string; onboarding_completed_at: string | null } | null)?.full_name ?? null
+  const onboardingComplete = !!(clientRow.data as { onboarding_completed_at: string | null } | null)?.onboarding_completed_at
   const workoutsLogged = workoutsLoggedResult.count ?? 0
 
   let workoutsTarget = 0
@@ -177,5 +179,6 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
     coachNote,
     coachNoteDate,
     checkinSubmittedThisWeek,
+    onboardingComplete,
   }
 }

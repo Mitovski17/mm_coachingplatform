@@ -801,7 +801,7 @@ export default function CheckInPage() {
       }
 
       const client = await getClientByEmail(email)
-      if (!client) { router.replace('/login'); return }
+      if (!client) { router.replace('/client'); return }
 
       setClientId(client.id)
       setWorkspaceId(client.workspace_id)

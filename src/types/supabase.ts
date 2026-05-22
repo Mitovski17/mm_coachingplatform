@@ -1000,6 +1000,53 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          id: string
+          workspace_id: string
+          recipient_type: 'coach' | 'client'
+          recipient_id: string
+          type: string
+          title: string
+          body: string
+          link: string
+          read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          recipient_type: 'coach' | 'client'
+          recipient_id: string
+          type: string
+          title: string
+          body?: string
+          link?: string
+          read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          recipient_type?: 'coach' | 'client'
+          recipient_id?: string
+          type?: string
+          title?: string
+          body?: string
+          link?: string
+          read?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1138,3 +1185,13 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
+export type Notification = Database['public']['Tables']['notifications']['Row']
+
+export type NotificationType =
+  | 'new_message'
+  | 'new_checkin'
+  | 'checkin_reviewed'
+  | 'checkin_notes_added'
+  | 'meal_plan_assigned'
+  | 'program_assigned'

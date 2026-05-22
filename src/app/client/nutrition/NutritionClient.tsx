@@ -10,6 +10,7 @@ import {
   searchFoodsForClient,
   deleteNutritionLog,
   updateNutritionLogQuantity,
+  renameCustomMealLogs,
   type FullMealPlan,
   type DayLog,
   type Meal,
@@ -75,6 +76,26 @@ export default function NutritionClient({
   const [tab, setTab] = useState<'diary' | 'notes'>('diary')
   const [portionOverrides, setPortionOverrides] = useState<Record<string, number>>({})
 
+  const [customMealNames, setCustomMealNames] = useState<string[]>([])
+
+  const templateMealNames = useMemo(
+    () => new Set(mealPlan?.meals.map((m) => m.name) ?? []),
+    [mealPlan]
+  )
+
+  const loggedCustomMealNames = useMemo(
+    () => [...new Set(dayLogs.map((l) => l.mealType).filter((t) => !templateMealNames.has(t)))],
+    [dayLogs, templateMealNames]
+  )
+
+  const allCustomMealNames = useMemo(() => {
+    const combined = [...loggedCustomMealNames]
+    for (const n of customMealNames) {
+      if (!combined.includes(n)) combined.push(n)
+    }
+    return combined
+  }, [loggedCustomMealNames, customMealNames])
+
   const reloadDayLogs = useCallback(async () => {
     if (!clientId) return
     const logs = await getDayLogs(clientId, selectedDate)
@@ -90,6 +111,7 @@ export default function NutritionClient({
       return
     }
     setLoading(true)
+    setCustomMealNames([])
     reloadDayLogs()
   }, [clientId, selectedDate, reloadDayLogs])
 
@@ -215,6 +237,36 @@ export default function NutritionClient({
     setActiveAddFoodMeal(null)
   }
 
+  const handleAddCustomMeal = () => {
+    const total = allCustomMealNames.length
+    let candidate = total === 0 ? 'Custom Meal' : `Custom Meal ${total + 1}`
+    let i = total + 1
+    while (allCustomMealNames.includes(candidate) || templateMealNames.has(candidate)) {
+      i++
+      candidate = `Custom Meal ${i}`
+    }
+    setCustomMealNames((prev) => [...prev, candidate])
+  }
+
+  const handleRenameCustomMeal = async (oldName: string, newName: string) => {
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === oldName) return
+    const hasLogs = (logsByMealType.get(oldName) ?? []).length > 0
+    if (hasLogs && clientId) {
+      await renameCustomMealLogs(clientId, selectedDate, oldName, trimmed)
+      await reloadDayLogs()
+    }
+    setCustomMealNames((prev) => prev.map((n) => (n === oldName ? trimmed : n)))
+  }
+
+  const handleRemoveCustomMeal = async (mealName: string) => {
+    if (clientId) {
+      await removeOptionLog(clientId, selectedDate, mealName)
+      await reloadDayLogs()
+    }
+    setCustomMealNames((prev) => prev.filter((n) => n !== mealName))
+  }
+
   void planTypeUserSet
 
   return (
@@ -251,59 +303,96 @@ export default function NutritionClient({
 
       {tab === 'diary' ? (
         <div style={{ padding: '0 16px 16px' }}>
-          {!mealPlan ? (
-            <NoPlanCard planType={planType} />
-          ) : (
-            <div
-              className="flex flex-col gap-3"
+          <div
+            className="flex flex-col gap-3"
+            style={{
+              opacity: loading ? 0.4 : 1,
+              transition: 'opacity 0.15s ease',
+              pointerEvents: loading ? 'none' : 'auto',
+            }}
+          >
+            {!mealPlan && allCustomMealNames.length === 0 && (
+              <NoPlanCard planType={planType} />
+            )}
+            {mealPlan && mealPlan.meals.map((meal) => {
+              const logs = logsByMealType.get(meal.name) ?? []
+              const planLogs = logs.filter((l) => l.templateFoodId !== null)
+              const customLogs = logs.filter((l) => l.templateFoodId === null)
+              const loggedOptionId = planLogs[0]?.mealOptionId ?? null
+              const isLogged = planLogs.length > 0
+              const optKey = meal.id
+              const userSelectedOption =
+                selectedOption[optKey] ??
+                loggedOptionId ??
+                (meal.options[0]?.id ?? '')
+              const activeOption =
+                meal.options.find((o) => o.id === userSelectedOption) ?? meal.options[0]
+              return (
+                <MealCard
+                  key={meal.id}
+                  meal={meal}
+                  activeOption={activeOption}
+                  isLogged={isLogged}
+                  loggedOptionId={loggedOptionId}
+                  customLogs={customLogs}
+                  portionOverrides={portionOverrides}
+                  onSelectOption={(optId) =>
+                    setSelectedOption((prev) => ({ ...prev, [optKey]: optId }))
+                  }
+                  onLogMeal={async () => { if (activeOption) await handleLogMeal(meal, activeOption) }}
+                  onRemoveMeal={async () => handleRemoveMeal(meal.name)}
+                  onDeleteCustom={handleDeleteCustom}
+                  onUpdateCustomQty={handleUpdateCustomQty}
+                  onPortionOverride={(foodId, qty) =>
+                    setPortionOverrides((prev) => ({ ...prev, [foodId]: qty }))
+                  }
+                  addFoodOpen={activeAddFoodMeal === meal.name}
+                  onToggleAddFood={() =>
+                    setActiveAddFoodMeal(activeAddFoodMeal === meal.name ? null : meal.name)
+                  }
+                  onAddCustomFood={(p) => handleAddCustomFood(meal.name, p)}
+                />
+              )
+            })}
+            {allCustomMealNames.map((mealName) => (
+              <CustomMealCard
+                key={mealName}
+                mealName={mealName}
+                logs={logsByMealType.get(mealName) ?? []}
+                addFoodOpen={activeAddFoodMeal === mealName}
+                onToggleAddFood={() =>
+                  setActiveAddFoodMeal(activeAddFoodMeal === mealName ? null : mealName)
+                }
+                onAddCustomFood={(p) => handleAddCustomFood(mealName, p)}
+                onDeleteCustom={handleDeleteCustom}
+                onUpdateCustomQty={handleUpdateCustomQty}
+                onRename={(newName) => handleRenameCustomMeal(mealName, newName)}
+                onRemove={() => handleRemoveCustomMeal(mealName)}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={handleAddCustomMeal}
               style={{
-                opacity: loading ? 0.4 : 1,
-                transition: 'opacity 0.15s ease',
-                pointerEvents: loading ? 'none' : 'auto',
+                width: '100%',
+                color: 'var(--color-text-muted)',
+                backgroundColor: 'transparent',
+                border: '1px dashed var(--color-border)',
+                borderRadius: 12,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                padding: '11px 0',
+                fontSize: 14,
+                fontWeight: 600,
               }}
             >
-              {mealPlan.meals.map((meal) => {
-                const logs = logsByMealType.get(meal.name) ?? []
-                const planLogs = logs.filter((l) => l.templateFoodId !== null)
-                const customLogs = logs.filter((l) => l.templateFoodId === null)
-                const loggedOptionId = planLogs[0]?.mealOptionId ?? null
-                const isLogged = planLogs.length > 0
-                const optKey = meal.id
-                const userSelectedOption =
-                  selectedOption[optKey] ??
-                  loggedOptionId ??
-                  (meal.options[0]?.id ?? '')
-                const activeOption =
-                  meal.options.find((o) => o.id === userSelectedOption) ?? meal.options[0]
-                return (
-                  <MealCard
-                    key={meal.id}
-                    meal={meal}
-                    activeOption={activeOption}
-                    isLogged={isLogged}
-                    loggedOptionId={loggedOptionId}
-                    customLogs={customLogs}
-                    portionOverrides={portionOverrides}
-                    onSelectOption={(optId) =>
-                      setSelectedOption((prev) => ({ ...prev, [optKey]: optId }))
-                    }
-                    onLogMeal={async () => { if (activeOption) await handleLogMeal(meal, activeOption) }}
-                    onRemoveMeal={async () => handleRemoveMeal(meal.name)}
-                    onDeleteCustom={handleDeleteCustom}
-                    onUpdateCustomQty={handleUpdateCustomQty}
-                    onPortionOverride={(foodId, qty) =>
-                      setPortionOverrides((prev) => ({ ...prev, [foodId]: qty }))
-                    }
-                    addFoodOpen={activeAddFoodMeal === meal.name}
-                    onToggleAddFood={() =>
-                      setActiveAddFoodMeal(activeAddFoodMeal === meal.name ? null : meal.name)
-                    }
-                    onAddCustomFood={(p) => handleAddCustomFood(meal.name, p)}
-                  />
-                )
-              })}
-            </div>
-          )}
+              <Plus size={15} />
+              Add Another Meal
+            </button>
+          </div>
         </div>
       ) : (
         <div style={{ padding: '0 16px 16px' }}>
@@ -623,6 +712,257 @@ function NoPlanCard({ planType }: { planType: 'training' | 'rest' }) {
       <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>
         Your coach will assign a meal plan to your profile.
       </p>
+    </div>
+  )
+}
+
+function CustomMealCard({
+  mealName,
+  logs,
+  addFoodOpen,
+  onToggleAddFood,
+  onAddCustomFood,
+  onDeleteCustom,
+  onUpdateCustomQty,
+  onRename,
+  onRemove,
+}: {
+  mealName: string
+  logs: DayLog[]
+  addFoodOpen: boolean
+  onToggleAddFood: () => void
+  onAddCustomFood: (p: {
+    foodName: string
+    quantity: number
+    unit: string
+    calories: number
+    proteinG: number
+    carbsG: number
+    fatG: number
+  }) => void
+  onDeleteCustom: (logId: string) => void
+  onUpdateCustomQty: (
+    logId: string,
+    newQty: number,
+    origQty: number,
+    origCal: number,
+    origP: number,
+    origC: number,
+    origF: number
+  ) => Promise<void>
+  onRename: (newName: string) => void
+  onRemove: () => void
+}) {
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState(mealName)
+  const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
+  const [customEditQty, setCustomEditQty] = useState('')
+
+  const totals = useMemo(
+    () =>
+      logs.reduce(
+        (acc, l) => ({
+          calories: round1(acc.calories + l.calories),
+          proteinG: round1(acc.proteinG + l.proteinG),
+          carbsG: round1(acc.carbsG + l.carbsG),
+          fatG: round1(acc.fatG + l.fatG),
+        }),
+        { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+      ),
+    [logs]
+  )
+
+  const handleConfirmRename = () => {
+    setEditingName(false)
+    onRename(nameInput)
+  }
+
+  const handleConfirmCustomEdit = async (log: DayLog) => {
+    const qty = parseFloat(customEditQty)
+    if (qty > 0) {
+      await onUpdateCustomQty(log.id, qty, log.quantity, log.calories, log.proteinG, log.carbsG, log.fatG)
+    }
+    setEditingCustomId(null)
+  }
+
+  return (
+    <div
+      style={{
+        backgroundColor: 'var(--color-surface-1)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 16,
+        padding: '14px 16px',
+      }}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
+          {editingName ? (
+            <div className="flex items-center gap-1.5" style={{ flex: 1, minWidth: 0 }}>
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmRename()
+                  if (e.key === 'Escape') { setEditingName(false); setNameInput(mealName) }
+                }}
+                autoFocus
+                style={{
+                  flex: 1,
+                  padding: '3px 8px',
+                  fontSize: 17,
+                  fontWeight: 700,
+                  backgroundColor: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-accent)',
+                  borderRadius: 8,
+                  color: 'var(--color-text-primary)',
+                  outline: 'none',
+                  minWidth: 0,
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleConfirmRename}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22 }}
+              >
+                <Check size={14} strokeWidth={3} />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEditingName(false); setNameInput(mealName) }}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22 }}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <span style={{ fontSize: 19, fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>
+                {mealName}
+              </span>
+              <button
+                type="button"
+                onClick={() => { setEditingName(true); setNameInput(mealName) }}
+                title="Rename"
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, flexShrink: 0 }}
+              >
+                <Pencil size={12} />
+              </button>
+              {logs.length > 0 && (
+                <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
+                  <Pill value={Math.round(totals.calories)} color="var(--color-text-primary)" bg="var(--color-surface-3)" />
+                  <Pill value={Math.round(totals.proteinG)} color={COLOR_PROTEIN} bg="rgba(59,130,246,0.12)" />
+                  <Pill value={Math.round(totals.carbsG)} color={COLOR_CARBS} bg="rgba(249,115,22,0.12)" />
+                  <Pill value={Math.round(totals.fatG)} color={COLOR_FAT} bg="rgba(239,68,68,0.12)" />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        {!editingName && (
+          <button
+            type="button"
+            onClick={onRemove}
+            title="Remove meal"
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, flexShrink: 0 }}
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
+
+      {logs.length > 0 && (
+        <div className="flex flex-col gap-1.5 mt-2">
+          {logs.map((l) => {
+            if (editingCustomId === l.id) {
+              const qty = parseFloat(customEditQty) || 0
+              const ratio = l.quantity > 0 ? qty / l.quantity : 0
+              return (
+                <div
+                  key={l.id}
+                  style={{ backgroundColor: 'var(--color-surface-2)', borderRadius: 10, padding: '6px 10px' }}
+                >
+                  <p className="truncate" style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 500, margin: '0 0 4px' }}>
+                    {l.foodName}
+                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <input
+                      type="number"
+                      value={customEditQty}
+                      onChange={(e) => setCustomEditQty(e.target.value)}
+                      autoFocus
+                      style={{ width: 60, padding: '3px 6px', fontSize: 12, backgroundColor: 'var(--color-surface-3)', border: '1px solid var(--color-accent)', borderRadius: 6, color: 'var(--color-text-primary)', outline: 'none' }}
+                    />
+                    <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>{l.unit}</span>
+                    <button type="button" onClick={() => handleConfirmCustomEdit(l)} style={{ width: 22, height: 22, background: 'transparent', border: 'none', cursor: 'pointer', color: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Check size={13} strokeWidth={3} />
+                    </button>
+                    <button type="button" onClick={() => setEditingCustomId(null)} style={{ width: 22, height: 22, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <X size={13} />
+                    </button>
+                    <Pill value={Math.round(l.calories * ratio)} color="var(--color-text-primary)" bg="var(--color-surface-3)" />
+                    <Pill value={Math.round(l.proteinG * ratio)} color={COLOR_PROTEIN} bg="rgba(59,130,246,0.12)" />
+                    <Pill value={Math.round(l.carbsG * ratio)} color={COLOR_CARBS} bg="rgba(249,115,22,0.12)" />
+                    <Pill value={Math.round(l.fatG * ratio)} color={COLOR_FAT} bg="rgba(239,68,68,0.12)" />
+                  </div>
+                </div>
+              )
+            }
+            return (
+              <div
+                key={l.id}
+                className="flex items-center"
+                style={{ backgroundColor: 'var(--color-surface-2)', borderRadius: 10, padding: '10px 12px' }}
+              >
+                <FoodInner name={l.foodName} quantity={l.quantity} unit={l.unit} calories={l.calories} p={l.proteinG} c={l.carbsG} fat={l.fatG} />
+                <button
+                  type="button"
+                  onClick={() => { setEditingCustomId(l.id); setCustomEditQty(String(l.quantity)) }}
+                  title="Edit quantity"
+                  style={{ width: 22, height: 22, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDeleteCustom(l.id)}
+                  title="Remove"
+                  className="ml-1 inline-flex items-center justify-center"
+                  style={{ width: 22, height: 22, color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={onToggleAddFood}
+          style={{
+            width: '100%',
+            color: addFoodOpen ? 'var(--color-text-muted)' : 'var(--color-accent)',
+            backgroundColor: 'transparent',
+            border: '1px solid ' + (addFoodOpen ? 'var(--color-border)' : 'rgba(249,115,22,0.3)'),
+            borderRadius: 12,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '11px 0',
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          <Plus size={15} />
+          {addFoodOpen ? 'Cancel' : 'Add food'}
+        </button>
+        {addFoodOpen && <AddCustomFood mealName={mealName} onAdd={onAddCustomFood} />}
+      </div>
     </div>
   )
 }

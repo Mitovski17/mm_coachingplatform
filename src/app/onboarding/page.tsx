@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, FocusEvent, InputHTMLAttributes, TextareaHTMLAttributes, forwardRef } from 'react'
+import { useState, useEffect, useRef, FocusEvent, InputHTMLAttributes, TextareaHTMLAttributes, forwardRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { uploadStandalonePhoto } from '@/app/client/progress/progress-actions'
 
-const TOTAL_STEPS = 6
+const TOTAL_STEPS = 7
 
-// ─── Shared styled primitives (mirrors invite/page.tsx) ─────────────────────
+// ─── Shared styled primitives ────────────────────────────────────────────────
 
 const InputField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function InputField({ onBlur, ...props }, ref) {
@@ -57,34 +58,20 @@ const TextareaField = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTM
   }
 )
 
-// ─── Reusable selection primitives ──────────────────────────────────────────
+// ─── Reusable selection primitives ───────────────────────────────────────────
 
-function UnitToggle({
-  value,
-  onChange,
-}: {
-  value: 'kg' | 'lbs'
-  onChange: (v: 'kg' | 'lbs') => void
-}) {
+function UnitToggle({ value, onChange }: { value: 'kg' | 'lbs'; onChange: (v: 'kg' | 'lbs') => void }) {
   return (
     <div className="flex gap-2">
       {(['kg', 'lbs'] as const).map((unit) => {
         const active = value === unit
         return (
-          <button
-            key={unit}
-            type="button"
-            onClick={() => onChange(unit)}
-            className="px-5 py-2 text-sm transition-colors"
-            style={{
-              backgroundColor: active ? 'var(--color-accent)' : 'var(--color-surface-3)',
-              color: active ? '#FFFFFF' : 'var(--color-text-muted)',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              fontWeight: active ? 600 : 400,
-              cursor: 'pointer',
-            }}
-          >
+          <button key={unit} type="button" onClick={() => onChange(unit)} className="px-5 py-2 text-sm transition-colors" style={{
+            backgroundColor: active ? 'var(--color-accent)' : 'var(--color-surface-3)',
+            color: active ? '#FFFFFF' : 'var(--color-text-muted)',
+            borderRadius: 'var(--radius-md)', border: 'none',
+            fontWeight: active ? 600 : 400, cursor: 'pointer',
+          }}>
             {unit}
           </button>
         )
@@ -93,12 +80,7 @@ function UnitToggle({
   )
 }
 
-function OptionGrid<T extends string>({
-  options,
-  value,
-  onChange,
-  cols = 2,
-}: {
+function OptionGrid<T extends string>({ options, value, onChange, cols = 2 }: {
   options: readonly { readonly value: T; readonly label: string }[]
   value: T | ''
   onChange: (v: T) => void
@@ -110,20 +92,13 @@ function OptionGrid<T extends string>({
       {options.map((opt) => {
         const active = value === opt.value
         return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className="py-3 px-3 text-sm text-center transition-colors"
-            style={{
-              backgroundColor: active ? 'var(--color-accent-dim)' : 'var(--color-surface-2)',
-              border: active ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
-              color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-              fontWeight: active ? 500 : 400,
-              cursor: 'pointer',
-            }}
-          >
+          <button key={opt.value} type="button" onClick={() => onChange(opt.value)} className="py-3 px-3 text-sm text-center transition-colors" style={{
+            backgroundColor: active ? 'var(--color-accent-dim)' : 'var(--color-surface-2)',
+            border: active ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+            fontWeight: active ? 500 : 400, cursor: 'pointer',
+          }}>
             {opt.label}
           </button>
         )
@@ -132,11 +107,7 @@ function OptionGrid<T extends string>({
   )
 }
 
-function ButtonGroup<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
+function ButtonGroup<T extends string>({ options, value, onChange }: {
   options: readonly { readonly value: T; readonly label: string }[]
   value: T | ''
   onChange: (v: T) => void
@@ -146,20 +117,12 @@ function ButtonGroup<T extends string>({
       {options.map((opt) => {
         const active = value === opt.value
         return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className="px-4 py-2 text-sm transition-colors"
-            style={{
-              backgroundColor: active ? 'var(--color-accent)' : 'var(--color-surface-3)',
-              color: active ? '#FFFFFF' : 'var(--color-text-muted)',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              fontWeight: active ? 600 : 400,
-              cursor: 'pointer',
-            }}
-          >
+          <button key={opt.value} type="button" onClick={() => onChange(opt.value)} className="px-4 py-2 text-sm transition-colors" style={{
+            backgroundColor: active ? 'var(--color-accent)' : 'var(--color-surface-3)',
+            color: active ? '#FFFFFF' : 'var(--color-text-muted)',
+            borderRadius: 'var(--radius-md)', border: 'none',
+            fontWeight: active ? 600 : 400, cursor: 'pointer',
+          }}>
             {opt.label}
           </button>
         )
@@ -168,64 +131,104 @@ function ButtonGroup<T extends string>({
   )
 }
 
-// ─── Field-level label + error wrapper ──────────────────────────────────────
-
-function Field({
-  label,
-  htmlFor,
-  error,
-  optional,
-  children,
-}: {
-  label: string
-  htmlFor?: string
-  error?: string
-  optional?: boolean
-  children: React.ReactNode
+function Field({ label, htmlFor, error, optional, children }: {
+  label: string; htmlFor?: string; error?: string; optional?: boolean; children: React.ReactNode
 }) {
   return (
     <div>
-      <label
-        htmlFor={htmlFor}
-        className="block text-sm mb-2"
-        style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}
-      >
+      <label htmlFor={htmlFor} className="block text-sm mb-2" style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>
         {label}
-        {optional && (
-          <span className="ml-1" style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>
-            (optional)
-          </span>
-        )}
+        {optional && <span className="ml-1" style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>(optional)</span>}
       </label>
       {children}
-      {error && (
-        <p className="mt-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          {error}
-        </p>
-      )}
+      {error && <p className="mt-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>{error}</p>}
     </div>
   )
 }
 
-// ─── Spinner (same markup as invite page) ────────────────────────────────────
-
 function Spinner() {
   return (
-    <svg
-      className="animate-spin h-6 w-6"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      style={{ color: 'var(--color-text-hint)' }}
-    >
+    <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true" style={{ color: 'var(--color-text-hint)' }}>
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.961 3 8.12l3-2.829z"
-      />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.961 3 8.12l3-2.829z" />
     </svg>
+  )
+}
+
+// ─── Photo upload box ────────────────────────────────────────────────────────
+
+function PhotoBox({ label, preview, onSelect, onClear }: {
+  label: string
+  preview: string | null
+  onSelect: (file: File) => void
+  onClear: () => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1 }}>
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        style={{
+          width: '100%',
+          aspectRatio: '3/4',
+          borderRadius: 12,
+          border: preview ? 'none' : '2px dashed var(--color-border)',
+          backgroundColor: preview ? 'transparent' : 'var(--color-surface-2)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          cursor: 'pointer',
+          overflow: 'hidden',
+          position: 'relative',
+          padding: 0,
+        }}
+      >
+        {preview ? (
+          <>
+            <img src={preview} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {/* Clear button */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClear() }}
+              style={{
+                position: 'absolute', top: 6, right: 6,
+                width: 22, height: 22, borderRadius: '50%',
+                backgroundColor: 'rgba(0,0,0,0.6)', border: 'none',
+                color: '#fff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 14, fontWeight: 700, lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          </>
+        ) : (
+          <>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-hint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>Tap to add</span>
+          </>
+        )}
+      </button>
+      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>{label}</span>
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) onSelect(file)
+          e.target.value = ''
+        }}
+      />
+    </div>
   )
 }
 
@@ -275,6 +278,7 @@ const STEP_META = [
   { title: 'Nutrition', subtitle: 'Tell us about your eating habits.' },
   { title: 'Lifestyle', subtitle: 'Help us understand your routine.' },
   { title: 'Training', subtitle: 'How and where do you train?' },
+  { title: 'Starting photos', subtitle: 'Optional — you can always add these later from the Progress tab.' },
 ]
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -285,6 +289,8 @@ export default function OnboardingPage() {
   // ── auth / init state
   const [status, setStatus] = useState<'loading' | 'ready'>('loading')
   const [userEmail, setUserEmail] = useState('')
+  const [clientId, setClientId] = useState('')
+  const [workspaceId, setWorkspaceId] = useState('')
   const [serverError, setServerError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -317,19 +323,34 @@ export default function OnboardingPage() {
   const [trainingDays, setTrainingDays] = useState('')
   const [preferredTime, setPreferredTime] = useState('')
 
+  // ── step 7 — photos (files + local previews)
+  const [frontFile, setFrontFile] = useState<File | null>(null)
+  const [sideFile, setSideFile] = useState<File | null>(null)
+  const [backFile, setBackFile] = useState<File | null>(null)
+  const [frontPreview, setFrontPreview] = useState<string | null>(null)
+  const [sidePreview, setSidePreview] = useState<string | null>(null)
+  const [backPreview, setBackPreview] = useState<string | null>(null)
+
+  function setPhoto(slot: 'front' | 'side' | 'back', file: File) {
+    const url = URL.createObjectURL(file)
+    if (slot === 'front') { setFrontFile(file); setFrontPreview(url) }
+    if (slot === 'side')  { setSideFile(file);  setSidePreview(url) }
+    if (slot === 'back')  { setBackFile(file);  setBackPreview(url) }
+  }
+
+  function clearPhoto(slot: 'front' | 'side' | 'back') {
+    if (slot === 'front') { setFrontFile(null); setFrontPreview(null) }
+    if (slot === 'side')  { setSideFile(null);  setSidePreview(null) }
+    if (slot === 'back')  { setBackFile(null);  setBackPreview(null) }
+  }
+
   // ── on mount: verify auth + skip if already onboarded
   useEffect(() => {
     const init = async () => {
-      // Dev preview bypass — add ?preview=true to render the form without auth
-      // and regardless of onboarding completion state
       if (process.env.NODE_ENV === 'development') {
         const params = new URLSearchParams(window.location.search)
         if (params.get('preview') === 'true') {
-          const mockEmail =
-            document.cookie
-              .split('; ')
-              .find((row) => row.startsWith('dev_mock_email='))
-              ?.split('=')[1] ?? 'preview@dev.local'
+          const mockEmail = document.cookie.split('; ').find((r) => r.startsWith('dev_mock_email='))?.split('=')[1] ?? 'preview@dev.local'
           setUserEmail(decodeURIComponent(mockEmail))
           setStatus('ready')
           return
@@ -339,37 +360,38 @@ export default function OnboardingPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
 
-      if (!user) {
-        router.replace('/login')
-        return
-      }
+      if (!user) { router.replace('/login'); return }
 
       const { data: client } = await supabase
         .from('clients')
-        .select('onboarding_completed_at')
+        .select('id, workspace_id, onboarding_completed_at')
         .eq('email', user.email!)
         .maybeSingle()
 
-      if (client?.onboarding_completed_at) {
-        router.replace('/client/dashboard')
-        return
-      }
+      if (client?.onboarding_completed_at) { router.replace('/client'); return }
 
       setUserEmail(user.email!)
+      setClientId(client?.id ?? '')
+      setWorkspaceId(client?.workspace_id ?? '')
       setStatus('ready')
     }
 
     init()
   }, [router])
 
-  // ── per-step validation
+  // ── "Do this later" — saves skipped cookie and exits
+  const handleSkipForNow = () => {
+    document.cookie = 'onboarding_skipped=1; path=/; max-age=2592000'
+    router.push('/client')
+  }
+
+  // ── per-step validation (step 7 has no required fields)
   const validate = (s: number): Record<string, string> => {
     const e: Record<string, string> = {}
     switch (s) {
       case 1: {
         const w = parseFloat(currentWeight)
-        if (!currentWeight.trim() || isNaN(w) || w <= 0)
-          e.current_weight = 'Enter your current weight'
+        if (!currentWeight.trim() || isNaN(w) || w <= 0) e.current_weight = 'Enter your current weight'
         break
       }
       case 2:
@@ -377,14 +399,12 @@ export default function OnboardingPage() {
         break
       case 3: {
         const w = parseFloat(desiredWeight)
-        if (!desiredWeight.trim() || isNaN(w) || w <= 0)
-          e.desired_weight = 'Enter your target weight'
+        if (!desiredWeight.trim() || isNaN(w) || w <= 0) e.desired_weight = 'Enter your target weight'
         break
       }
       case 4: {
         const m = parseInt(mealsPerDay, 10)
-        if (!mealsPerDay.trim() || isNaN(m) || m < 1 || m > 8)
-          e.meals_per_day = 'Enter a number between 1 and 8'
+        if (!mealsPerDay.trim() || isNaN(m) || m < 1 || m > 8) e.meals_per_day = 'Enter a number between 1 and 8'
         break
       }
       case 5:
@@ -412,12 +432,10 @@ export default function OnboardingPage() {
   }
 
   const handleComplete = async () => {
-    const errs = validate(6)
-    if (Object.keys(errs).length > 0) { setErrors(errs); return }
-
     setIsSubmitting(true)
     setServerError(null)
 
+    // Save profile data
     const supabase = createClient()
     const { error } = await supabase
       .from('clients')
@@ -445,16 +463,30 @@ export default function OnboardingPage() {
       return
     }
 
-    router.push('/client/dashboard')
+    // Upload any selected photos (best effort — don't block completion on failure)
+    if (clientId && workspaceId) {
+      const uploads = [frontFile, sideFile, backFile].filter(Boolean) as File[]
+      await Promise.allSettled(
+        uploads.map((file) => {
+          const fd = new FormData()
+          fd.append('file', file)
+          fd.append('clientId', clientId)
+          fd.append('workspaceId', workspaceId)
+          return uploadStandalonePhoto(fd)
+        })
+      )
+    }
+
+    // Clear skip cookie now that onboarding is done
+    document.cookie = 'onboarding_skipped=; path=/; max-age=0'
+
+    router.push('/client')
   }
 
   // ── loading screen
   if (status === 'loading') {
     return (
-      <div
-        className="flex min-h-screen items-center justify-center"
-        style={{ backgroundColor: 'var(--color-surface-1)' }}
-      >
+      <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: 'var(--color-surface-1)' }}>
         <Spinner />
       </div>
     )
@@ -462,54 +494,29 @@ export default function OnboardingPage() {
 
   const meta = STEP_META[step - 1]
   const progress = (step / TOTAL_STEPS) * 100
+  const isPhotoStep = step === TOTAL_STEPS
 
   return (
-    <div
-      className="flex min-h-screen flex-col items-center justify-center px-8 py-12"
-      style={{ backgroundColor: 'var(--color-surface-1)' }}
-    >
+    <div className="flex min-h-screen flex-col items-center justify-center px-8 py-12" style={{ backgroundColor: 'var(--color-surface-1)' }}>
       <div className="w-full max-w-sm">
+
         {/* Wordmark */}
         <div className="flex flex-col mb-10">
-          <span
-            className="text-2xl leading-tight"
-            style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
-          >
-            Mitovski
-          </span>
-          <span
-            className="text-2xl leading-tight"
-            style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
-          >
-            Coaching
-          </span>
+          <span className="text-2xl leading-tight" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>Mitovski</span>
+          <span className="text-2xl leading-tight" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>Coaching</span>
         </div>
 
         {/* Progress bar */}
-        <div
-          className="mb-8"
-          style={{
-            height: '3px',
-            backgroundColor: 'var(--color-surface-3)',
-            borderRadius: '2px',
-          }}
-        >
-          <div
-            style={{
-              height: '100%',
-              width: `${progress}%`,
-              backgroundColor: 'var(--color-accent)',
-              borderRadius: '2px',
-              transition: 'width 0.25s ease',
-            }}
-          />
+        <div className="mb-8" style={{ height: '3px', backgroundColor: 'var(--color-surface-3)', borderRadius: '2px' }}>
+          <div style={{
+            height: '100%', width: `${progress}%`,
+            backgroundColor: 'var(--color-accent)', borderRadius: '2px',
+            transition: 'width 0.25s ease',
+          }} />
         </div>
 
         {/* Step heading */}
-        <h2
-          className="text-3xl mb-1"
-          style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
-        >
+        <h2 className="text-3xl mb-1" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
           {meta.title}
         </h2>
         <p className="mb-8 text-sm" style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>
@@ -520,7 +527,8 @@ export default function OnboardingPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            step === TOTAL_STEPS ? handleComplete() : handleNext()
+            if (isPhotoStep) { handleComplete(); return }
+            step === TOTAL_STEPS - 1 ? handleNext() : handleNext()
           }}
           className="flex flex-col gap-5"
           noValidate
@@ -530,14 +538,10 @@ export default function OnboardingPage() {
             <Field label="Current weight" error={errors.current_weight}>
               <UnitToggle value={currentWeightUnit} onChange={setCurrentWeightUnit} />
               <div className="mt-3">
-                <InputField
-                  type="number"
-                  inputMode="decimal"
+                <InputField type="number" inputMode="decimal"
                   placeholder={currentWeightUnit === 'kg' ? 'e.g. 80' : 'e.g. 176'}
-                  value={currentWeight}
-                  onChange={(e) => setCurrentWeight(e.target.value)}
-                  min={0}
-                  step="any"
+                  value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)}
+                  min={0} step="any"
                 />
               </div>
             </Field>
@@ -546,11 +550,7 @@ export default function OnboardingPage() {
           {/* ─ Step 2: Goal ─ */}
           {step === 2 && (
             <Field label="Select a goal" error={errors.goal}>
-              <OptionGrid
-                options={GOALS}
-                value={goal as typeof GOALS[number]['value'] | ''}
-                onChange={(v) => setGoal(v)}
-              />
+              <OptionGrid options={GOALS} value={goal as typeof GOALS[number]['value'] | ''} onChange={(v) => setGoal(v)} />
             </Field>
           )}
 
@@ -559,14 +559,10 @@ export default function OnboardingPage() {
             <Field label="Target weight" error={errors.desired_weight}>
               <UnitToggle value={desiredWeightUnit} onChange={setDesiredWeightUnit} />
               <div className="mt-3">
-                <InputField
-                  type="number"
-                  inputMode="decimal"
+                <InputField type="number" inputMode="decimal"
                   placeholder={desiredWeightUnit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
-                  value={desiredWeight}
-                  onChange={(e) => setDesiredWeight(e.target.value)}
-                  min={0}
-                  step="any"
+                  value={desiredWeight} onChange={(e) => setDesiredWeight(e.target.value)}
+                  min={0} step="any"
                 />
               </div>
             </Field>
@@ -576,22 +572,13 @@ export default function OnboardingPage() {
           {step === 4 && (
             <>
               <Field label="Meals per day" error={errors.meals_per_day}>
-                <InputField
-                  id="mealsPerDay"
-                  type="number"
-                  inputMode="numeric"
-                  placeholder="e.g. 3"
-                  value={mealsPerDay}
-                  onChange={(e) => setMealsPerDay(e.target.value)}
-                  min={1}
-                  max={8}
+                <InputField id="mealsPerDay" type="number" inputMode="numeric" placeholder="e.g. 3"
+                  value={mealsPerDay} onChange={(e) => setMealsPerDay(e.target.value)} min={1} max={8}
                 />
               </Field>
               <Field label="Foods to avoid or allergies" optional>
-                <TextareaField
-                  placeholder="e.g. dairy, gluten, shellfish…"
-                  value={foodsToAvoid}
-                  onChange={(e) => setFoodsToAvoid(e.target.value)}
+                <TextareaField placeholder="e.g. dairy, gluten, shellfish…"
+                  value={foodsToAvoid} onChange={(e) => setFoodsToAvoid(e.target.value)}
                 />
               </Field>
             </>
@@ -601,24 +588,16 @@ export default function OnboardingPage() {
           {step === 5 && (
             <>
               <Field label="Activity level outside training" error={errors.activity_level}>
-                <OptionGrid
-                  options={ACTIVITY_LEVELS}
-                  value={activityLevel as typeof ACTIVITY_LEVELS[number]['value'] | ''}
-                  onChange={(v) => setActivityLevel(v)}
-                />
+                <OptionGrid options={ACTIVITY_LEVELS} value={activityLevel as typeof ACTIVITY_LEVELS[number]['value'] | ''} onChange={(v) => setActivityLevel(v)} />
               </Field>
               <Field label="Occupation / daily routine" optional>
-                <TextareaField
-                  placeholder="e.g. Office worker, mostly sitting…"
-                  value={occupationNotes}
-                  onChange={(e) => setOccupationNotes(e.target.value)}
+                <TextareaField placeholder="e.g. Office worker, mostly sitting…"
+                  value={occupationNotes} onChange={(e) => setOccupationNotes(e.target.value)}
                 />
               </Field>
               <Field label="Injuries or health conditions" optional>
-                <TextareaField
-                  placeholder="e.g. Lower back pain, knee issues…"
-                  value={healthNotes}
-                  onChange={(e) => setHealthNotes(e.target.value)}
+                <TextareaField placeholder="e.g. Lower back pain, knee issues…"
+                  value={healthNotes} onChange={(e) => setHealthNotes(e.target.value)}
                 />
               </Field>
             </>
@@ -628,39 +607,33 @@ export default function OnboardingPage() {
           {step === 6 && (
             <>
               <Field label="Where do you train?" error={errors.training_location}>
-                <ButtonGroup
-                  options={TRAINING_LOCATIONS}
-                  value={trainingLocation as typeof TRAINING_LOCATIONS[number]['value'] | ''}
-                  onChange={(v) => setTrainingLocation(v)}
-                />
+                <ButtonGroup options={TRAINING_LOCATIONS} value={trainingLocation as typeof TRAINING_LOCATIONS[number]['value'] | ''} onChange={(v) => setTrainingLocation(v)} />
               </Field>
               <Field label="Days per week" error={errors.training_days}>
-                <ButtonGroup
-                  options={TRAINING_DAYS}
-                  value={trainingDays as typeof TRAINING_DAYS[number]['value'] | ''}
-                  onChange={(v) => setTrainingDays(v)}
-                />
+                <ButtonGroup options={TRAINING_DAYS} value={trainingDays as typeof TRAINING_DAYS[number]['value'] | ''} onChange={(v) => setTrainingDays(v)} />
               </Field>
               <Field label="Preferred training time" error={errors.preferred_time}>
-                <ButtonGroup
-                  options={TRAINING_TIMES}
-                  value={preferredTime as typeof TRAINING_TIMES[number]['value'] | ''}
-                  onChange={(v) => setPreferredTime(v)}
-                />
+                <ButtonGroup options={TRAINING_TIMES} value={preferredTime as typeof TRAINING_TIMES[number]['value'] | ''} onChange={(v) => setPreferredTime(v)} />
               </Field>
             </>
           )}
 
+          {/* ─ Step 7: Photos ─ */}
+          {step === 7 && (
+            <div style={{ display: 'flex', gap: 12 }}>
+              <PhotoBox label="Front" preview={frontPreview} onSelect={(f) => setPhoto('front', f)} onClear={() => clearPhoto('front')} />
+              <PhotoBox label="Side" preview={sidePreview} onSelect={(f) => setPhoto('side', f)} onClear={() => clearPhoto('side')} />
+              <PhotoBox label="Back" preview={backPreview} onSelect={(f) => setPhoto('back', f)} onClear={() => clearPhoto('back')} />
+            </div>
+          )}
+
           {/* Server error */}
           {serverError && (
-            <div
-              className="px-4 py-3 text-sm"
-              style={{
-                backgroundColor: 'var(--color-surface-3)',
-                color: 'var(--color-text-secondary)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
+            <div className="px-4 py-3 text-sm" style={{
+              backgroundColor: 'var(--color-surface-3)',
+              color: 'var(--color-text-secondary)',
+              borderRadius: 'var(--radius-md)',
+            }}>
               {serverError}
             </div>
           )}
@@ -668,26 +641,15 @@ export default function OnboardingPage() {
           {/* Navigation */}
           <div className="flex gap-3 pt-3">
             {step > 1 && (
-              <button
-                type="button"
-                onClick={handleBack}
-                className="flex-1 py-3 text-sm transition-colors"
-                style={{
-                  backgroundColor: 'transparent',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--color-text-muted)',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--color-border-strong)'
-                  e.currentTarget.style.color = 'var(--color-text-secondary)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--color-border)'
-                  e.currentTarget.style.color = 'var(--color-text-muted)'
-                }}
+              <button type="button" onClick={handleBack} className="flex-1 py-3 text-sm transition-colors" style={{
+                backgroundColor: 'transparent',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--color-text-muted)',
+                fontWeight: 500, cursor: 'pointer',
+              }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-border-strong)'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.color = 'var(--color-text-muted)' }}
               >
                 Back
               </button>
@@ -698,63 +660,40 @@ export default function OnboardingPage() {
               disabled={isSubmitting}
               className={`py-3 text-sm flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${step > 1 ? 'flex-1' : 'w-full'}`}
               style={{
-                backgroundColor: 'var(--color-text-primary)',
-                color: 'var(--color-base)',
-                borderRadius: 'var(--radius-md)',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
+                backgroundColor: 'var(--color-text-primary)', color: 'var(--color-base)',
+                borderRadius: 'var(--radius-md)', fontWeight: 600, border: 'none', cursor: 'pointer',
               }}
-              onMouseEnter={(e) => {
-                if (!isSubmitting) {
-                  e.currentTarget.style.backgroundColor = 'var(--color-surface-3)'
-                  e.currentTarget.style.color = 'var(--color-text-primary)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isSubmitting) {
-                  e.currentTarget.style.backgroundColor = 'var(--color-text-primary)'
-                  e.currentTarget.style.color = 'var(--color-base)'
-                }
-              }}
-              onMouseDown={(e) => {
-                if (!isSubmitting) {
-                  e.currentTarget.style.backgroundColor = 'var(--color-surface-2)'
-                  e.currentTarget.style.color = 'var(--color-text-primary)'
-                }
-              }}
-              onMouseUp={(e) => {
-                if (!isSubmitting) {
-                  e.currentTarget.style.backgroundColor = 'var(--color-surface-3)'
-                  e.currentTarget.style.color = 'var(--color-text-primary)'
-                }
-              }}
+              onMouseEnter={(e) => { if (!isSubmitting) { e.currentTarget.style.backgroundColor = 'var(--color-surface-3)'; e.currentTarget.style.color = 'var(--color-text-primary)' } }}
+              onMouseLeave={(e) => { if (!isSubmitting) { e.currentTarget.style.backgroundColor = 'var(--color-text-primary)'; e.currentTarget.style.color = 'var(--color-base)' } }}
+              onMouseDown={(e) => { if (!isSubmitting) { e.currentTarget.style.backgroundColor = 'var(--color-surface-2)'; e.currentTarget.style.color = 'var(--color-text-primary)' } }}
+              onMouseUp={(e) => { if (!isSubmitting) { e.currentTarget.style.backgroundColor = 'var(--color-surface-3)'; e.currentTarget.style.color = 'var(--color-text-primary)' } }}
             >
               {isSubmitting ? (
                 <>
-                  <svg
-                    className="animate-spin h-4 w-4 flex-shrink-0"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
+                  <svg className="animate-spin h-4 w-4 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.961 3 8.12l3-2.829z"
-                    />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.961 3 8.12l3-2.829z" />
                   </svg>
                   Saving…
                 </>
-              ) : step === TOTAL_STEPS ? (
-                'Complete'
-              ) : (
-                'Next'
-              )}
+              ) : isPhotoStep ? 'Finish setup' : 'Next'}
             </button>
           </div>
+
+          {/* "Do this later" — only on non-photo steps */}
+          {!isPhotoStep && (
+            <button
+              type="button"
+              onClick={handleSkipForNow}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, color: 'var(--color-text-hint)',
+                textAlign: 'center', padding: '4px 0', width: '100%',
+              }}
+            >
+              Do this later →
+            </button>
+          )}
         </form>
       </div>
     </div>

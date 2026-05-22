@@ -23,6 +23,7 @@ const InputField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputEle
     return (
       <input
         ref={ref}
+        suppressHydrationWarning
         className="w-full px-4 py-3 text-sm outline-none transition-colors placeholder:text-[#6B6B6B]"
         style={{
           backgroundColor: 'var(--color-surface-2)',
@@ -85,7 +86,7 @@ export default function LoginPage() {
             className="mt-6 text-base"
             style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}
           >
-            The platform built for serious coaches.
+            Built for you. Guided by your coach.
           </p>
         </div>
       </div>
@@ -184,6 +185,7 @@ export default function LoginPage() {
             </div>
 
             <button
+              suppressHydrationWarning
               type="submit"
               disabled={isSubmitting}
               className="w-full py-3 text-sm flex items-center justify-center gap-2 transition-colors mt-2 disabled:cursor-not-allowed disabled:opacity-70"

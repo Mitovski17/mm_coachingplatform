@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createClient as createPublicClient } from '@supabase/supabase-js'
+import { createClientFromInvite } from '../actions'
 
 const signupSchema = z
   .object({
@@ -36,6 +37,7 @@ const InputField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputEle
     return (
       <input
         ref={ref}
+        suppressHydrationWarning
         className="w-full px-4 py-3 text-sm outline-none transition-colors placeholder:text-[#6B6B6B]"
         style={{
           backgroundColor: 'var(--color-surface-2)',
@@ -60,6 +62,7 @@ export default function InvitePage() {
 
   const [invite, setInvite] = useState<InviteStatus>({ kind: 'loading' })
   const [serverError, setServerError] = useState<string | null>(null)
+  const [signedUpEmail, setSignedUpEmail] = useState<string | null>(null)
 
   const {
     register,
@@ -125,7 +128,52 @@ export default function InvitePage() {
       .update({ accepted_at: new Date().toISOString() })
       .eq('id', invite.inviteId)
 
-    router.push('/onboarding')
+    // Create the clients row so the client can access the platform immediately
+    await createClientFromInvite(invite.inviteId, data.email, data.fullName)
+
+    setSignedUpEmail(data.email)
+  }
+
+  if (signedUpEmail) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center px-8"
+        style={{ backgroundColor: 'var(--color-surface-1)' }}
+      >
+        <div className="w-full max-w-sm text-center">
+          <div
+            className="mx-auto mb-6 flex items-center justify-center"
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              backgroundColor: 'rgba(249,115,22,0.1)',
+              border: '1px solid rgba(249,115,22,0.2)',
+            }}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect width="20" height="16" x="2" y="4" rx="2" />
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+            </svg>
+          </div>
+          <h2
+            className="text-2xl mb-3"
+            style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}
+          >
+            Check your email
+          </h2>
+          <p className="text-sm mb-2" style={{ color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+            We sent a verification link to
+          </p>
+          <p className="text-sm mb-6" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
+            {signedUpEmail}
+          </p>
+          <p className="text-sm" style={{ color: 'var(--color-text-hint)', lineHeight: 1.6 }}>
+            Click the link in the email to verify your account, then you can log in and complete your profile.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (invite.kind === 'loading') {

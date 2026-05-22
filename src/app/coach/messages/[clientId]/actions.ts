@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { createNotification } from '@/lib/notifications'
 
 function adminClient() {
   return createServiceClient(
@@ -31,7 +32,7 @@ export async function sendMessage(
   // Get workspace_id from conversation
   const { data: convo, error: convoErr } = await admin
     .from('conversations')
-    .select('workspace_id')
+    .select('workspace_id, client_id, profiles(full_name)')
     .eq('id', conversationId)
     .single()
   if (convoErr || !convo) throw new Error('Conversation not found')
@@ -50,6 +51,20 @@ export async function sendMessage(
     .single()
 
   if (error) throw new Error(error.message)
+
+  if (senderRole === 'coach') {
+    const coachName = (convo.profiles as unknown as { full_name: string } | null)?.full_name ?? 'Your coach'
+    await createNotification({
+      workspaceId: convo.workspace_id,
+      recipientType: 'client',
+      recipientId: convo.client_id,
+      type: 'new_message',
+      title: 'New message from your coach',
+      body: `${coachName}: ${body.trim().slice(0, 80)}`,
+      link: '/client/messages',
+    })
+  }
+
   return data as Message
 }
 

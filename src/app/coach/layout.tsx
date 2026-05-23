@@ -108,7 +108,7 @@ async function fetchPendingCount(): Promise<number> {
   }
 }
 
-async function fetchCoachId(): Promise<string> {
+async function fetchCoachProfile(): Promise<{ id: string; name: string; email: string; avatarUrl: string | null }> {
   try {
     if (process.env.NODE_ENV === 'development') {
       const cookieStore = await cookies()
@@ -121,15 +121,37 @@ async function fetchCoachId(): Promise<string> {
         )
         const { data: { users } } = await svc.auth.admin.listUsers({ perPage: 1000 })
         const adminUser = users.find((u) => u.email === mockEmail)
-        return adminUser?.id ?? ''
+        if (!adminUser) return { id: '', name: 'Coach', email: '', avatarUrl: null }
+        const { data: profile } = await svc
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .eq('id', adminUser.id)
+          .single()
+        return {
+          id: adminUser.id,
+          name: profile?.full_name ?? 'Coach',
+          email: adminUser.email ?? '',
+          avatarUrl: profile?.avatar_url ?? ((adminUser.user_metadata?.avatar_url as string | undefined) ?? null),
+        }
       }
     }
 
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    return user?.id ?? ''
+    if (!user) return { id: '', name: 'Coach', email: '', avatarUrl: null }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .eq('id', user.id)
+      .single()
+    return {
+      id: user.id,
+      name: profile?.full_name ?? 'Coach',
+      email: user.email ?? '',
+      avatarUrl: profile?.avatar_url ?? ((user.user_metadata?.avatar_url as string | undefined) ?? null),
+    }
   } catch {
-    return ''
+    return { id: '', name: 'Coach', email: '', avatarUrl: null }
   }
 }
 
@@ -149,14 +171,22 @@ async function fetchIsAdmin(coachId: string): Promise<boolean> {
 }
 
 export default async function CoachLayout({ children }: { children: React.ReactNode }) {
-  const [pendingCount, unreadMessageCount, coachId] = await Promise.all([
+  const [pendingCount, unreadMessageCount, coachProfile] = await Promise.all([
     fetchPendingCount(),
     fetchUnreadMessageCount(),
-    fetchCoachId(),
+    fetchCoachProfile(),
   ])
-  const isAdmin = await fetchIsAdmin(coachId)
+  const isAdmin = await fetchIsAdmin(coachProfile.id)
   return (
-    <SidebarShell pendingCount={pendingCount} unreadMessageCount={unreadMessageCount} coachId={coachId} isAdmin={isAdmin}>
+    <SidebarShell
+      pendingCount={pendingCount}
+      unreadMessageCount={unreadMessageCount}
+      coachId={coachProfile.id}
+      isAdmin={isAdmin}
+      coachName={coachProfile.name}
+      coachEmail={coachProfile.email}
+      coachAvatarUrl={coachProfile.avatarUrl}
+    >
       {children}
     </SidebarShell>
   )

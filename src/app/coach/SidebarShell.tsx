@@ -26,12 +26,18 @@ export default function SidebarShell({
   unreadMessageCount = 0,
   coachId = '',
   isAdmin = false,
+  coachName = 'Coach',
+  coachEmail = '',
+  coachAvatarUrl = null,
 }: {
   children: React.ReactNode
   pendingCount?: number
   unreadMessageCount?: number
   coachId?: string
   isAdmin?: boolean
+  coachName?: string
+  coachEmail?: string
+  coachAvatarUrl?: string | null
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
@@ -274,17 +280,28 @@ export default function SidebarShell({
           </div>
         )}
 
-        {/* User avatar at bottom */}
+        {/* User avatar at bottom — links to profile & settings */}
         <div
           className="flex-shrink-0 px-3 pb-5 pt-3"
           style={{ borderTop: '1px solid var(--color-border)' }}
         >
-          <div
-            className="flex items-center"
+          <Link
+            href="/coach/settings"
+            title={collapsed ? 'Profile & Settings' : undefined}
+            className="flex items-center transition-colors"
             style={{
               gap: collapsed ? 0 : 10,
               justifyContent: collapsed ? 'center' : 'flex-start',
               padding: collapsed ? '6px 0' : '6px 8px',
+              borderRadius: 8,
+              textDecoration: 'none',
+              display: 'flex',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-surface-3)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
             }}
           >
             <div
@@ -292,29 +309,45 @@ export default function SidebarShell({
                 width: 32,
                 height: 32,
                 borderRadius: '50%',
-                backgroundColor: 'var(--color-surface-3)',
+                backgroundColor: coachAvatarUrl ? 'transparent' : 'var(--color-accent)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
                 fontSize: 12,
                 fontWeight: 700,
-                color: 'var(--color-text-muted)',
+                color: '#fff',
+                overflow: 'hidden',
               }}
             >
-              MC
+              {coachAvatarUrl
+                ? <img src={coachAvatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : coachName.trim().split(/\s+/).map((p) => p[0]?.toUpperCase() ?? '').join('').slice(0, 2) || 'MC'}
             </div>
             {!collapsed && (
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.2 }}>
-                  Coach
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <p
+                  style={{
+                    fontSize: 13, fontWeight: 500, color: 'var(--color-text-secondary)',
+                    margin: 0, lineHeight: 1.2,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {coachName}
                 </p>
-                <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>
-                  mitovski.co
-                </p>
+                {coachEmail && (
+                  <p
+                    style={{
+                      fontSize: 11, color: 'var(--color-text-hint)', margin: 0,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {coachEmail}
+                  </p>
+                )}
               </div>
             )}
-          </div>
+          </Link>
         </div>
       </aside>
 

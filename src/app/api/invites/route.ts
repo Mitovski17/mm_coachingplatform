@@ -66,12 +66,15 @@ export async function POST(request: NextRequest) {
   const inviteUrl = `${appUrl}/invite/${invite.token}`
   const coachName = profile.full_name ?? 'Your coach'
 
-  await sendInviteEmail({ to: email, inviteUrl, coachName }).catch(() => {
-    // email failure should not block the response
-  })
+  const { error: emailError } = await sendInviteEmail({ to: email, inviteUrl, coachName })
+    .catch((err: unknown) => ({ data: null, error: err }))
 
   return Response.json(
-    { ...invite, invite_url: inviteUrl },
+    {
+      ...invite,
+      invite_url: inviteUrl,
+      ...(emailError ? { email_error: String(emailError) } : {}),
+    },
     { status: 201 }
   )
 }

@@ -224,48 +224,40 @@ export async function getTemplates(workspaceId: string): Promise<Template[]> {
 
 export async function getTemplate(templateId: string): Promise<TemplateWithExercises | null> {
   const admin = adminClient()
+  // Single nested query replaces 3 sequential queries
   const { data: template, error } = await admin
     .from('workout_templates')
-    .select('id, name, notes, workspace_id')
+    .select(`
+      id, name, notes, workspace_id,
+      workout_template_exercises(
+        id, exercise_id, sort_order, target_sets, target_reps, rest_seconds, notes,
+        exercises(name, muscle_group),
+        workout_template_exercise_sets(id, set_number, target_reps, target_weight, rpe, notes)
+      )
+    `)
     .eq('id', templateId)
     .single()
   if (error || !template) return null
 
-  const { data: rows, error: e2 } = await admin
-    .from('workout_template_exercises')
-    .select('id, exercise_id, sort_order, target_sets, target_reps, rest_seconds, notes, exercises(name, muscle_group)')
-    .eq('template_id', templateId)
-    .order('sort_order', { ascending: true })
-  if (e2) throw new Error(e2.message)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawExercises = ((template.workout_template_exercises as unknown as any[]) ?? [])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .sort((a: any, b: any) => a.sort_order - b.sort_order)
 
-  const exerciseIds = (rows ?? []).map((r) => r.id)
-  let setsByExercise = new Map<string, ExerciseSetRow[]>()
-  if (exerciseIds.length > 0) {
-    const { data: setRows, error: e3 } = await admin
-      .from('workout_template_exercise_sets')
-      .select('id, template_exercise_id, set_number, target_reps, target_weight, rpe, notes')
-      .in('template_exercise_id', exerciseIds)
-      .order('set_number', { ascending: true })
-    if (e3) throw new Error(e3.message)
-    for (const s of setRows ?? []) {
-      const list = setsByExercise.get(s.template_exercise_id) ?? []
-      list.push({
-        id: s.id,
-        setNumber: s.set_number,
-        targetReps: s.target_reps,
-        targetWeight: s.target_weight ?? null,
-        rpe: s.rpe ?? null,
-        notes: s.notes ?? null,
-      })
-      setsByExercise.set(s.template_exercise_id, list)
-    }
-  }
-
-  const exercises: TemplateExerciseRow[] = (rows ?? []).map((r) => {
-    const ex = r.exercises as unknown as { name: string; muscle_group: string } | null
-    const savedSets = setsByExercise.get(r.id)
-    const sets: ExerciseSetRow[] = savedSets && savedSets.length > 0
-      ? savedSets
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const exercises: TemplateExerciseRow[] = rawExercises.map((r: any) => {
+    const ex = Array.isArray(r.exercises) ? r.exercises[0] : r.exercises
+    const savedSets = ((r.workout_template_exercise_sets ?? []) as Array<{ id: string; set_number: number; target_reps: number; target_weight: string | null; rpe: string | null; notes: string | null }>)
+      .sort((a, b) => a.set_number - b.set_number)
+    const sets: ExerciseSetRow[] = savedSets.length > 0
+      ? savedSets.map((s) => ({
+          id: s.id,
+          setNumber: s.set_number,
+          targetReps: s.target_reps,
+          targetWeight: s.target_weight ?? null,
+          rpe: s.rpe ?? null,
+          notes: s.notes ?? null,
+        }))
       : Array.from({ length: r.target_sets }, (_, i) => ({
           setNumber: i + 1,
           targetReps: Number(r.target_reps) || 10,

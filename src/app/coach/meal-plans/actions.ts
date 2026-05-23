@@ -127,75 +127,55 @@ export async function getMealPlanTemplates(workspaceId: string): Promise<MealPla
 
 export async function getMealPlanTemplate(templateId: string): Promise<FullTemplate | null> {
   const admin = adminClient()
+  // Single nested query replaces 4 sequential queries
   const { data: template, error } = await admin
     .from('meal_plan_templates')
-    .select('id, workspace_id, name, plan_type, notes, recommendations')
+    .select(`
+      id, workspace_id, name, plan_type, notes, recommendations,
+      meal_plan_meals(
+        id, name, sort_order,
+        meal_plan_meal_options(
+          id, label, sort_order,
+          meal_plan_foods(id, food_id, food_name, quantity, unit, calories, protein_g, carbs_g, fat_g, sort_order)
+        )
+      )
+    `)
     .eq('id', templateId)
     .single()
   if (error || !template) return null
 
-  const { data: meals, error: e2 } = await admin
-    .from('meal_plan_meals')
-    .select('id, name, sort_order')
-    .eq('template_id', templateId)
-    .order('sort_order', { ascending: true })
-  if (e2) throw new Error(e2.message)
+  type RawFood = { id: string; food_id: string | null; food_name: string; quantity: number; unit: string; calories: number; protein_g: number; carbs_g: number; fat_g: number; sort_order: number }
+  type RawOption = { id: string; label: string; sort_order: number; meal_plan_foods: RawFood[] }
+  type RawMeal = { id: string; name: string; sort_order: number; meal_plan_meal_options: RawOption[] }
 
-  const mealIds = (meals ?? []).map((m) => m.id)
-  let optionsByMeal = new Map<string, OptionRow[]>()
-  let foodsByOption = new Map<string, FoodRow[]>()
+  const rawMeals = ((template.meal_plan_meals as unknown as RawMeal[]) ?? [])
+    .sort((a, b) => a.sort_order - b.sort_order)
 
-  if (mealIds.length > 0) {
-    const { data: options, error: e3 } = await admin
-      .from('meal_plan_meal_options')
-      .select('id, meal_id, label, sort_order')
-      .in('meal_id', mealIds)
-      .order('sort_order', { ascending: true })
-    if (e3) throw new Error(e3.message)
-
-    const optIds = (options ?? []).map((o) => o.id)
-    if (optIds.length > 0) {
-      const { data: foods, error: e4 } = await admin
-        .from('meal_plan_foods')
-        .select('id, option_id, food_id, food_name, quantity, unit, calories, protein_g, carbs_g, fat_g, sort_order')
-        .in('option_id', optIds)
-        .order('sort_order', { ascending: true })
-      if (e4) throw new Error(e4.message)
-      for (const f of foods ?? []) {
-        const list = foodsByOption.get(f.option_id) ?? []
-        list.push({
-          id: f.id,
-          foodId: f.food_id,
-          foodName: f.food_name,
-          quantity: Number(f.quantity),
-          unit: f.unit,
-          calories: Number(f.calories),
-          proteinG: Number(f.protein_g),
-          carbsG: Number(f.carbs_g),
-          fatG: Number(f.fat_g),
-          sortOrder: f.sort_order,
-        })
-        foodsByOption.set(f.option_id, list)
-      }
-    }
-
-    for (const o of options ?? []) {
-      const list = optionsByMeal.get(o.meal_id) ?? []
-      list.push({
-        id: o.id,
-        label: o.label,
-        sortOrder: o.sort_order,
-        foods: foodsByOption.get(o.id) ?? [],
-      })
-      optionsByMeal.set(o.meal_id, list)
-    }
-  }
-
-  const mealRows: MealRow[] = (meals ?? []).map((m) => ({
+  const mealRows: MealRow[] = rawMeals.map((m) => ({
     id: m.id,
     name: m.name,
     sortOrder: m.sort_order,
-    options: optionsByMeal.get(m.id) ?? [],
+    options: (m.meal_plan_meal_options ?? [])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((o) => ({
+        id: o.id,
+        label: o.label,
+        sortOrder: o.sort_order,
+        foods: (o.meal_plan_foods ?? [])
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((f) => ({
+            id: f.id,
+            foodId: f.food_id,
+            foodName: f.food_name,
+            quantity: Number(f.quantity),
+            unit: f.unit,
+            calories: Number(f.calories),
+            proteinG: Number(f.protein_g),
+            carbsG: Number(f.carbs_g),
+            fatG: Number(f.fat_g),
+            sortOrder: f.sort_order,
+          })),
+      })),
   }))
 
   return {

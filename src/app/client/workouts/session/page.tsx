@@ -146,6 +146,10 @@ function SessionInner() {
     async function init() {
       try {
         if (!templateId) throw new Error('Missing templateId')
+
+        // Kick off template fetch immediately — it doesn't need the client id
+        const templatePromise = getTemplateWithExercises(templateId)
+
         let email: string | null = null
         const mc = document.cookie.split('; ').find((r) => r.startsWith('dev_mock_email='))?.split('=')[1]
         if (mc) email = decodeURIComponent(mc)
@@ -156,10 +160,14 @@ function SessionInner() {
         }
         if (!email) { router.replace('/login'); return }
 
-        const [client, template] = await Promise.all([getClientId(email), getTemplateWithExercises(templateId)])
+        const client = await getClientId(email)
         if (!client) { router.replace('/client'); return }
 
-        const last = await getLastSessionForTemplate(client.id, templateId)
+        // By now template may already be done; last session runs in parallel with whatever remains
+        const [template, last] = await Promise.all([
+          templatePromise,
+          getLastSessionForTemplate(client.id, templateId),
+        ])
         if (cancelled) return
 
         setClient(client)

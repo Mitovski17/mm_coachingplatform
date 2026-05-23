@@ -52,38 +52,37 @@ async function fetchData(): Promise<{
     const { data: clients } = await svc
       .from('clients').select('*').eq('workspace_id', workspaceId).order('created_at', { ascending: false })
 
+    const clientIds = (clients ?? []).map((c) => c.id)
     let checkIns: CheckIn[] = []
     let lastSessions: LastSession[] = []
 
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (svc as any).from('checkins').select('client_id, submitted_at, status')
-      if (data) checkIns = data as CheckIn[]
-    } catch { /* optional */ }
-
-    try {
-      // Get latest workout session per client
-      const clientIds = (clients ?? []).map((c) => c.id)
-      if (clientIds.length > 0) {
+    if (clientIds.length > 0) {
+      const [checkInRes, sessionRes] = await Promise.allSettled([
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data } = await (svc as any)
+        (svc as any).from('checkins').select('client_id, submitted_at, status').in('client_id', clientIds),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (svc as any)
           .from('workout_sessions')
           .select('client_id, performed_at')
           .in('client_id', clientIds)
           .order('performed_at', { ascending: false })
+          .limit(clientIds.length * 5),
+      ])
 
-        if (data) {
-          // deduplicate - keep only the latest per client
-          const seen = new Set<string>()
-          for (const row of data as LastSession[]) {
-            if (!seen.has(row.client_id)) {
-              seen.add(row.client_id)
-              lastSessions.push(row)
-            }
+      if (checkInRes.status === 'fulfilled' && checkInRes.value.data) {
+        checkIns = checkInRes.value.data as CheckIn[]
+      }
+
+      if (sessionRes.status === 'fulfilled' && sessionRes.value.data) {
+        const seen = new Set<string>()
+        for (const row of sessionRes.value.data as LastSession[]) {
+          if (!seen.has(row.client_id)) {
+            seen.add(row.client_id)
+            lastSessions.push(row)
           }
         }
       }
-    } catch { /* optional */ }
+    }
 
     return { clients: clients ?? [], checkIns, lastSessions }
   }

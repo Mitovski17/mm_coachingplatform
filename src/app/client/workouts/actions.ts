@@ -97,9 +97,10 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
   const admin = adminClient()
   const today = getTodayDayOfWeek()
 
+  // Fetch program with all day-of-week entries in one query (max 7 rows)
   const { data: program } = await admin
     .from('workout_programs')
-    .select('id')
+    .select('id, workout_program_days(template_id, day_of_week)')
     .eq('client_id', clientId)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
@@ -108,43 +109,33 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
 
   if (!program) return null
 
-  const { data: dayRow } = await admin
-    .from('workout_program_days')
-    .select('template_id')
-    .eq('program_id', program.id)
-    .eq('day_of_week', today)
-    .maybeSingle()
+  const days = (program.workout_program_days as { template_id: string | null; day_of_week: number }[] | undefined) ?? []
+  const templateId = days.find((d) => d.day_of_week === today)?.template_id
+  if (!templateId) return null
 
-  if (!dayRow || !dayRow.template_id) return null
-
+  // Fetch template name and exercises in one query
   const { data: template } = await admin
     .from('workout_templates')
-    .select('id, name')
-    .eq('id', dayRow.template_id)
+    .select('id, name, workout_template_exercises(exercises(name, muscle_group))')
+    .eq('id', templateId)
     .maybeSingle()
 
   if (!template) return null
 
-  const { data: exRows } = await admin
-    .from('workout_template_exercises')
-    .select('exercises(name, muscle_group)')
-    .eq('template_id', template.id)
-    .order('sort_order', { ascending: true })
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const exRows = (template.workout_template_exercises as unknown as { exercises: any }[]) ?? []
   const muscleSet = new Set<string>()
   const names: string[] = []
-  let count = 0
-  for (const r of exRows ?? []) {
-    count += 1
-    const ex = r.exercises as unknown as { name: string; muscle_group: string } | null
-    if (ex?.muscle_group) muscleSet.add(ex.muscle_group)
-    if (ex?.name) names.push(ex.name)
+  for (const r of exRows) {
+    const ex = Array.isArray(r.exercises) ? r.exercises[0] : r.exercises
+    if (ex?.muscle_group) muscleSet.add(ex.muscle_group as string)
+    if (ex?.name) names.push(ex.name as string)
   }
 
   return {
     templateId: template.id,
     templateName: template.name,
-    exerciseCount: count,
+    exerciseCount: exRows.length,
     muscleGroups: Array.from(muscleSet),
     exerciseNames: names,
   }
@@ -154,20 +145,20 @@ export async function getTemplateWithExercises(templateId: string): Promise<Temp
   const admin = adminClient()
   const { data: tpl, error } = await admin
     .from('workout_templates')
-    .select('id, name')
+    .select(`
+      id, name,
+      workout_template_exercises(id, exercise_id, sort_order, target_sets, target_reps, rest_seconds, notes, exercises(name, muscle_group))
+    `)
     .eq('id', templateId)
     .single()
   if (error || !tpl) throw new Error(error?.message ?? 'Template not found')
 
-  const { data: rows, error: e2 } = await admin
-    .from('workout_template_exercises')
-    .select('id, exercise_id, sort_order, target_sets, target_reps, rest_seconds, notes, exercises(name, muscle_group)')
-    .eq('template_id', templateId)
-    .order('sort_order', { ascending: true })
-  if (e2) throw new Error(e2.message)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = ((tpl.workout_template_exercises as unknown as any[]) ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order)
 
-  const exercises: TemplateExercise[] = (rows ?? []).map((r) => {
-    const ex = r.exercises as unknown as { name: string; muscle_group: string } | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const exercises: TemplateExercise[] = rows.map((r: any) => {
+    const ex = Array.isArray(r.exercises) ? r.exercises[0] : r.exercises
     return {
       id: r.id,
       exerciseId: r.exercise_id,

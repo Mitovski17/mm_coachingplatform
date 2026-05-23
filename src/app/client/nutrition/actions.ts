@@ -108,65 +108,29 @@ export async function getActiveMealPlan(
     .maybeSingle()
   if (aErr || !assignment) return null
 
+  // Single nested query replaces 4 sequential queries (template + meals + options + foods)
   const { data: template } = await admin
     .from('meal_plan_templates')
-    .select('id, name, plan_type, notes, recommendations, created_at')
+    .select(`
+      id, name, plan_type, notes, recommendations, created_at,
+      meal_plan_meals(
+        id, name, sort_order,
+        meal_plan_meal_options(
+          id, label, sort_order,
+          meal_plan_foods(id, food_name, quantity, unit, calories, protein_g, carbs_g, fat_g, sort_order)
+        )
+      )
+    `)
     .eq('id', assignment.template_id)
     .maybeSingle()
   if (!template) return null
 
-  const { data: meals } = await admin
-    .from('meal_plan_meals')
-    .select('id, name, sort_order')
-    .eq('template_id', template.id)
-    .order('sort_order', { ascending: true })
+  type RawFood = { id: string; food_name: string; quantity: number; unit: string; calories: number; protein_g: number; carbs_g: number; fat_g: number; sort_order: number }
+  type RawOption = { id: string; label: string; sort_order: number; meal_plan_foods: RawFood[] }
+  type RawMeal = { id: string; name: string; sort_order: number; meal_plan_meal_options: RawOption[] }
 
-  const mealIds = (meals ?? []).map((m) => m.id)
-  const optionsByMeal = new Map<string, Option[]>()
-  const foodsByOption = new Map<string, FoodItem[]>()
-
-  if (mealIds.length > 0) {
-    const { data: options } = await admin
-      .from('meal_plan_meal_options')
-      .select('id, meal_id, label, sort_order')
-      .in('meal_id', mealIds)
-      .order('sort_order', { ascending: true })
-
-    const optIds = (options ?? []).map((o) => o.id)
-    if (optIds.length > 0) {
-      const { data: foods } = await admin
-        .from('meal_plan_foods')
-        .select('id, option_id, food_name, quantity, unit, calories, protein_g, carbs_g, fat_g, sort_order')
-        .in('option_id', optIds)
-        .order('sort_order', { ascending: true })
-      for (const f of foods ?? []) {
-        const list = foodsByOption.get(f.option_id) ?? []
-        list.push({
-          id: f.id,
-          foodName: f.food_name,
-          quantity: Number(f.quantity),
-          unit: f.unit,
-          calories: Number(f.calories),
-          proteinG: Number(f.protein_g),
-          carbsG: Number(f.carbs_g),
-          fatG: Number(f.fat_g),
-          sortOrder: f.sort_order,
-        })
-        foodsByOption.set(f.option_id, list)
-      }
-    }
-
-    for (const o of options ?? []) {
-      const list = optionsByMeal.get(o.meal_id) ?? []
-      list.push({
-        id: o.id,
-        label: o.label,
-        sortOrder: o.sort_order,
-        foods: foodsByOption.get(o.id) ?? [],
-      })
-      optionsByMeal.set(o.meal_id, list)
-    }
-  }
+  const rawMeals = ((template.meal_plan_meals as unknown as RawMeal[]) ?? [])
+    .sort((a, b) => a.sort_order - b.sort_order)
 
   return {
     id: template.id,
@@ -175,11 +139,30 @@ export async function getActiveMealPlan(
     notes: template.notes,
     recommendations: template.recommendations,
     updatedAt: template.created_at,
-    meals: (meals ?? []).map((m) => ({
+    meals: rawMeals.map((m) => ({
       id: m.id,
       name: m.name,
       sortOrder: m.sort_order,
-      options: optionsByMeal.get(m.id) ?? [],
+      options: (m.meal_plan_meal_options ?? [])
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((o) => ({
+          id: o.id,
+          label: o.label,
+          sortOrder: o.sort_order,
+          foods: (o.meal_plan_foods ?? [])
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map((f) => ({
+              id: f.id,
+              foodName: f.food_name,
+              quantity: Number(f.quantity),
+              unit: f.unit,
+              calories: Number(f.calories),
+              proteinG: Number(f.protein_g),
+              carbsG: Number(f.carbs_g),
+              fatG: Number(f.fat_g),
+              sortOrder: f.sort_order,
+            })),
+        })),
     })),
   }
 }

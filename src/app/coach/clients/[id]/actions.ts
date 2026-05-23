@@ -235,21 +235,14 @@ export async function getWorkoutCompliance(
       .maybeSingle(),
     admin
       .from('workout_programs')
-      .select('id')
+      .select('id, workout_program_days(id, template_id)')
       .eq('client_id', clientId)
       .eq('is_active', true)
       .maybeSingle(),
   ])
 
-  let targetPerWeek = 0
-  if (programRes.data?.id) {
-    const { count } = await admin
-      .from('workout_program_days')
-      .select('id', { count: 'exact', head: true })
-      .eq('program_id', programRes.data.id)
-      .not('template_id', 'is', null)
-    targetPerWeek = count ?? 0
-  }
+  const programDays = (programRes.data as { id: string; workout_program_days: { id: string; template_id: string | null }[] } | null)?.workout_program_days ?? []
+  const targetPerWeek = programDays.filter((d) => d.template_id !== null).length
 
   return {
     sessionsThisWeek: weekRes.count ?? 0,
@@ -338,17 +331,18 @@ export async function getNutritionSummary(
   thirtyDaysAgo.setUTCDate(today.getUTCDate() - 29)
   const mondayStr = currentMondayISO().split('T')[0]
 
-  const { data: last7 } = await admin
-    .from('nutrition_logs')
-    .select('logged_date, calories, protein_g, carbs_g, fat_g')
-    .eq('client_id', clientId)
-    .gte('logged_date', dateOnly(sevenDaysAgo))
-
-  const { data: last30 } = await admin
-    .from('nutrition_logs')
-    .select('logged_date')
-    .eq('client_id', clientId)
-    .gte('logged_date', dateOnly(thirtyDaysAgo))
+  const [{ data: last7 }, { data: last30 }] = await Promise.all([
+    admin
+      .from('nutrition_logs')
+      .select('logged_date, calories, protein_g, carbs_g, fat_g')
+      .eq('client_id', clientId)
+      .gte('logged_date', dateOnly(sevenDaysAgo)),
+    admin
+      .from('nutrition_logs')
+      .select('logged_date')
+      .eq('client_id', clientId)
+      .gte('logged_date', dateOnly(thirtyDaysAgo)),
+  ])
 
   const dayTotals = new Map<
     string,
@@ -483,8 +477,13 @@ export async function getProgressPhotos(
 ): Promise<ProgressPhoto[]> {
   const admin = adminClient()
 
-  const toSign: { path: string; submittedAt: string; weekStartDate: string }[] = []
+  // Start standalone photos fetch immediately while we build checkin paths list
+  const standalonePromise = admin
+    .from('progress_photos')
+    .select('storage_path, uploaded_at')
+    .eq('client_id', clientId)
 
+  const toSign: { path: string; submittedAt: string; weekStartDate: string }[] = []
   for (const ci of checkins) {
     for (const path of ci.photoPaths) {
       if (!path) continue
@@ -492,12 +491,7 @@ export async function getProgressPhotos(
     }
   }
 
-  // Also include standalone photos uploaded directly from the progress tab
-  const { data: standalone } = await admin
-    .from('progress_photos')
-    .select('storage_path, uploaded_at')
-    .eq('client_id', clientId)
-
+  const { data: standalone } = await standalonePromise
   for (const sp of standalone ?? []) {
     toSign.push({
       path: sp.storage_path,

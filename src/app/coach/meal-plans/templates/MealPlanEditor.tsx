@@ -198,7 +198,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
-  const [aiGenerated, setAiGenerated] = useState(false)
+  const [aiGenerated, setAiGenerated] = useState(!!initialData)
   const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
 
   const handleAiGenerate = async () => {

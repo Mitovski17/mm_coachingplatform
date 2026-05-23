@@ -63,7 +63,7 @@ export default function NewClientPage() {
         Add new client
       </h1>
       <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: '0 0 32px' }}>
-        Send an invite link to your client. They'll create their account and complete onboarding.
+        Enter your client's email and we'll send them an invite automatically. They'll create their account and complete onboarding.
       </p>
 
       {step === 'form' ? (
@@ -132,7 +132,7 @@ export default function NewClientPage() {
                 cursor: loading || !email.trim() ? 'not-allowed' : 'pointer',
               }}
             >
-              {loading ? 'Generating invite...' : 'Send invite'}
+              {loading ? 'Sending invite...' : 'Send invite'}
             </button>
           </form>
         </div>
@@ -159,10 +159,10 @@ export default function NewClientPage() {
           </div>
 
           <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 6px' }}>
-            Invite created
+            Invite sent
           </h2>
           <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 0 20px' }}>
-            Send this link to <strong style={{ color: 'var(--color-text-secondary)' }}>{email}</strong>. It expires in 7 days.
+            An invite email was sent to <strong style={{ color: 'var(--color-text-secondary)' }}>{email}</strong>. The link expires in 7 days. You can also copy it below to share manually.
           </p>
 
           <div

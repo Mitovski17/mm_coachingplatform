@@ -108,6 +108,7 @@ export default function TemplateEditor({
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
   const [aiGenerated, setAiGenerated] = useState(false)
+  const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
   const [customModalForTempId, setCustomModalForTempId] = useState<string | null>(null)
 
   const exercisesByGroup = useMemo(() => {
@@ -326,6 +327,8 @@ export default function TemplateEditor({
         return toAdd.length ? [...prev, ...toAdd] : prev
       })
       setAiGenerated(true)
+      setAiPrompt('')
+      setAiEditModalOpen(false)
     } catch (e) {
       setAiError(e instanceof Error ? e.message : 'Generation failed')
     } finally {
@@ -481,101 +484,211 @@ export default function TemplateEditor({
       <div style={{ display: 'flex', height: 'calc(100vh - 53px)', overflow: 'hidden' }}>
         {/* Left: main editor */}
         <div className="no-scrollbar" style={{ flex: '0 0 55%', overflowY: 'auto', padding: '28px 32px 80px' }}>
-          {/* AI panel */}
-          <div
-            style={{
-              marginBottom: 24,
-              padding: 16,
-              backgroundColor: 'var(--color-surface-2)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-xl)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <Sparkles size={15} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                {aiGenerated ? 'Edit with AI' : 'Generate with AI'}
-              </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-hint)' }}>
-                {aiGenerated
-                  ? 'Describe what you want to change'
-                  : 'Describe the workout and AI will build the full template'}
-              </span>
+          {/* AI panel — initial generate or edit-with-ai button */}
+          {!aiGenerated ? (
+            <div
+              style={{
+                marginBottom: 24,
+                padding: 16,
+                backgroundColor: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-xl)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <Sparkles size={14} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '0.02em' }}>
+                  AI Assist
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiGenerate() } }}
+                  placeholder="e.g. Push Day - hypertrophy focus, 4 exercises, pyramid sets"
+                  disabled={aiGenerating}
+                  rows={3}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    fontSize: '0.85rem',
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--color-text-primary)',
+                    outline: 'none',
+                    opacity: aiGenerating ? 0.6 : 1,
+                    fontFamily: 'inherit',
+                    resize: 'none',
+                    lineHeight: 1.5,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAiGenerate}
+                  disabled={aiGenerating || !aiPrompt.trim()}
+                  onMouseEnter={(e) => { if (!aiGenerating && aiPrompt.trim()) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316' }}
+                  onMouseLeave={(e) => { if (!aiGenerating && aiPrompt.trim()) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-accent)' }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    backgroundColor: aiGenerating || !aiPrompt.trim() ? 'var(--color-surface-3)' : 'var(--color-accent)',
+                    color: aiGenerating || !aiPrompt.trim() ? 'var(--color-text-hint)' : '#fff',
+                    borderRadius: 'var(--radius-md)',
+                    border: 'none',
+                    cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'inherit',
+                    transition: 'background-color 0.15s ease',
+                    alignSelf: 'stretch',
+                  }}
+                >
+                  {aiGenerating ? (
+                    <><Loader2 size={13} className="animate-spin" /> Generating…</>
+                  ) : (
+                    <><Sparkles size={13} /> Generate</>
+                  )}
+                </button>
+              </div>
+              {aiError && (
+                <p style={{ marginTop: 8, fontSize: '0.75rem', color: '#ef4444' }}>{aiError}</p>
+              )}
             </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="text"
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleAiGenerate() }}
-                placeholder={
-                  aiGenerated
-                    ? 'e.g. add a drop set to the last exercise, increase volume on chest'
-                    : 'e.g. Push Day - hypertrophy focus, 4 exercises, pyramid sets'
-                }
-                disabled={aiGenerating}
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  fontSize: '0.85rem',
-                  backgroundColor: 'var(--color-surface-3)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--color-text-primary)',
-                  outline: 'none',
-                  opacity: aiGenerating ? 0.6 : 1,
-                  fontFamily: 'inherit',
-                }}
-              />
+          ) : (
+            <div style={{ marginBottom: 24 }}>
               <button
                 type="button"
-                onClick={handleAiGenerate}
-                disabled={aiGenerating || !aiPrompt.trim()}
+                onClick={() => { setAiError(null); setAiEditModalOpen(true) }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#f97316' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface-2)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--color-border)' }}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 16px',
-                  fontSize: '0.85rem',
-                  fontWeight: 500,
-                  backgroundColor:
-                    aiGenerating || !aiPrompt.trim()
-                      ? 'var(--color-surface-3)'
-                      : 'var(--color-accent)',
-                  color:
-                    aiGenerating || !aiPrompt.trim() ? 'var(--color-text-hint)' : '#fff',
+                  gap: 6,
+                  padding: '7px 14px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--color-surface-2)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border)',
                   borderRadius: 'var(--radius-md)',
-                  border: 'none',
-                  cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
                   fontFamily: 'inherit',
+                  transition: 'background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease',
                 }}
               >
-                {aiGenerating ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    Generating…
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={14} />
-                    {aiGenerated ? 'Apply Edit' : 'Generate'}
-                  </>
-                )}
+                <Sparkles size={13} style={{ color: 'var(--color-accent)' }} />
+                Edit with AI
               </button>
             </div>
+          )}
 
-            {aiError && (
-              <p style={{ marginTop: 8, fontSize: '0.75rem', color: '#ef4444' }}>{aiError}</p>
-            )}
-            {!aiError && !aiGenerating && aiGenerated && (
-              <p style={{ marginTop: 8, fontSize: '0.75rem', color: '#22c55e' }}>
-                Template generated — review below and save when ready.
-              </p>
-            )}
-          </div>
+          {/* Edit with AI modal */}
+          {aiEditModalOpen && (
+            <div
+              onClick={() => setAiEditModalOpen(false)}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 50,
+                backgroundColor: 'rgba(0,0,0,0.6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: 480,
+                  backgroundColor: 'var(--color-surface-1)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-xl)',
+                  padding: 24,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Sparkles size={15} style={{ color: 'var(--color-accent)' }} />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Edit with AI</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAiEditModalOpen(false)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', padding: 4 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiGenerate() } }}
+                  placeholder="e.g. add a drop set to the last exercise, increase volume on chest"
+                  disabled={aiGenerating}
+                  rows={4}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '0.85rem',
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--color-text-primary)',
+                    outline: 'none',
+                    opacity: aiGenerating ? 0.6 : 1,
+                    fontFamily: 'inherit',
+                    resize: 'none',
+                    lineHeight: 1.5,
+                    boxSizing: 'border-box',
+                    marginBottom: 12,
+                  }}
+                />
+                {aiError && (
+                  <p style={{ marginBottom: 10, fontSize: '0.75rem', color: '#ef4444' }}>{aiError}</p>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setAiEditModalOpen(false)}
+                    style={{
+                      padding: '8px 16px', fontSize: '0.82rem', fontWeight: 500,
+                      backgroundColor: 'var(--color-surface-3)', color: 'var(--color-text-secondary)',
+                      border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAiGenerate}
+                    disabled={aiGenerating || !aiPrompt.trim()}
+                    onMouseEnter={(e) => { if (!aiGenerating && aiPrompt.trim()) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316' }}
+                    onMouseLeave={(e) => { if (!aiGenerating && aiPrompt.trim()) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-accent)' }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '8px 18px', fontSize: '0.82rem', fontWeight: 600,
+                      backgroundColor: aiGenerating || !aiPrompt.trim() ? 'var(--color-surface-3)' : 'var(--color-accent)',
+                      color: aiGenerating || !aiPrompt.trim() ? 'var(--color-text-hint)' : '#fff',
+                      border: 'none', borderRadius: 'var(--radius-md)',
+                      cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit', transition: 'background-color 0.15s ease',
+                    }}
+                  >
+                    {aiGenerating ? (
+                      <><Loader2 size={13} className="animate-spin" /> Applying…</>
+                    ) : (
+                      <><Sparkles size={13} /> Apply Edit</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Template name */}
           <div style={{ marginBottom: 16 }}>

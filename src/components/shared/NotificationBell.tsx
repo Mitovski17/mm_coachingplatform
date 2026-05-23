@@ -67,7 +67,7 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [recipientType, recipientId, loadNotifications, router])
+  }, [recipientType, recipientId, loadNotifications]) // router intentionally omitted - only used inside Realtime callback, not in setup/cleanup
 
   // Close dropdown on click-outside
   useEffect(() => {

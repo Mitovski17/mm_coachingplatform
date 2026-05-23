@@ -3,36 +3,22 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, ListChecks, LayoutList, Settings, UtensilsCrossed, MessageSquare, Inbox, ShieldCheck } from 'lucide-react'
-import NotificationBell from '@/components/shared/NotificationBell'
+import { LayoutDashboard, Users, Building2, BarChart3, ShieldAlert, CreditCard } from 'lucide-react'
 
 const NAV = [
-  { label: 'Clients', href: '/coach/dashboard', Icon: Users },
-  { label: 'Check-ins', href: '/coach/check-ins', Icon: ListChecks },
-  { label: 'Messages', href: '/coach/messages', Icon: Inbox },
-  { label: 'Training Programs', href: '/coach/programs', Icon: LayoutList },
-  { label: 'Meal Plans', href: '/coach/meal-plans', Icon: UtensilsCrossed },
-  { label: 'Assistant', href: '/coach/assistant', Icon: MessageSquare },
-  { label: 'Settings', href: '/coach/settings', Icon: Settings },
+  { label: 'Dashboard',   href: '/admin',             Icon: LayoutDashboard },
+  { label: 'Users',       href: '/admin/users',        Icon: Users },
+  { label: 'Workspaces',  href: '/admin/workspaces',   Icon: Building2 },
+  { label: 'Analytics',   href: '/admin/analytics',    Icon: BarChart3 },
+  { label: 'Content',     href: '/admin/content',      Icon: ShieldAlert },
+  { label: 'Billing',     href: '/admin/billing',      Icon: CreditCard },
 ] as const
 
 const EXPANDED = 220
 const COLLAPSED = 64
-const LS_KEY = 'coach_sidebar_collapsed'
+const LS_KEY = 'admin_sidebar_collapsed'
 
-export default function SidebarShell({
-  children,
-  pendingCount = 0,
-  unreadMessageCount = 0,
-  coachId = '',
-  isAdmin = false,
-}: {
-  children: React.ReactNode
-  pendingCount?: number
-  unreadMessageCount?: number
-  coachId?: string
-  isAdmin?: boolean
-}) {
+export default function AdminSidebar({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
 
@@ -52,7 +38,6 @@ export default function SidebarShell({
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-base)' }}>
-      {/* ── Sidebar ── */}
       <aside
         className="fixed top-0 left-0 h-screen flex flex-col"
         style={{
@@ -90,21 +75,20 @@ export default function SidebarShell({
             }}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {/* Orange square logo mark */}
             <div
               style={{
                 width: 32,
                 height: 32,
                 borderRadius: 8,
-                backgroundColor: 'var(--color-accent)',
+                backgroundColor: '#7c3aed',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
-              <span style={{ color: '#fff', fontSize: 15, fontWeight: 800, letterSpacing: '-0.03em' }}>
-                M
+              <span style={{ color: '#fff', fontSize: 13, fontWeight: 800, letterSpacing: '-0.03em' }}>
+                A
               </span>
             </div>
             {!collapsed && (
@@ -125,7 +109,7 @@ export default function SidebarShell({
                 <span
                   style={{
                     display: 'block',
-                    color: 'var(--color-text-hint)',
+                    color: '#7c3aed',
                     fontSize: 10,
                     fontWeight: 600,
                     letterSpacing: '0.08em',
@@ -134,18 +118,19 @@ export default function SidebarShell({
                     marginTop: 1,
                   }}
                 >
-                  Coach Console
+                  Admin Panel
                 </span>
               </div>
             )}
           </button>
-          {coachId && <NotificationBell recipientType="coach" recipientId={coachId} />}
         </div>
 
         {/* Nav */}
         <nav className="flex flex-col gap-0.5 flex-1 px-3 pt-4">
           {NAV.map(({ label, href, Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + '/')
+            const active = href === '/admin'
+              ? pathname === '/admin'
+              : pathname.startsWith(href)
             return (
               <Link
                 key={href}
@@ -156,7 +141,7 @@ export default function SidebarShell({
                   gap: collapsed ? 0 : '10px',
                   justifyContent: collapsed ? 'center' : 'flex-start',
                   padding: collapsed ? '9px 0' : '9px 12px',
-                  backgroundColor: active ? 'var(--color-accent)' : 'transparent',
+                  backgroundColor: active ? '#7c3aed' : 'transparent',
                   borderRadius: 8,
                   color: active ? '#ffffff' : 'var(--color-text-muted)',
                   fontWeight: active ? 600 : 400,
@@ -176,128 +161,46 @@ export default function SidebarShell({
                   }
                 }}
               >
-                <div className="relative" style={{ flexShrink: 0 }}>
+                <div style={{ flexShrink: 0 }}>
                   <Icon size={16} />
-                  {href === '/coach/check-ins' && pendingCount > 0 && (
-                    <span
-                      className="absolute"
-                      style={{
-                        top: -3,
-                        right: -3,
-                        width: 7,
-                        height: 7,
-                        borderRadius: '50%',
-                        backgroundColor: active ? '#ffffff' : '#ef4444',
-                        display: 'block',
-                      }}
-                    />
-                  )}
-                  {href === '/coach/messages' && unreadMessageCount > 0 && (
-                    <span
-                      className="absolute"
-                      style={{
-                        top: -3,
-                        right: -3,
-                        width: 7,
-                        height: 7,
-                        borderRadius: '50%',
-                        backgroundColor: active ? '#ffffff' : '#ef4444',
-                        display: 'block',
-                      }}
-                    />
-                  )}
                 </div>
                 {!collapsed && (
-                  <span className="whitespace-nowrap flex items-center gap-1.5">
-                    {label}
-                    {href === '/coach/check-ins' && pendingCount > 0 && (
-                      <span
-                        className="inline-flex items-center justify-center text-xs font-semibold"
-                        style={{
-                          minWidth: 18,
-                          height: 18,
-                          borderRadius: '9999px',
-                          backgroundColor: active ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.18)',
-                          color: active ? '#fff' : '#ef4444',
-                          padding: '0 5px',
-                          lineHeight: 1,
-                        }}
-                      >
-                        {pendingCount}
-                      </span>
-                    )}
-                    {href === '/coach/messages' && unreadMessageCount > 0 && (
-                      <span
-                        className="inline-flex items-center justify-center text-xs font-semibold"
-                        style={{
-                          minWidth: 18,
-                          height: 18,
-                          borderRadius: '9999px',
-                          backgroundColor: active ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.18)',
-                          color: active ? '#fff' : '#ef4444',
-                          padding: '0 5px',
-                          lineHeight: 1,
-                        }}
-                      >
-                        {unreadMessageCount}
-                      </span>
-                    )}
-                  </span>
+                  <span className="whitespace-nowrap">{label}</span>
                 )}
               </Link>
             )
           })}
         </nav>
 
-        {/* Admin panel link */}
-        {isAdmin && (
-          <div className="flex-shrink-0 px-3 pb-2">
-            <Link
-              href="/admin"
-              title={collapsed ? 'Admin Panel' : undefined}
-              className="flex items-center transition-colors"
-              style={{
-                gap: collapsed ? 0 : '10px',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                padding: collapsed ? '8px 0' : '8px 12px',
-                backgroundColor: 'rgba(124,58,237,0.10)',
-                borderRadius: 8,
-                color: '#7c3aed',
-                fontWeight: 600,
-                fontSize: '13px',
-                textDecoration: 'none',
-              }}
-            >
-              <ShieldCheck size={15} style={{ flexShrink: 0 }} />
-              {!collapsed && <span className="whitespace-nowrap">Admin Panel</span>}
-            </Link>
-          </div>
-        )}
-
-        {/* User avatar at bottom */}
+        {/* Back to coach link */}
         <div
           className="flex-shrink-0 px-3 pb-5 pt-3"
           style={{ borderTop: '1px solid var(--color-border)' }}
         >
-          <div
+          <Link
+            href="/coach/dashboard"
+            title={collapsed ? 'Back to Coach' : undefined}
             className="flex items-center"
             style={{
               gap: collapsed ? 0 : 10,
               justifyContent: collapsed ? 'center' : 'flex-start',
               padding: collapsed ? '6px 0' : '6px 8px',
+              color: 'var(--color-text-hint)',
+              fontSize: 12,
+              textDecoration: 'none',
             }}
           >
             <div
               style={{
-                width: 32,
-                height: 32,
+                width: 28,
+                height: 28,
                 borderRadius: '50%',
                 backgroundColor: 'var(--color-surface-3)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 700,
                 color: 'var(--color-text-muted)',
               }}
@@ -305,20 +208,12 @@ export default function SidebarShell({
               MC
             </div>
             {!collapsed && (
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.2 }}>
-                  Coach
-                </p>
-                <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>
-                  mitovski.co
-                </p>
-              </div>
+              <span style={{ whiteSpace: 'nowrap' }}>← Coach view</span>
             )}
-          </div>
+          </Link>
         </div>
       </aside>
 
-      {/* ── Main content ── */}
       <main
         className="flex-1 min-h-screen"
         style={{

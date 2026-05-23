@@ -7,6 +7,22 @@
     {
       "path": "/api/cron/digest",
       "schedule": "30 12 * * 0"
+    },
+    {
+      "path": "/api/cron/checkin-reminders?hours=12",
+      "schedule": "0 12 * * 0"
+    },
+    {
+      "path": "/api/cron/checkin-reminders?hours=18",
+      "schedule": "0 18 * * 0"
+    },
+    {
+      "path": "/api/cron/checkin-reminders?hours=24",
+      "schedule": "0 0 * * 1"
+    },
+    {
+      "path": "/api/cron/checkin-reminders?hours=36",
+      "schedule": "0 12 * * 1"
     }
   ]
 }

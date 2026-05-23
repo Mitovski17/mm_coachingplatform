@@ -133,14 +133,30 @@ async function fetchCoachId(): Promise<string> {
   }
 }
 
+async function fetchIsAdmin(coachId: string): Promise<boolean> {
+  if (!coachId) return false
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('platform_admins')
+      .select('user_id')
+      .eq('user_id', coachId)
+      .single()
+    return !!data
+  } catch {
+    return false
+  }
+}
+
 export default async function CoachLayout({ children }: { children: React.ReactNode }) {
   const [pendingCount, unreadMessageCount, coachId] = await Promise.all([
     fetchPendingCount(),
     fetchUnreadMessageCount(),
     fetchCoachId(),
   ])
+  const isAdmin = await fetchIsAdmin(coachId)
   return (
-    <SidebarShell pendingCount={pendingCount} unreadMessageCount={unreadMessageCount} coachId={coachId}>
+    <SidebarShell pendingCount={pendingCount} unreadMessageCount={unreadMessageCount} coachId={coachId} isAdmin={isAdmin}>
       {children}
     </SidebarShell>
   )

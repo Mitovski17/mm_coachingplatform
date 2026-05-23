@@ -85,16 +85,34 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/client') ||
     pathname.startsWith('/onboarding') ||
     pathname.startsWith('/check-in')
+  const isAdminRoute = pathname.startsWith('/admin')
   const isLoginPage = pathname === '/login'
   const isRoot = pathname === '/'
 
   // Unauthenticated users trying to access protected routes → login
-  if (isProtected && !user) {
+  if ((isProtected || isAdminRoute) && !user) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     const redirectRes = NextResponse.redirect(loginUrl)
     copySupabaseCookies(supabaseResponse, redirectRes)
     return redirectRes
+  }
+
+  // Admin routes: verify the user is in platform_admins
+  if (isAdminRoute && user) {
+    const { data: adminRow } = await supabase
+      .from('platform_admins')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!adminRow) {
+      const forbiddenUrl = request.nextUrl.clone()
+      forbiddenUrl.pathname = '/coach/dashboard'
+      const redirectRes = NextResponse.redirect(forbiddenUrl)
+      copySupabaseCookies(supabaseResponse, redirectRes)
+      return redirectRes
+    }
   }
 
   // Authenticated users on the login page → route by role

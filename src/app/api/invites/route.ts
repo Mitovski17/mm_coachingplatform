@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { sendInviteEmail } from '@/lib/email'
 
 const bodySchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('workspace_id')
+    .select('workspace_id, full_name')
     .eq('id', user.id)
     .single()
 
@@ -62,9 +63,15 @@ export async function POST(request: NextRequest) {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const inviteUrl = `${appUrl}/invite/${invite.token}`
+  const coachName = profile.full_name ?? 'Your coach'
+
+  await sendInviteEmail({ to: email, inviteUrl, coachName }).catch(() => {
+    // email failure should not block the response
+  })
 
   return Response.json(
-    { ...invite, invite_url: `${appUrl}/invite/${invite.token}` },
+    { ...invite, invite_url: inviteUrl },
     { status: 201 }
   )
 }

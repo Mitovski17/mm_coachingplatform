@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY?.trim())
 
-const FROM = 'noreply@mitovski.com' // ← replace with your verified domain
+const FROM = 'noreply@mitovski.co'
 const REPLY_TO = 'martinmitovski17@gmail.com'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 

@@ -29,20 +29,49 @@ export default function ProgramEditor({
   const [name, setName] = useState(initialData?.name ?? '')
   const [clientId, setClientId] = useState(initialData?.clientId ?? '')
   const [isActive, setIsActive] = useState(initialData?.isActive ?? true)
+
+  // days[i] = the final templateDayId assigned to day i (null = rest)
   const [days, setDays] = useState<Record<number, string | null>>(() => {
     const map: Record<number, string | null> = {}
     for (let i = 0; i < 7; i++) {
       const found = initialData?.days.find((d) => d.dayOfWeek === i)
-      map[i] = found?.templateId ?? null
+      map[i] = found?.templateDayId ?? null
     }
     return map
   })
+
+  // pendingTemplate[i] = templateId selected in step 1 when template has multiple days
+  // (needed so the step-1 select stays populated while user hasn't picked a day yet)
+  const [pendingTemplate, setPendingTemplate] = useState<Record<number, string>>(() => {
+    const map: Record<number, string> = {}
+    // Pre-populate from initialData if the day already has a templateDayId
+    if (initialData) {
+      for (const d of initialData.days) {
+        if (d.templateDayId) {
+          // We'll resolve this from the templates list below — handled in the render
+        }
+      }
+    }
+    return map
+  })
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Build lookup maps
   const templateById = useMemo(() => {
     const m = new Map<string, Template>()
     for (const t of templates) m.set(t.id, t)
+    return m
+  }, [templates])
+
+  const templateIdByDayId = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const t of templates) {
+      for (const d of t.days) {
+        m.set(d.id, t.id)
+      }
+    }
     return m
   }, [templates])
 
@@ -66,7 +95,7 @@ export default function ProgramEditor({
         isActive,
         days: Array.from({ length: 7 }, (_, i) => ({
           dayOfWeek: i,
-          templateId: days[i] ?? null,
+          templateDayId: days[i] ?? null,
         })),
       })
       router.push('/coach/programs')
@@ -185,42 +214,105 @@ export default function ProgramEditor({
         }}
       >
         {DAY_NAMES.map((label, i) => {
-          const selectedId = days[i] ?? ''
-          const tpl = selectedId ? templateById.get(selectedId) : null
+          const assignedDayId = days[i] ?? null
+          // Resolve which template is "selected" for this row:
+          // - if a day is assigned, derive from its template parent
+          // - if a pending template is set (user picked template but no day yet), use that
+          const resolvedTemplateId =
+            (assignedDayId ? templateIdByDayId.get(assignedDayId) : null) ??
+            pendingTemplate[i] ??
+            ''
+          const resolvedTemplate = resolvedTemplateId ? templateById.get(resolvedTemplateId) : null
+
           return (
             <div
               key={i}
-              className="flex items-center gap-4 px-5 py-3"
               style={{
                 borderBottom: i < DAY_NAMES.length - 1 ? '1px solid var(--color-border)' : 'none',
+                padding: '12px 20px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 16,
               }}
             >
-              <div style={{ width: 110, flexShrink: 0 }}>
+              <div style={{ width: 110, flexShrink: 0, paddingTop: 9 }}>
                 <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
                   {label}
                 </p>
               </div>
-              <div className="flex-1">
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* Step 1: pick template */}
                 <select
-                  value={selectedId}
-                  onChange={(e) =>
-                    setDays((prev) => ({ ...prev, [i]: e.target.value || null }))
-                  }
+                  value={resolvedTemplateId}
+                  onChange={(e) => {
+                    const tplId = e.target.value
+                    if (!tplId) {
+                      // Clear everything for this day
+                      setDays((prev) => ({ ...prev, [i]: null }))
+                      setPendingTemplate((prev) => {
+                        const next = { ...prev }
+                        delete next[i]
+                        return next
+                      })
+                      return
+                    }
+                    const tpl = templateById.get(tplId)
+                    if (!tpl) return
+                    if (tpl.days.length === 1) {
+                      // Auto-select the only day
+                      setDays((prev) => ({ ...prev, [i]: tpl.days[0].id }))
+                      setPendingTemplate((prev) => {
+                        const next = { ...prev }
+                        delete next[i]
+                        return next
+                      })
+                    } else {
+                      // Clear day assignment and set pending template
+                      setDays((prev) => ({ ...prev, [i]: null }))
+                      setPendingTemplate((prev) => ({ ...prev, [i]: tplId }))
+                    }
+                  }}
                   className="w-full text-sm"
                   style={inputStyle()}
                 >
                   <option value="">— Rest Day —</option>
                   {templates.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name}
+                      {t.name}{t.days.length > 1 ? ` (${t.days.length} days)` : ''}
                     </option>
                   ))}
                 </select>
-                {tpl && (
-                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-hint)' }}>
-                    {tpl.exerciseCount} {tpl.exerciseCount === 1 ? 'exercise' : 'exercises'}
-                  </p>
+
+                {/* Step 2: pick specific day (only for multi-day templates) */}
+                {resolvedTemplate && resolvedTemplate.days.length > 1 && (
+                  <select
+                    value={assignedDayId ?? ''}
+                    onChange={(e) => {
+                      const dayId = e.target.value || null
+                      setDays((prev) => ({ ...prev, [i]: dayId }))
+                    }}
+                    className="w-full text-sm"
+                    style={{ ...inputStyle(), borderColor: 'var(--color-accent)' }}
+                  >
+                    <option value="">— Pick a workout day —</option>
+                    {resolvedTemplate.days.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.label} · {d.exerciseCount} {d.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                      </option>
+                    ))}
+                  </select>
                 )}
+
+                {/* Summary line */}
+                {assignedDayId && resolvedTemplate && (() => {
+                  const day = resolvedTemplate.days.find((d) => d.id === assignedDayId)
+                  if (!day) return null
+                  return (
+                    <p className="text-xs" style={{ color: 'var(--color-text-hint)' }}>
+                      {day.exerciseCount} {day.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                    </p>
+                  )
+                })()}
               </div>
             </div>
           )

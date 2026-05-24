@@ -11,7 +11,8 @@ function adminClient() {
 }
 
 export type TodayTemplate = {
-  templateId: string
+  templateDayId: string
+  templateDayLabel: string
   templateName: string
   exerciseCount: number
   muscleGroups: string[]
@@ -97,10 +98,10 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
   const admin = adminClient()
   const today = getTodayDayOfWeek()
 
-  // Fetch program with all day-of-week entries in one query (max 7 rows)
+  // Fetch active program with all program days
   const { data: program } = await admin
     .from('workout_programs')
-    .select('id, workout_program_days(template_id, day_of_week)')
+    .select('id, workout_program_days(template_day_id, day_of_week)')
     .eq('client_id', clientId)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
@@ -109,21 +110,26 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
 
   if (!program) return null
 
-  const days = (program.workout_program_days as { template_id: string | null; day_of_week: number }[] | undefined) ?? []
-  const templateId = days.find((d) => d.day_of_week === today)?.template_id
-  if (!templateId) return null
+  const days = (program.workout_program_days as { template_day_id: string | null; day_of_week: number }[] | undefined) ?? []
+  const templateDayId = days.find((d) => d.day_of_week === today)?.template_day_id
+  if (!templateDayId) return null
 
-  // Fetch template name and exercises in one query
-  const { data: template } = await admin
-    .from('workout_templates')
-    .select('id, name, workout_template_exercises(exercises(name, muscle_group))')
-    .eq('id', templateId)
+  // Fetch the day with its exercises and parent template name
+  const { data: day } = await admin
+    .from('workout_template_days')
+    .select(`
+      id, label,
+      workout_templates(name),
+      workout_template_exercises(exercises(name, muscle_group))
+    `)
+    .eq('id', templateDayId)
     .maybeSingle()
 
-  if (!template) return null
+  if (!day) return null
 
+  const tpl = day.workout_templates as unknown as { name: string } | null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const exRows = (template.workout_template_exercises as unknown as { exercises: any }[]) ?? []
+  const exRows = (day.workout_template_exercises as unknown as { exercises: any }[]) ?? []
   const muscleSet = new Set<string>()
   const names: string[] = []
   for (const r of exRows) {
@@ -133,28 +139,32 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
   }
 
   return {
-    templateId: template.id,
-    templateName: template.name,
+    templateDayId: day.id,
+    templateDayLabel: day.label,
+    templateName: tpl?.name ?? day.label,
     exerciseCount: exRows.length,
     muscleGroups: Array.from(muscleSet),
     exerciseNames: names,
   }
 }
 
-export async function getTemplateWithExercises(templateId: string): Promise<TemplateWithExercises> {
+export async function getTemplateDayWithExercises(templateDayId: string): Promise<TemplateWithExercises> {
   const admin = adminClient()
-  const { data: tpl, error } = await admin
-    .from('workout_templates')
+  const { data: day, error } = await admin
+    .from('workout_template_days')
     .select(`
-      id, name,
+      id, label,
+      workout_templates(name),
       workout_template_exercises(id, exercise_id, sort_order, target_sets, target_reps, rest_seconds, notes, exercises(name, muscle_group))
     `)
-    .eq('id', templateId)
+    .eq('id', templateDayId)
     .single()
-  if (error || !tpl) throw new Error(error?.message ?? 'Template not found')
+  if (error || !day) throw new Error(error?.message ?? 'Template day not found')
+
+  const tpl = day.workout_templates as unknown as { name: string } | null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = ((tpl.workout_template_exercises as unknown as any[]) ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order)
+  const rows = ((day.workout_template_exercises as unknown as any[]) ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const exercises: TemplateExercise[] = rows.map((r: any) => {
@@ -171,19 +181,19 @@ export async function getTemplateWithExercises(templateId: string): Promise<Temp
     }
   })
 
-  return { id: tpl.id, name: tpl.name, exercises }
+  return { id: day.id, name: tpl?.name ? `${tpl.name} — ${day.label}` : day.label, exercises }
 }
 
-export async function getLastSessionForTemplate(
+export async function getLastSessionForTemplateDay(
   clientId: string,
-  templateId: string
+  templateDayId: string
 ): Promise<LastSession | null> {
   const admin = adminClient()
   const { data: session } = await admin
     .from('workout_sessions')
     .select('id, performed_at')
     .eq('client_id', clientId)
-    .eq('template_id', templateId)
+    .eq('template_day_id', templateDayId)
     .order('performed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -208,10 +218,89 @@ export async function getLastSessionForTemplate(
   }
 }
 
+export type ProgramWorkoutDay = {
+  templateDayId: string
+  label: string
+  templateName: string
+  exerciseCount: number
+  muscleGroups: string[]
+}
+
+export async function getProgramWorkoutDays(clientId: string): Promise<ProgramWorkoutDay[]> {
+  const admin = adminClient()
+
+  const { data: program } = await admin
+    .from('workout_programs')
+    .select('id, workout_program_days(template_day_id)')
+    .eq('client_id', clientId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!program) return []
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const days = (program.workout_program_days as any[] ?? [])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dayIds = days.map((d: any) => d.template_day_id).filter(Boolean)
+  if (dayIds.length === 0) return []
+
+  const { data: dayRows } = await admin
+    .from('workout_template_days')
+    .select(`
+      id, label,
+      workout_templates(name),
+      workout_template_exercises(exercises(muscle_group))
+    `)
+    .in('id', dayIds)
+
+  return (dayRows ?? []).map((d) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const t = d.workout_templates as unknown as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const exRows = (d.workout_template_exercises as unknown as any[]) ?? []
+    const muscleSet = new Set<string>()
+    for (const r of exRows) {
+      const ex = Array.isArray(r.exercises) ? r.exercises[0] : r.exercises
+      if (ex?.muscle_group) muscleSet.add(ex.muscle_group)
+    }
+    return {
+      templateDayId: d.id,
+      label: d.label,
+      templateName: t?.name ?? '',
+      exerciseCount: exRows.length,
+      muscleGroups: Array.from(muscleSet),
+    }
+  })
+}
+
+export type LibraryExercise = {
+  id: string
+  name: string
+  muscleGroup: string
+  equipment: string
+}
+
+export async function getExerciseLibraryForClient(workspaceId: string): Promise<LibraryExercise[]> {
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('exercises')
+    .select('id, name, muscle_group, equipment')
+    .or(`workspace_id.is.null,workspace_id.eq.${workspaceId}`)
+    .order('muscle_group', { ascending: true })
+    .order('name', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((e) => ({
+    id: e.id, name: e.name,
+    muscleGroup: e.muscle_group, equipment: e.equipment,
+  }))
+}
+
 export async function saveWorkoutSession(payload: {
   clientId: string
   workspaceId: string
-  templateId: string
+  templateDayId: string | null
   templateName: string
   notes: string
   durationMinutes: number
@@ -232,7 +321,7 @@ export async function saveWorkoutSession(payload: {
     .insert({
       client_id: payload.clientId,
       workspace_id: payload.workspaceId,
-      template_id: payload.templateId,
+      template_day_id: payload.templateDayId,
       name: payload.templateName,
       notes: payload.notes ? payload.notes : null,
       duration_minutes: payload.durationMinutes,

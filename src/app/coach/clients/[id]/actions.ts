@@ -235,14 +235,14 @@ export async function getWorkoutCompliance(
       .maybeSingle(),
     admin
       .from('workout_programs')
-      .select('id, workout_program_days(id, template_id)')
+      .select('id, workout_program_days(id, template_day_id)')
       .eq('client_id', clientId)
       .eq('is_active', true)
       .maybeSingle(),
   ])
 
-  const programDays = (programRes.data as { id: string; workout_program_days: { id: string; template_id: string | null }[] } | null)?.workout_program_days ?? []
-  const targetPerWeek = programDays.filter((d) => d.template_id !== null).length
+  const programDays = (programRes.data as { id: string; workout_program_days: { id: string; template_day_id: string | null }[] } | null)?.workout_program_days ?? []
+  const targetPerWeek = programDays.filter((d) => d.template_day_id !== null).length
 
   return {
     sessionsThisWeek: weekRes.count ?? 0,

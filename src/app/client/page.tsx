@@ -553,7 +553,7 @@ function WorkoutCard({ today, estimatedDuration }: { today: TodayTemplate | null
 
       {/* CTA button */}
       <Link
-        href={`/client/workouts/session?templateId=${encodeURIComponent(today.templateId)}&templateName=${encodeURIComponent(today.templateName)}`}
+        href={`/client/workouts/session?templateDayId=${encodeURIComponent(today.templateDayId)}&templateName=${encodeURIComponent(today.templateName)}`}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
           backgroundColor: 'var(--color-accent)', color: '#fff',

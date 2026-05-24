@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   LogOut, Bell, Moon, Shield, User, Camera, Eye, EyeOff, Check,
   ChevronDown, ChevronUp, Globe,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { updateCoachProfile, uploadCoachAvatar } from './actions'
+import { updateCoachProfile, uploadCoachAvatar, signOut } from './actions'
 import { toast } from 'sonner'
 import type { CoachClientRow } from './page'
 
@@ -502,7 +501,6 @@ export default function SettingsClient({
   userId, email, profileId, fullName, avatarUrl, role,
   workspaceName, workspacePlan, clients,
 }: Props) {
-  const router = useRouter()
   const [openSection, setOpenSection] = useState<ActiveSection>(null)
   const [displayName, setDisplayName] = useState(fullName)
   const [displayAvatar, setDisplayAvatar] = useState(avatarUrl)
@@ -527,12 +525,6 @@ export default function SettingsClient({
 
   function toggleSection(s: ActiveSection) {
     setOpenSection((prev) => (prev === s ? null : s))
-  }
-
-  async function handleSignOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
   }
 
   const initials = getInitials(displayName || 'Coach')
@@ -858,23 +850,24 @@ export default function SettingsClient({
       </div>
 
       {/* ── Sign out ── */}
-      <button
-        type="button"
-        onClick={handleSignOut}
-        style={{
-          width: '100%',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          padding: '14px',
-          backgroundColor: 'rgba(239,68,68,0.08)',
-          border: '1px solid rgba(239,68,68,0.2)',
-          borderRadius: 14,
-          cursor: 'pointer',
-          fontSize: 15, fontWeight: 600, color: '#ef4444',
-        }}
-      >
-        <LogOut size={17} />
-        Sign out
-      </button>
+      <form action={signOut}>
+        <button
+          type="submit"
+          style={{
+            width: '100%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            padding: '14px',
+            backgroundColor: 'rgba(239,68,68,0.08)',
+            border: '1px solid rgba(239,68,68,0.2)',
+            borderRadius: 14,
+            cursor: 'pointer',
+            fontSize: 15, fontWeight: 600, color: '#ef4444',
+          }}
+        >
+          <LogOut size={17} />
+          Sign out
+        </button>
+      </form>
     </div>
   )
 }

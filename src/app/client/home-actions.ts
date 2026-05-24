@@ -61,7 +61,7 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
       .gte('performed_at', weekStart),
     admin
       .from('workout_programs')
-      .select('id, workout_program_days(id, template_id)')
+      .select('id, workout_program_days(id, template_day_id)')
       .eq('client_id', clientId)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
@@ -104,8 +104,8 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
   const onboardingComplete = !!(clientRow.data as { onboarding_completed_at: string | null } | null)?.onboarding_completed_at
   const workoutsLogged = workoutsLoggedResult.count ?? 0
 
-  const programDays = (activeProgramResult.data as { id: string; workout_program_days: { id: string; template_id: string | null }[] } | null)?.workout_program_days ?? []
-  const workoutsTarget = programDays.filter((d) => d.template_id !== null).length
+  const programDays = (activeProgramResult.data as { id: string; workout_program_days: { id: string; template_day_id: string | null }[] } | null)?.workout_program_days ?? []
+  const workoutsTarget = programDays.filter((d) => d.template_day_id !== null).length
 
   let caloriesAvg: number | null = null
   let caloriesTrend: 'up' | 'down' | null = null

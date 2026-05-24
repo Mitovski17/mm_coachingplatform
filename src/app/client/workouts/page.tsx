@@ -39,5 +39,5 @@ export default async function WorkoutsPage() {
     getWorkoutHistory(client.id),
   ])
 
-  return <WorkoutsClient todayTemplate={todayTemplate} history={history} />
+  return <WorkoutsClient todayTemplate={todayTemplate} history={history} clientId={client.id} />
 }

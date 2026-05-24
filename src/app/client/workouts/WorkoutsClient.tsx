@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ChevronRight, Dumbbell } from 'lucide-react'
-import type { TodayTemplate, HistorySession } from './actions'
+import type { TodayTemplate, HistorySession, ProgramWorkoutDay } from './actions'
+import { getProgramWorkoutDays } from './actions'
 
 const MUSCLE_COLORS: Record<string, string> = {
   chest: '#ef4444',
@@ -25,11 +27,28 @@ const MUSCLE_COLORS: Record<string, string> = {
 export default function WorkoutsClient({
   todayTemplate,
   history,
+  clientId,
 }: {
   todayTemplate: TodayTemplate | null
   history: HistorySession[]
+  clientId: string
 }) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<'today' | 'history'>('today')
+
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerDays, setPickerDays] = useState<ProgramWorkoutDay[]>([])
+  const [pickerLoading, setPickerLoading] = useState(false)
+
+  async function openPicker() {
+    setPickerOpen(true)
+    if (pickerDays.length === 0) {
+      setPickerLoading(true)
+      const days = await getProgramWorkoutDays(clientId)
+      setPickerDays(days)
+      setPickerLoading(false)
+    }
+  }
 
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
@@ -90,7 +109,27 @@ export default function WorkoutsClient({
 
       {activeTab === 'today' && (
         <div style={{ padding: '16px 16px 16px' }}>
-          <TodayWorkoutCard today={todayTemplate} />
+          <TodayWorkoutCard today={todayTemplate} onSwitch={openPicker} />
+
+          {/* Custom Workout button — always visible below the card */}
+          <button
+            type="button"
+            onClick={() => router.push('/client/workouts/session?custom=true')}
+            style={{
+              marginTop: 10,
+              width: '100%',
+              padding: '11px',
+              backgroundColor: 'transparent',
+              border: '1px dashed var(--color-border)',
+              borderRadius: 12,
+              color: 'var(--color-text-hint)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            + Custom Workout
+          </button>
         </div>
       )}
 
@@ -99,11 +138,99 @@ export default function WorkoutsClient({
           <HistoryList sessions={history} />
         </div>
       )}
+
+      {/* Workout picker bottom sheet */}
+      {pickerOpen && (
+        <div
+          onClick={() => setPickerOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 50,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--color-surface-1)',
+              borderRadius: '20px 20px 0 0',
+              padding: '20px 20px 40px',
+              maxHeight: '75vh',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+                Choose Workout
+              </p>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--color-text-hint)', cursor: 'pointer', fontSize: 20, padding: 4 }}
+              >
+                ×
+              </button>
+            </div>
+
+            {pickerLoading ? (
+              <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 14, padding: '24px 0' }}>
+                Loading…
+              </p>
+            ) : pickerDays.length === 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 14, padding: '24px 0' }}>
+                No workouts in your program yet.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {pickerDays.map((day) => (
+                  <Link
+                    key={day.templateDayId}
+                    href={`/client/workouts/session?templateDayId=${encodeURIComponent(day.templateDayId)}&templateName=${encodeURIComponent(day.label)}`}
+                    onClick={() => setPickerOpen(false)}
+                    style={{
+                      display: 'block',
+                      padding: '14px 16px',
+                      backgroundColor: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 14,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
+                      {day.label}
+                    </p>
+                    <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '0 0 8px' }}>
+                      {day.templateName} · {day.exerciseCount} {day.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                    </p>
+                    {day.muscleGroups.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {day.muscleGroups.map((g) => (
+                          <span
+                            key={g}
+                            style={{
+                              fontSize: 10, fontWeight: 600, padding: '2px 8px',
+                              borderRadius: 999, textTransform: 'capitalize',
+                              backgroundColor: `${MUSCLE_COLORS[g] ?? '#6b7280'}20`,
+                              color: MUSCLE_COLORS[g] ?? '#9ca3af',
+                            }}
+                          >
+                            {g}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function TodayWorkoutCard({ today }: { today: TodayTemplate | null }) {
+function TodayWorkoutCard({ today, onSwitch }: { today: TodayTemplate | null; onSwitch: () => void }) {
   if (!today) {
     return (
       <div
@@ -132,6 +259,24 @@ function TodayWorkoutCard({ today }: { today: TodayTemplate | null }) {
         <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
           Recovery is part of the program.
         </p>
+        <button
+          type="button"
+          onClick={onSwitch}
+          style={{
+            marginTop: 12,
+            width: '100%',
+            padding: '11px',
+            backgroundColor: 'transparent',
+            border: '1px solid var(--color-border)',
+            borderRadius: 12,
+            color: 'var(--color-text-muted)',
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          Train anyway →
+        </button>
       </div>
     )
   }
@@ -192,7 +337,7 @@ function TodayWorkoutCard({ today }: { today: TodayTemplate | null }) {
         </div>
       )}
       <Link
-        href={`/client/workouts/session?templateId=${encodeURIComponent(today.templateId)}&templateName=${encodeURIComponent(today.templateName)}`}
+        href={`/client/workouts/session?templateDayId=${encodeURIComponent(today.templateDayId)}&templateName=${encodeURIComponent(today.templateName)}`}
         style={{
           display: 'block',
           textAlign: 'center',
@@ -207,6 +352,25 @@ function TodayWorkoutCard({ today }: { today: TodayTemplate | null }) {
       >
         Start Workout
       </Link>
+      {/* Switch workout link */}
+      <button
+        type="button"
+        onClick={onSwitch}
+        style={{
+          marginTop: 10,
+          width: '100%',
+          padding: '9px',
+          backgroundColor: 'transparent',
+          border: 'none',
+          color: 'var(--color-text-hint)',
+          fontSize: 13,
+          fontWeight: 500,
+          cursor: 'pointer',
+          textAlign: 'center',
+        }}
+      >
+        Switch workout
+      </button>
     </div>
   )
 }

@@ -2,15 +2,17 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
   getClientId,
-  getTemplateWithExercises,
-  getLastSessionForTemplate,
+  getTemplateDayWithExercises,
+  getLastSessionForTemplateDay,
+  getExerciseLibraryForClient,
   saveWorkoutSession,
   type TemplateExercise,
   type LastSession,
+  type LibraryExercise,
 } from '../actions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,6 +62,12 @@ const MUSCLE_COLORS: Record<string, string> = {
   abductors: '#8b5cf6', adductors: '#d946ef',
 }
 
+const MUSCLE_GROUP_ORDER = [
+  'chest', 'back', 'shoulders', 'biceps', 'triceps',
+  'quads', 'hamstrings', 'glutes', 'calves', 'abductors', 'adductors',
+  'core', 'cardio',
+]
+
 // ─── Confirm modal ────────────────────────────────────────────────────────────
 
 function ConfirmModal({ modal, onClose }: { modal: ModalState; onClose: () => void }) {
@@ -103,6 +111,145 @@ function ConfirmModal({ modal, onClose }: { modal: ModalState; onClose: () => vo
   )
 }
 
+// ─── Exercise picker sheet (custom mode) ─────────────────────────────────────
+
+function ExercisePicker({
+  library,
+  onSelect,
+  onClose,
+}: {
+  library: LibraryExercise[]
+  onSelect: (ex: LibraryExercise) => void
+  onClose: () => void
+}) {
+  const [search, setSearch] = useState('')
+
+  const grouped = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    const filtered = q
+      ? library.filter((e) => e.name.toLowerCase().includes(q) || e.muscleGroup.toLowerCase().includes(q))
+      : library
+
+    const byGroup: Record<string, LibraryExercise[]> = {}
+    for (const ex of filtered) {
+      const g = ex.muscleGroup
+      if (!byGroup[g]) byGroup[g] = []
+      byGroup[g].push(ex)
+    }
+
+    const ordered: Array<[string, LibraryExercise[]]> = []
+    for (const g of MUSCLE_GROUP_ORDER) {
+      if (byGroup[g]) ordered.push([g, byGroup[g]])
+    }
+    for (const g of Object.keys(byGroup)) {
+      if (!MUSCLE_GROUP_ORDER.includes(g)) ordered.push([g, byGroup[g]])
+    }
+    return ordered
+  }, [library, search])
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 60,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: 'var(--color-surface-1)',
+          borderRadius: '20px 20px 0 0',
+          padding: '20px 20px 40px',
+          maxHeight: '80vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0 }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+            Add Exercise
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: 'var(--color-text-hint)', cursor: 'pointer', fontSize: 20, padding: 4 }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Search */}
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search exercises…"
+          autoFocus
+          style={{
+            width: '100%', padding: '10px 14px', marginBottom: 14, flexShrink: 0,
+            backgroundColor: 'var(--color-surface-2)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 12, color: 'var(--color-text-primary)',
+            fontSize: 14, outline: 'none', fontFamily: 'inherit',
+            boxSizing: 'border-box',
+          }}
+        />
+
+        {/* Exercise list */}
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          {grouped.length === 0 ? (
+            <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 14, padding: '24px 0' }}>
+              No exercises found.
+            </p>
+          ) : (
+            grouped.map(([group, exList]) => (
+              <div key={group} style={{ marginBottom: 16 }}>
+                <p style={{
+                  fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+                  color: MUSCLE_COLORS[group] ?? 'var(--color-text-hint)',
+                  margin: '0 0 6px', padding: '0 2px',
+                }}>
+                  {group}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {exList.map((ex) => (
+                    <button
+                      key={ex.id}
+                      type="button"
+                      onClick={() => { onSelect(ex); onClose() }}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '11px 14px',
+                        backgroundColor: 'var(--color-surface-2)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                          {ex.name}
+                        </p>
+                        <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>
+                          {ex.equipment}
+                        </p>
+                      </div>
+                      <Plus size={16} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
 export default function SessionPage() {
@@ -122,18 +269,23 @@ function Spinner() {
 function SessionInner() {
   const router  = useRouter()
   const params  = useSearchParams()
-  const templateId        = params.get('templateId') ?? ''
+  const isCustom      = params.get('custom') === 'true'
+  const templateDayId = params.get('templateDayId') ?? ''
   const templateNameParam = params.get('templateName') ?? ''
 
-  const [loading,      setLoading]  = useState(true)
-  const [loadError,    setError]    = useState<string | null>(null)
-  const [clientInfo,   setClient]   = useState<{ id: string; workspace_id: string } | null>(null)
-  const [templateName, setTName]    = useState(templateNameParam)
-  const [exercises,    setExercises]= useState<ExerciseState[]>([])
-  const [sessionNotes, setNotes]    = useState('')
-  const [saving,       setSaving]   = useState(false)
-  const [modal,        setModal]    = useState<ModalState | null>(null)
-  const [quitHover,    setQuitHover]= useState(false)
+  const [loading,       setLoading]   = useState(true)
+  const [loadError,     setError]     = useState<string | null>(null)
+  const [clientInfo,    setClient]    = useState<{ id: string; workspace_id: string } | null>(null)
+  const [templateName,  setTName]     = useState(isCustom ? 'Custom Workout' : templateNameParam)
+  const [exercises,     setExercises] = useState<ExerciseState[]>([])
+  const [sessionNotes,  setNotes]     = useState('')
+  const [saving,        setSaving]    = useState(false)
+  const [modal,         setModal]     = useState<ModalState | null>(null)
+  const [quitHover,     setQuitHover] = useState(false)
+
+  // Custom mode: exercise library + picker state
+  const [exerciseLibrary,   setExerciseLibrary]   = useState<LibraryExercise[]>([])
+  const [pickerOpen,        setPickerOpen]         = useState(false)
 
   const startRef = useRef<Date>(new Date())
   const [elapsed, setElapsed] = useState(0)
@@ -145,11 +297,7 @@ function SessionInner() {
     let cancelled = false
     async function init() {
       try {
-        if (!templateId) throw new Error('Missing templateId')
-
-        // Kick off template fetch immediately — it doesn't need the client id
-        const templatePromise = getTemplateWithExercises(templateId)
-
+        // Get email from cookie (dev) or supabase auth
         let email: string | null = null
         const mc = document.cookie.split('; ').find((r) => r.startsWith('dev_mock_email='))?.split('=')[1]
         if (mc) email = decodeURIComponent(mc)
@@ -162,15 +310,31 @@ function SessionInner() {
 
         const client = await getClientId(email)
         if (!client) { router.replace('/client'); return }
-
-        // By now template may already be done; last session runs in parallel with whatever remains
-        const [template, last] = await Promise.all([
-          templatePromise,
-          getLastSessionForTemplate(client.id, templateId),
-        ])
         if (cancelled) return
 
         setClient(client)
+
+        if (isCustom) {
+          // Custom mode: load exercise library, start with empty exercises
+          setTName('Custom Workout')
+          const library = await getExerciseLibraryForClient(client.workspace_id)
+          if (!cancelled) {
+            setExerciseLibrary(library)
+            setExercises([])
+            setLoading(false)
+          }
+          return
+        }
+
+        // Template mode
+        if (!templateDayId) throw new Error('Missing templateDayId')
+        const templatePromise = getTemplateDayWithExercises(templateDayId)
+        const [template, last] = await Promise.all([
+          templatePromise,
+          getLastSessionForTemplateDay(client.id, templateDayId),
+        ])
+        if (cancelled) return
+
         setTName(template.name)
         setExercises(buildStates(template.exercises, last))
         setLoading(false)
@@ -181,7 +345,7 @@ function SessionInner() {
     init()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templateId])
+  }, [isCustom, templateDayId])
 
   // ── Elapsed timer ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -239,6 +403,27 @@ function SessionInner() {
     }))
   }, [])
 
+  // ── Add exercise from library (custom mode) ───────────────────────────────
+  const addExerciseFromLibrary = useCallback((ex: LibraryExercise) => {
+    const newState: ExerciseState = {
+      exerciseId: ex.id,
+      exerciseName: ex.name,
+      muscleGroup: ex.muscleGroup,
+      targetSets: 3,
+      targetReps: '10',
+      restSeconds: 90,
+      notes: null,
+      previousSets: [],
+      currentSets: [
+        { setNumber: 1, weightKg: '', reps: '', done: false },
+        { setNumber: 2, weightKg: '', reps: '', done: false },
+        { setNumber: 3, weightKg: '', reps: '', done: false },
+      ],
+      overloadIndicator: null,
+    }
+    setExercises((prev) => [...prev, newState])
+  }, [])
+
   // ── Progress ─────────────────────────────────────────────────────────────
   const completedExercises = useMemo(() =>
     exercises.filter((ex) => ex.currentSets.length > 0 && ex.currentSets.every((s) => s.done)).length,
@@ -253,7 +438,9 @@ function SessionInner() {
       await saveWorkoutSession({
         clientId: clientInfo.id,
         workspaceId: clientInfo.workspace_id,
-        templateId, templateName, notes: sessionNotes,
+        templateDayId: isCustom ? null : (templateDayId || null),
+        templateName,
+        notes: sessionNotes,
         durationMinutes: Math.max(1, Math.round((Date.now() - startRef.current.getTime()) / 60000)),
         performedAt: new Date().toISOString(),
         exercises: exercises.map((ex) => ({
@@ -276,7 +463,16 @@ function SessionInner() {
     const totalSets = exercises.reduce((a, ex) => a + ex.currentSets.length, 0)
     const completedSets = exercises.reduce((a, ex) => a + ex.currentSets.filter((s) => s.done).length, 0)
 
-    if (totalSets > 0 && completedSets === totalSets) {
+    if (totalSets === 0) {
+      setModal({
+        title: 'No sets logged',
+        body: 'Add at least one exercise and mark sets before finishing.',
+        onConfirm: () => { /* noop */ },
+      })
+      return
+    }
+
+    if (completedSets === totalSets) {
       handleSaveSession()
     } else {
       setModal({
@@ -354,6 +550,20 @@ function SessionInner() {
 
       {/* ── Exercise cards ── */}
       <div style={{ padding: '0 16px' }}>
+        {exercises.length === 0 && isCustom && (
+          <div style={{
+            padding: '32px 20px',
+            textAlign: 'center',
+            color: 'var(--color-text-hint)',
+            fontSize: 14,
+            border: '1px dashed var(--color-border)',
+            borderRadius: 16,
+            marginBottom: 12,
+          }}>
+            No exercises yet. Tap &quot;Add Exercise&quot; to get started.
+          </div>
+        )}
+
         {exercises.map((ex) => (
           <ExerciseCard
             key={ex.exerciseId}
@@ -365,6 +575,26 @@ function SessionInner() {
             onSkipRest={() => setRest((r) => ({ ...r, active: false, secondsLeft: 0 }))}
           />
         ))}
+
+        {/* Add Exercise button (custom mode) */}
+        {isCustom && (
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            style={{
+              width: '100%', padding: '13px 0', marginBottom: 12,
+              backgroundColor: 'transparent',
+              border: '1px dashed var(--color-accent)',
+              borderRadius: 14,
+              color: 'var(--color-accent)',
+              fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          >
+            <Plus size={16} />
+            Add Exercise
+          </button>
+        )}
 
         {/* Session notes */}
         <div style={{ marginTop: 4, marginBottom: 16 }}>
@@ -389,6 +619,15 @@ function SessionInner() {
 
       {/* ── Confirm modal ── */}
       {modal && <ConfirmModal modal={modal} onClose={() => setModal(null)} />}
+
+      {/* ── Exercise picker (custom mode) ── */}
+      {pickerOpen && (
+        <ExercisePicker
+          library={exerciseLibrary}
+          onSelect={addExerciseFromLibrary}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   )
 }

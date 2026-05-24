@@ -8,7 +8,7 @@ import {
   upsertTemplate,
   createCustomExercise,
   type Exercise,
-  type TemplateWithExercises,
+  type TemplateWithDays,
 } from '../actions'
 
 type SetRow = {
@@ -30,6 +30,14 @@ type ExerciseRow = {
   sets: SetRow[]
 }
 
+type DayState = {
+  tempId: string
+  id?: string
+  label: string
+  notes: string
+  exercises: ExerciseRow[]
+}
+
 function makeDefaultSets(count = 3): SetRow[] {
   return Array.from({ length: count }, (_, i) => ({
     tempId: crypto.randomUUID(),
@@ -39,6 +47,15 @@ function makeDefaultSets(count = 3): SetRow[] {
     rpe: '',
     notes: '',
   }))
+}
+
+function makeDefaultDay(index: number): DayState {
+  return {
+    tempId: crypto.randomUUID(),
+    label: `Day ${index + 1}`,
+    notes: '',
+    exercises: [],
+  }
 }
 
 const MUSCLE_GROUP_ORDER = [
@@ -74,33 +91,45 @@ export default function TemplateEditor({
 }: {
   workspaceId: string
   allExercises: Exercise[]
-  initialData?: TemplateWithExercises
+  initialData?: TemplateWithDays
 }) {
   const router = useRouter()
 
   const [name, setName] = useState(initialData?.name ?? '')
   const [notes, setNotes] = useState(initialData?.notes ?? '')
-  const [exercises, setExercises] = useState<ExerciseRow[]>(
-    () =>
-      initialData?.exercises.map((ex) => ({
+
+  const [days, setDays] = useState<DayState[]>(() => {
+    if (initialData && initialData.days.length > 0) {
+      return initialData.days.map((d) => ({
         tempId: crypto.randomUUID(),
-        exerciseId: ex.exerciseId,
-        exerciseName: ex.exerciseName,
-        muscleGroup: ex.muscleGroup,
-        restSeconds: ex.restSeconds,
-        notes: ex.notes ?? '',
-        sets: ex.sets.length > 0
-          ? ex.sets.map((s) => ({
-              tempId: crypto.randomUUID(),
-              setNumber: s.setNumber,
-              targetReps: s.targetReps,
-              targetWeight: s.targetWeight ?? '',
-              rpe: s.rpe ?? '',
-              notes: s.notes ?? '',
-            }))
-          : makeDefaultSets(ex.targetSets || 3),
-      })) ?? []
-  )
+        id: d.id,
+        label: d.label,
+        notes: d.notes ?? '',
+        exercises: d.exercises.map((ex) => ({
+          tempId: crypto.randomUUID(),
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exerciseName,
+          muscleGroup: ex.muscleGroup,
+          restSeconds: ex.restSeconds,
+          notes: ex.notes ?? '',
+          sets: ex.sets.length > 0
+            ? ex.sets.map((s) => ({
+                tempId: crypto.randomUUID(),
+                setNumber: s.setNumber,
+                targetReps: s.targetReps,
+                targetWeight: s.targetWeight ?? '',
+                rpe: s.rpe ?? '',
+                notes: s.notes ?? '',
+              }))
+            : makeDefaultSets(ex.targetSets || 3),
+        })),
+      }))
+    }
+    return [makeDefaultDay(0)]
+  })
+
+  const [activeDayIndex, setActiveDayIndex] = useState(0)
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exerciseList, setExerciseList] = useState<Exercise[]>(allExercises)
@@ -110,6 +139,9 @@ export default function TemplateEditor({
   const [aiGenerated, setAiGenerated] = useState(false)
   const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
   const [customModalForTempId, setCustomModalForTempId] = useState<string | null>(null)
+
+  const activeDay = days[activeDayIndex] ?? days[0]
+  const exercises = activeDay?.exercises ?? []
 
   const exercisesByGroup = useMemo(() => {
     const grouped: Record<string, Exercise[]> = {}
@@ -142,8 +174,7 @@ export default function TemplateEditor({
       counts[g] = (counts[g] || 0) + ex.sets.length
     }
     const total = Object.values(counts).reduce((a, b) => a + b, 0)
-    const ordered = [...MUSCLE_GROUP_ORDER, 'glutes']
-    return ordered
+    return MUSCLE_GROUP_ORDER
       .filter((g) => counts[g] > 0)
       .map((g) => ({
         group: g,
@@ -154,8 +185,40 @@ export default function TemplateEditor({
 
   const totalSets = useMemo(() => exercises.reduce((acc, ex) => acc + ex.sets.length, 0), [exercises])
 
+  // ── Day mutations ────────────────────────────────────────────────────────────
+
+  const addDay = () => {
+    const newDay = makeDefaultDay(days.length)
+    setDays((prev) => [...prev, newDay])
+    setActiveDayIndex(days.length)
+  }
+
+  const removeDay = (idx: number) => {
+    if (days.length <= 1) return
+    setDays((prev) => prev.filter((_, i) => i !== idx))
+    setActiveDayIndex((prev) => (prev >= idx && prev > 0 ? prev - 1 : prev))
+  }
+
+  const updateDayLabel = (idx: number, label: string) => {
+    setDays((prev) => prev.map((d, i) => (i === idx ? { ...d, label } : d)))
+  }
+
+  const updateDayNotes = (idx: number, notes: string) => {
+    setDays((prev) => prev.map((d, i) => (i === idx ? { ...d, notes } : d)))
+  }
+
+  // ── Exercise mutations (operate on active day) ───────────────────────────────
+
+  const setActiveDayExercises = (updater: (prev: ExerciseRow[]) => ExerciseRow[]) => {
+    setDays((prev) =>
+      prev.map((d, i) =>
+        i === activeDayIndex ? { ...d, exercises: updater(d.exercises) } : d
+      )
+    )
+  }
+
   const addExercise = () => {
-    setExercises((prev) => [
+    setActiveDayExercises((prev) => [
       ...prev,
       {
         tempId: crypto.randomUUID(),
@@ -170,7 +233,7 @@ export default function TemplateEditor({
   }
 
   const updateExercise = (tempId: string, patch: Partial<ExerciseRow>) => {
-    setExercises((prev) =>
+    setActiveDayExercises((prev) =>
       prev.map((ex) => (ex.tempId === tempId ? { ...ex, ...patch } : ex))
     )
   }
@@ -185,11 +248,11 @@ export default function TemplateEditor({
   }
 
   const removeExercise = (tempId: string) => {
-    setExercises((prev) => prev.filter((ex) => ex.tempId !== tempId))
+    setActiveDayExercises((prev) => prev.filter((ex) => ex.tempId !== tempId))
   }
 
   const moveExercise = (tempId: string, dir: -1 | 1) => {
-    setExercises((prev) => {
+    setActiveDayExercises((prev) => {
       const idx = prev.findIndex((ex) => ex.tempId === tempId)
       if (idx === -1) return prev
       const newIdx = idx + dir
@@ -202,7 +265,7 @@ export default function TemplateEditor({
   }
 
   const updateSet = (exTempId: string, setTempId: string, patch: Partial<SetRow>) => {
-    setExercises((prev) =>
+    setActiveDayExercises((prev) =>
       prev.map((ex) =>
         ex.tempId !== exTempId
           ? ex
@@ -215,7 +278,7 @@ export default function TemplateEditor({
   }
 
   const addSet = (exTempId: string) => {
-    setExercises((prev) =>
+    setActiveDayExercises((prev) =>
       prev.map((ex) => {
         if (ex.tempId !== exTempId) return ex
         const newSet: SetRow = {
@@ -232,7 +295,7 @@ export default function TemplateEditor({
   }
 
   const removeSet = (exTempId: string, setTempId: string) => {
-    setExercises((prev) =>
+    setActiveDayExercises((prev) =>
       prev.map((ex) => {
         if (ex.tempId !== exTempId) return ex
         const filtered = ex.sets.filter((s) => s.tempId !== setTempId)
@@ -244,7 +307,9 @@ export default function TemplateEditor({
     )
   }
 
-  function serializeCurrentTemplate() {
+  // ── AI generation ────────────────────────────────────────────────────────────
+
+  function serializeActiveDay() {
     return {
       name,
       notes,
@@ -275,13 +340,13 @@ export default function TemplateEditor({
         body: JSON.stringify({
           description: aiPrompt.trim(),
           workspace_id: workspaceId,
-          ...(aiGenerated ? { current_template: serializeCurrentTemplate() } : {}),
+          ...(aiGenerated ? { current_template: serializeActiveDay() } : {}),
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
-      if (data.name) setName(data.name)
-      if (data.notes) setNotes(data.notes)
+      if (data.name && !name) setName(data.name)
+      if (data.notes && !notes) setNotes(data.notes)
       const exerciseRows: ExerciseRow[] = (data.exercises ?? []).map(
         (ex: {
           exerciseId: string
@@ -313,7 +378,9 @@ export default function TemplateEditor({
           })),
         })
       )
-      setExercises(exerciseRows)
+      setDays((prev) =>
+        prev.map((d, i) => (i === activeDayIndex ? { ...d, exercises: exerciseRows } : d))
+      )
       setExerciseList((prev) => {
         const existingIds = new Set(prev.map((e) => e.id))
         const toAdd: Exercise[] = exerciseRows
@@ -336,17 +403,21 @@ export default function TemplateEditor({
     }
   }
 
+  // ── Save ─────────────────────────────────────────────────────────────────────
+
   const handleSave = async () => {
     setError(null)
     if (!name.trim()) {
       setError('Template name is required')
       return
     }
-    if (exercises.length === 0) {
-      setError('Add at least one exercise')
+    const hasExercises = days.some((d) => d.exercises.length > 0)
+    if (!hasExercises) {
+      setError('Add at least one exercise to any day')
       return
     }
-    if (exercises.some((ex) => !ex.exerciseId)) {
+    const hasUnselected = days.some((d) => d.exercises.some((ex) => !ex.exerciseId))
+    if (hasUnselected) {
       setError('Every exercise row must have an exercise selected')
       return
     }
@@ -357,17 +428,23 @@ export default function TemplateEditor({
         workspaceId,
         name: name.trim(),
         notes: notes.trim() ? notes.trim() : undefined,
-        exercises: exercises.map((ex, i) => ({
-          exerciseId: ex.exerciseId,
+        days: days.map((d, i) => ({
+          id: d.id,
+          label: d.label.trim() || `Day ${i + 1}`,
           sortOrder: i,
-          restSeconds: ex.restSeconds,
-          notes: ex.notes.trim() ? ex.notes.trim() : undefined,
-          sets: ex.sets.map((s) => ({
-            setNumber: s.setNumber,
-            targetReps: s.targetReps,
-            targetWeight: s.targetWeight.trim() || undefined,
-            rpe: s.rpe.trim() || undefined,
-            notes: s.notes.trim() || undefined,
+          notes: d.notes.trim() ? d.notes.trim() : undefined,
+          exercises: d.exercises.map((ex, j) => ({
+            exerciseId: ex.exerciseId,
+            sortOrder: j,
+            restSeconds: ex.restSeconds,
+            notes: ex.notes.trim() ? ex.notes.trim() : undefined,
+            sets: ex.sets.map((s) => ({
+              setNumber: s.setNumber,
+              targetReps: s.targetReps,
+              targetWeight: s.targetWeight.trim() || undefined,
+              rpe: s.rpe.trim() || undefined,
+              notes: s.notes.trim() || undefined,
+            })),
           })),
         })),
       })
@@ -480,11 +557,12 @@ export default function TemplateEditor({
         </div>
       </div>
 
-      {/* Two-column layout — fills viewport height below the header */}
+      {/* Two-column layout */}
       <div style={{ display: 'flex', height: 'calc(100vh - 53px)', overflow: 'hidden' }}>
         {/* Left: main editor */}
         <div className="no-scrollbar" style={{ flex: '0 0 55%', overflowY: 'auto', padding: '28px 32px 80px' }}>
-          {/* AI panel — initial generate or edit-with-ai button */}
+
+          {/* AI panel */}
           {!aiGenerated ? (
             <div
               style={{
@@ -499,6 +577,9 @@ export default function TemplateEditor({
                 <Sparkles size={14} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '0.02em' }}>
                   AI Assist
+                </span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-text-hint)', marginLeft: 4 }}>
+                  — generates exercises for the active day
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
@@ -612,7 +693,9 @@ export default function TemplateEditor({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <Sparkles size={15} style={{ color: 'var(--color-accent)' }} />
-                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Edit with AI</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                      Edit with AI — {activeDay?.label}
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -699,13 +782,13 @@ export default function TemplateEditor({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Upper A, Pull Day, Leg Day 1"
+              placeholder="e.g. Upper/Lower 4-Day Split"
               style={{ ...inputStyle(), width: '100%', fontSize: '1rem' }}
             />
           </div>
 
-          {/* Notes */}
-          <div style={{ marginBottom: 32 }}>
+          {/* Template notes */}
+          <div style={{ marginBottom: 28 }}>
             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-text-hint)', marginBottom: 6 }}>
               Notes (optional)
             </label>
@@ -718,10 +801,138 @@ export default function TemplateEditor({
             />
           </div>
 
+          {/* Day tabs */}
+          <div style={{ marginBottom: 20 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                overflowX: 'auto',
+                paddingBottom: 4,
+              }}
+              className="no-scrollbar"
+            >
+              {days.map((day, idx) => (
+                <div
+                  key={day.tempId}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '5px 10px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid',
+                    borderColor: activeDayIndex === idx ? 'var(--color-accent)' : 'var(--color-border)',
+                    backgroundColor: activeDayIndex === idx ? `var(--color-accent)22` : 'var(--color-surface-2)',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    transition: 'all 0.12s ease',
+                  }}
+                  onClick={() => setActiveDayIndex(idx)}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: activeDayIndex === idx ? 600 : 500,
+                      color: activeDayIndex === idx ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {day.label || `Day ${idx + 1}`}
+                  </span>
+                  {days.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); removeDay(idx) }}
+                      title={`Remove ${day.label}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: activeDayIndex === idx ? 'var(--color-accent)' : 'var(--color-text-hint)',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem',
+                        lineHeight: 1,
+                        padding: 0,
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addDay}
+                title="Add workout day"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px dashed var(--color-border)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-text-hint)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <Plus size={13} />
+              </button>
+            </div>
+          </div>
+
+          {/* Active day label + notes */}
+          {activeDay && (
+            <div
+              style={{
+                marginBottom: 20,
+                padding: '12px 14px',
+                backgroundColor: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+              }}
+            >
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 5 }}>
+                  Day label
+                </label>
+                <input
+                  type="text"
+                  value={activeDay.label}
+                  onChange={(e) => updateDayLabel(activeDayIndex, e.target.value)}
+                  placeholder={`Day ${activeDayIndex + 1}`}
+                  style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 5 }}>
+                  Day notes (optional)
+                </label>
+                <input
+                  type="text"
+                  value={activeDay.notes}
+                  onChange={(e) => updateDayNotes(activeDayIndex, e.target.value)}
+                  placeholder="e.g. Focus on mind-muscle connection"
+                  style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Exercises header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <h2 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-              Exercises
+              Exercises — {activeDay?.label || `Day ${activeDayIndex + 1}`}
             </h2>
             <button
               type="button"
@@ -1062,7 +1273,7 @@ export default function TemplateEditor({
           )}
         </div>
 
-        {/* Right: sidebar */}
+        {/* Right: sidebar — stats for active day */}
         <div
           className="no-scrollbar"
           style={{
@@ -1073,6 +1284,11 @@ export default function TemplateEditor({
             backgroundColor: 'var(--color-surface-1)',
           }}
         >
+          {/* Day indicator */}
+          <p style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--color-text-hint)', marginBottom: 14 }}>
+            {activeDay?.label || `Day ${activeDayIndex + 1}`} · {days.length} {days.length === 1 ? 'day' : 'days'} total
+          </p>
+
           {/* Stats summary */}
           <div
             style={{
@@ -1114,7 +1330,7 @@ export default function TemplateEditor({
             </div>
           </div>
 
-          {/* Weekly volume distribution */}
+          {/* Volume distribution */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
               <BarChart2 size={14} style={{ color: 'var(--color-text-hint)' }} />

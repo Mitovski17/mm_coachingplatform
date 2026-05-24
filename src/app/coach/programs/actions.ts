@@ -12,14 +12,6 @@ function adminClient() {
   )
 }
 
-export type Template = {
-  id: string
-  name: string
-  notes: string | null
-  exerciseCount: number
-  createdAt: string
-}
-
 export type ExerciseSetRow = {
   id?: string
   setNumber: number
@@ -42,12 +34,37 @@ export type TemplateExerciseRow = {
   sets: ExerciseSetRow[]
 }
 
-export type TemplateWithExercises = {
+export type TemplateDay = {
+  id: string
+  label: string
+  sortOrder: number
+  notes: string | null
+  exerciseCount: number
+}
+
+export type Template = {
+  id: string
+  name: string
+  notes: string | null
+  dayCount: number
+  days: TemplateDay[]
+  createdAt: string
+}
+
+export type TemplateDayWithExercises = {
+  id: string
+  label: string
+  sortOrder: number
+  notes: string | null
+  exercises: TemplateExerciseRow[]
+}
+
+export type TemplateWithDays = {
   id: string
   name: string
   notes: string | null
   workspaceId: string
-  exercises: TemplateExerciseRow[]
+  days: TemplateDayWithExercises[]
 }
 
 export type Client = {
@@ -68,7 +85,8 @@ export type Exercise = {
 
 export type ProgramDayPreview = {
   dayOfWeek: number
-  templateName: string | null
+  templateDayId: string | null
+  templateDayLabel: string | null
 }
 
 export type Program = {
@@ -84,7 +102,8 @@ export type Program = {
 
 export type ProgramDay = {
   dayOfWeek: number
-  templateId: string | null
+  templateDayId: string | null
+  templateDayLabel: string | null
   templateName: string | null
 }
 
@@ -192,27 +211,54 @@ const _getTemplatesCached = unstable_cache(
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
 
-    const ids = (templates ?? []).map((t) => t.id)
-    let countsByTemplate = new Map<string, number>()
-    if (ids.length > 0) {
-      const { data: rows, error: e2 } = await admin
-        .from('workout_template_exercises')
-        .select('template_id')
-        .in('template_id', ids)
+    const templateIds = (templates ?? []).map((t) => t.id)
+    const daysByTemplate = new Map<string, TemplateDay[]>()
+
+    if (templateIds.length > 0) {
+      const { data: dayRows, error: e2 } = await admin
+        .from('workout_template_days')
+        .select('id, template_id, sort_order, label, notes')
+        .in('template_id', templateIds)
+        .order('sort_order', { ascending: true })
       if (e2) throw new Error(e2.message)
-      countsByTemplate = (rows ?? []).reduce((acc, r) => {
-        acc.set(r.template_id, (acc.get(r.template_id) ?? 0) + 1)
-        return acc
-      }, new Map<string, number>())
+
+      const dayIds = (dayRows ?? []).map((d) => d.id)
+      const exCountsByDay = new Map<string, number>()
+      if (dayIds.length > 0) {
+        const { data: exRows, error: e3 } = await admin
+          .from('workout_template_exercises')
+          .select('template_day_id')
+          .in('template_day_id', dayIds)
+        if (e3) throw new Error(e3.message)
+        for (const r of exRows ?? []) {
+          exCountsByDay.set(r.template_day_id, (exCountsByDay.get(r.template_day_id) ?? 0) + 1)
+        }
+      }
+
+      for (const d of dayRows ?? []) {
+        const list = daysByTemplate.get(d.template_id) ?? []
+        list.push({
+          id: d.id,
+          label: d.label,
+          sortOrder: d.sort_order,
+          notes: d.notes,
+          exerciseCount: exCountsByDay.get(d.id) ?? 0,
+        })
+        daysByTemplate.set(d.template_id, list)
+      }
     }
 
-    return (templates ?? []).map((t) => ({
-      id: t.id,
-      name: t.name,
-      notes: t.notes,
-      exerciseCount: countsByTemplate.get(t.id) ?? 0,
-      createdAt: t.created_at,
-    }))
+    return (templates ?? []).map((t) => {
+      const days = daysByTemplate.get(t.id) ?? []
+      return {
+        id: t.id,
+        name: t.name,
+        notes: t.notes,
+        dayCount: days.length,
+        days,
+        createdAt: t.created_at,
+      }
+    })
   },
   ['programs-getTemplates'],
   { tags: ['programs'], revalidate: 60 }
@@ -222,17 +268,19 @@ export async function getTemplates(workspaceId: string): Promise<Template[]> {
   return _getTemplatesCached(workspaceId)
 }
 
-export async function getTemplate(templateId: string): Promise<TemplateWithExercises | null> {
+export async function getTemplate(templateId: string): Promise<TemplateWithDays | null> {
   const admin = adminClient()
-  // Single nested query replaces 3 sequential queries
   const { data: template, error } = await admin
     .from('workout_templates')
     .select(`
       id, name, notes, workspace_id,
-      workout_template_exercises(
-        id, exercise_id, sort_order, target_sets, target_reps, rest_seconds, notes,
-        exercises(name, muscle_group),
-        workout_template_exercise_sets(id, set_number, target_reps, target_weight, rpe, notes)
+      workout_template_days(
+        id, sort_order, label, notes,
+        workout_template_exercises(
+          id, exercise_id, sort_order, target_sets, target_reps, rest_seconds, notes,
+          exercises(name, muscle_group),
+          workout_template_exercise_sets(id, set_number, target_reps, target_weight, rpe, notes)
+        )
       )
     `)
     .eq('id', templateId)
@@ -240,48 +288,47 @@ export async function getTemplate(templateId: string): Promise<TemplateWithExerc
   if (error || !template) return null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawExercises = ((template.workout_template_exercises as unknown as any[]) ?? [])
+  const rawDays = ((template.workout_template_days as unknown as any[]) ?? [])
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .sort((a: any, b: any) => a.sort_order - b.sort_order)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const exercises: TemplateExerciseRow[] = rawExercises.map((r: any) => {
-    const ex = Array.isArray(r.exercises) ? r.exercises[0] : r.exercises
-    const savedSets = ((r.workout_template_exercise_sets ?? []) as Array<{ id: string; set_number: number; target_reps: number; target_weight: string | null; rpe: string | null; notes: string | null }>)
-      .sort((a, b) => a.set_number - b.set_number)
-    const sets: ExerciseSetRow[] = savedSets.length > 0
-      ? savedSets.map((s) => ({
-          id: s.id,
-          setNumber: s.set_number,
-          targetReps: s.target_reps,
-          targetWeight: s.target_weight ?? null,
-          rpe: s.rpe ?? null,
-          notes: s.notes ?? null,
-        }))
-      : Array.from({ length: r.target_sets }, (_, i) => ({
-          setNumber: i + 1,
-          targetReps: Number(r.target_reps) || 10,
-        }))
-    return {
-      id: r.id,
-      exerciseId: r.exercise_id,
-      exerciseName: ex?.name ?? 'Unknown',
-      muscleGroup: ex?.muscle_group ?? '',
-      sortOrder: r.sort_order,
-      targetSets: r.target_sets,
-      targetReps: r.target_reps,
-      restSeconds: r.rest_seconds,
-      notes: r.notes,
-      sets,
-    }
+  const days: TemplateDayWithExercises[] = rawDays.map((d: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawExercises = ((d.workout_template_exercises as unknown as any[]) ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .sort((a: any, b: any) => a.sort_order - b.sort_order)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const exercises: TemplateExerciseRow[] = rawExercises.map((r: any) => {
+      const ex = Array.isArray(r.exercises) ? r.exercises[0] : r.exercises
+      const savedSets = ((r.workout_template_exercise_sets ?? []) as Array<{
+        id: string; set_number: number; target_reps: number
+        target_weight: string | null; rpe: string | null; notes: string | null
+      }>).sort((a, b) => a.set_number - b.set_number)
+      const sets: ExerciseSetRow[] = savedSets.length > 0
+        ? savedSets.map((s) => ({
+            id: s.id, setNumber: s.set_number, targetReps: s.target_reps,
+            targetWeight: s.target_weight ?? null, rpe: s.rpe ?? null, notes: s.notes ?? null,
+          }))
+        : Array.from({ length: r.target_sets }, (_, i) => ({
+            setNumber: i + 1, targetReps: Number(r.target_reps) || 10,
+          }))
+      return {
+        id: r.id, exerciseId: r.exercise_id,
+        exerciseName: ex?.name ?? 'Unknown', muscleGroup: ex?.muscle_group ?? '',
+        sortOrder: r.sort_order, targetSets: r.target_sets,
+        targetReps: r.target_reps, restSeconds: r.rest_seconds,
+        notes: r.notes, sets,
+      }
+    })
+
+    return { id: d.id, label: d.label, sortOrder: d.sort_order, notes: d.notes, exercises }
   })
 
   return {
-    id: template.id,
-    name: template.name,
-    notes: template.notes,
-    workspaceId: template.workspace_id,
-    exercises,
+    id: template.id, name: template.name,
+    notes: template.notes, workspaceId: template.workspace_id, days,
   }
 }
 
@@ -290,18 +337,24 @@ export async function upsertTemplate(payload: {
   workspaceId: string
   name: string
   notes?: string
-  exercises: Array<{
+  days: Array<{
     id?: string
-    exerciseId: string
+    label: string
     sortOrder: number
-    restSeconds: number
     notes?: string
-    sets: Array<{
-      setNumber: number
-      targetReps: number
-      targetWeight?: string
-      rpe?: string
+    exercises: Array<{
+      id?: string
+      exerciseId: string
+      sortOrder: number
+      restSeconds: number
       notes?: string
+      sets: Array<{
+        setNumber: number
+        targetReps: number
+        targetWeight?: string
+        rpe?: string
+        notes?: string
+      }>
     }>
   }>
 }): Promise<{ id: string }> {
@@ -312,36 +365,36 @@ export async function upsertTemplate(payload: {
   if (templateId) {
     const { error } = await admin
       .from('workout_templates')
-      .update({
-        name: payload.name,
-        notes: payload.notes ?? null,
-      })
+      .update({ name: payload.name, notes: payload.notes ?? null })
       .eq('id', templateId)
     if (error) throw new Error(error.message)
   } else {
     const { data, error } = await admin
       .from('workout_templates')
-      .insert({
-        workspace_id: payload.workspaceId,
-        name: payload.name,
-        notes: payload.notes ?? null,
-      })
+      .insert({ workspace_id: payload.workspaceId, name: payload.name, notes: payload.notes ?? null })
       .select('id')
       .single()
     if (error || !data) throw new Error(error?.message ?? 'Failed to create template')
     templateId = data.id
   }
 
-  // Replace all exercises (cascade deletes sets too)
-  const { error: delErr } = await admin
-    .from('workout_template_exercises')
-    .delete()
-    .eq('template_id', templateId)
-  if (delErr) throw new Error(delErr.message)
+  // Delete all existing days (cascade deletes exercises and sets)
+  await admin.from('workout_template_days').delete().eq('template_id', templateId)
 
-  if (payload.exercises.length > 0) {
-    const insertRows = payload.exercises.map((ex) => ({
-      template_id: templateId!,
+  // Re-insert all days with their exercises
+  for (const day of payload.days) {
+    const { data: insertedDay, error: dayErr } = await admin
+      .from('workout_template_days')
+      .insert({ template_id: templateId, sort_order: day.sortOrder, label: day.label, notes: day.notes ?? null })
+      .select('id')
+      .single()
+    if (dayErr || !insertedDay) throw new Error(dayErr?.message ?? 'Failed to create day')
+    const dayId = insertedDay.id
+
+    if (day.exercises.length === 0) continue
+
+    const exRows = day.exercises.map((ex) => ({
+      template_day_id: dayId,
       exercise_id: ex.exerciseId,
       sort_order: ex.sortOrder,
       target_sets: ex.sets.length,
@@ -349,13 +402,13 @@ export async function upsertTemplate(payload: {
       rest_seconds: ex.restSeconds,
       notes: ex.notes ?? null,
     }))
-    const { data: insertedExercises, error: insErr } = await admin
+    const { data: insertedExercises, error: exErr } = await admin
       .from('workout_template_exercises')
-      .insert(insertRows)
+      .insert(exRows)
       .select('id')
-    if (insErr || !insertedExercises) throw new Error(insErr?.message ?? 'Failed to insert exercises')
+    if (exErr || !insertedExercises) throw new Error(exErr?.message ?? 'Failed to insert exercises')
 
-    const setInserts = payload.exercises.flatMap((ex, idx) =>
+    const setInserts = day.exercises.flatMap((ex, idx) =>
       ex.sets.map((s) => ({
         template_exercise_id: insertedExercises[idx].id,
         set_number: s.setNumber,
@@ -366,9 +419,7 @@ export async function upsertTemplate(payload: {
       }))
     )
     if (setInserts.length > 0) {
-      const { error: setsErr } = await admin
-        .from('workout_template_exercise_sets')
-        .insert(setInserts)
+      const { error: setsErr } = await admin.from('workout_template_exercise_sets').insert(setInserts)
       if (setsErr) throw new Error(setsErr.message)
     }
   }
@@ -414,13 +465,18 @@ const _getProgramsCached = unstable_cache(
     if (ids.length > 0) {
       const { data: dayRows, error: e2 } = await admin
         .from('workout_program_days')
-        .select('program_id, day_of_week, workout_templates(name)')
+        .select('program_id, day_of_week, template_day_id, workout_template_days(label)')
         .in('program_id', ids)
       if (e2) throw new Error(e2.message)
       for (const r of dayRows ?? []) {
-        const t = r.workout_templates as unknown as { name: string } | null
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const td = r.workout_template_days as unknown as { label: string } | null
         const list = daysByProgram.get(r.program_id) ?? []
-        list.push({ dayOfWeek: r.day_of_week, templateName: t?.name ?? null })
+        list.push({
+          dayOfWeek: r.day_of_week,
+          templateDayId: r.template_day_id,
+          templateDayLabel: td?.label ?? null,
+        })
         daysByProgram.set(r.program_id, list)
       }
     }
@@ -459,16 +515,18 @@ export async function getProgram(programId: string): Promise<ProgramWithDays | n
 
   const { data: dayRows, error: e2 } = await admin
     .from('workout_program_days')
-    .select('day_of_week, template_id, workout_templates(name)')
+    .select('day_of_week, template_day_id, workout_template_days(label, workout_templates(name))')
     .eq('program_id', programId)
   if (e2) throw new Error(e2.message)
 
-  const byDay = new Map<number, { templateId: string | null; templateName: string | null }>()
+  const byDay = new Map<number, { templateDayId: string | null; templateDayLabel: string | null; templateName: string | null }>()
   for (const row of dayRows ?? []) {
-    const t = row.workout_templates as unknown as { name: string } | null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const td = row.workout_template_days as unknown as any
     byDay.set(row.day_of_week, {
-      templateId: row.template_id,
-      templateName: t?.name ?? null,
+      templateDayId: row.template_day_id,
+      templateDayLabel: td?.label ?? null,
+      templateName: td?.workout_templates?.name ?? null,
     })
   }
 
@@ -477,7 +535,8 @@ export async function getProgram(programId: string): Promise<ProgramWithDays | n
     const found = byDay.get(i)
     days.push({
       dayOfWeek: i,
-      templateId: found?.templateId ?? null,
+      templateDayId: found?.templateDayId ?? null,
+      templateDayLabel: found?.templateDayLabel ?? null,
       templateName: found?.templateName ?? null,
     })
   }
@@ -498,7 +557,7 @@ export async function upsertProgram(payload: {
   clientId: string
   name: string
   isActive: boolean
-  days: Array<{ dayOfWeek: number; templateId: string | null }>
+  days: Array<{ dayOfWeek: number; templateDayId: string | null }>
 }): Promise<{ id: string }> {
   const admin = adminClient()
 
@@ -537,11 +596,11 @@ export async function upsertProgram(payload: {
   if (delErr) throw new Error(delErr.message)
 
   const inserts = payload.days
-    .filter((d) => d.templateId !== null)
+    .filter((d) => d.templateDayId !== null)
     .map((d) => ({
       program_id: programId!,
       day_of_week: d.dayOfWeek,
-      template_id: d.templateId,
+      template_day_id: d.templateDayId,
     }))
 
   if (inserts.length > 0) {

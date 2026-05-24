@@ -175,7 +175,7 @@ function TemplatesPanel({
                   {t.name}
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-hint)' }}>
-                  {t.exerciseCount} {t.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                  {t.dayCount} {t.dayCount === 1 ? 'day' : 'days'}
                 </p>
                 {t.notes && (
                   <p
@@ -366,7 +366,7 @@ function ProgramCard({
       <div className="flex flex-wrap gap-1.5">
         {DAY_LABELS.map((label, i) => {
           const day = program.days.find((d) => d.dayOfWeek === i)
-          const templateName = day?.templateName ?? null
+          const templateName = day?.templateDayLabel ?? null
           return <DayPill key={i} day={label} templateName={templateName} />
         })}
       </div>

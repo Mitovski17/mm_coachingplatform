@@ -167,9 +167,11 @@ function PhotoBox({ label, preview, onSelect, onClear }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1 }}>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => ref.current?.click()}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') ref.current?.click() }}
         style={{
           width: '100%',
           aspectRatio: '3/4',
@@ -215,7 +217,7 @@ function PhotoBox({ label, preview, onSelect, onClear }: {
             <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>Tap to add</span>
           </>
         )}
-      </button>
+      </div>
       <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>{label}</span>
       <input
         ref={ref}
@@ -239,6 +241,7 @@ const GOALS = [
   { value: 'build_muscle', label: 'Build muscle' },
   { value: 'recomposition', label: 'Body recomposition' },
   { value: 'performance', label: 'Improve performance' },
+  { value: 'other', label: 'Other' },
 ] as const
 
 const ACTIVITY_LEVELS = [
@@ -304,6 +307,7 @@ export default function OnboardingPage() {
 
   // ── step 2 — goal
   const [goal, setGoal] = useState('')
+  const [otherGoalText, setOtherGoalText] = useState('')
 
   // ── step 3 — desired weight
   const [desiredWeight, setDesiredWeight] = useState('')
@@ -396,6 +400,7 @@ export default function OnboardingPage() {
       }
       case 2:
         if (!goal) e.goal = 'Select a goal'
+        else if (goal === 'other' && !otherGoalText.trim()) e.goal = 'Please describe your goal'
         break
       case 3: {
         const w = parseFloat(desiredWeight)
@@ -442,7 +447,7 @@ export default function OnboardingPage() {
       .update({
         current_weight: parseFloat(currentWeight),
         current_weight_unit: currentWeightUnit,
-        goal,
+        goal: goal === 'other' ? otherGoalText.trim() : goal,
         desired_weight: parseFloat(desiredWeight),
         desired_weight_unit: desiredWeightUnit,
         meals_per_day: parseInt(mealsPerDay, 10),
@@ -550,7 +555,17 @@ export default function OnboardingPage() {
           {/* ─ Step 2: Goal ─ */}
           {step === 2 && (
             <Field label="Select a goal" error={errors.goal}>
-              <OptionGrid options={GOALS} value={goal as typeof GOALS[number]['value'] | ''} onChange={(v) => setGoal(v)} />
+              <OptionGrid options={GOALS} value={goal as typeof GOALS[number]['value'] | ''} onChange={(v) => { setGoal(v); if (v !== 'other') setOtherGoalText('') }} />
+              {goal === 'other' && (
+                <div className="mt-3">
+                  <InputField
+                    placeholder="Describe your goal…"
+                    value={otherGoalText}
+                    onChange={(e) => setOtherGoalText(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              )}
             </Field>
           )}
 

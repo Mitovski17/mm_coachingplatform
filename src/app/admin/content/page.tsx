@@ -43,7 +43,7 @@ async function fetchDigests() {
 
 export default async function ContentPage() {
   const digests = await fetchDigests()
-  const flaggedCount = digests.filter((d) => d.flagged).length
+  const flaggedCount = digests.filter((d: { flagged: boolean }) => d.flagged).length
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: 1200 }}>

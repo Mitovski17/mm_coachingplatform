@@ -93,7 +93,12 @@ export default async function WorkspacesPage() {
             </tr>
           </thead>
           <tbody>
-            {workspaces.map((ws) => (
+            {workspaces.map((ws: {
+                id: string; name: string; slug: string; plan: string;
+                subscription_status: string; trial_ends_at: string | null;
+                created_at: string; owner_id: string;
+                coachCount: number; clientCount: number; ownerEmail: string
+              }) => (
               <tr key={ws.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                 <td style={{ padding: '12px 16px' }}>
                   <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>

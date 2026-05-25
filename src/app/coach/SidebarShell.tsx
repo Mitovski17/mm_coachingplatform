@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Users, ListChecks, LayoutList, Settings, UtensilsCrossed, MessageSquare, Inbox, ShieldCheck } from 'lucide-react'
 import NotificationBell from '@/components/shared/NotificationBell'
+import CoachOnboardingWizard from '@/components/onboarding/CoachOnboardingWizard'
 
 const NAV = [
   { label: 'Clients', href: '/coach/dashboard', Icon: Users },
@@ -29,6 +30,7 @@ export default function SidebarShell({
   coachName = 'Coach',
   coachEmail = '',
   coachAvatarUrl = null,
+  onboardingCompleted = true,
 }: {
   children: React.ReactNode
   pendingCount?: number
@@ -38,6 +40,7 @@ export default function SidebarShell({
   coachName?: string
   coachEmail?: string
   coachAvatarUrl?: string | null
+  onboardingCompleted?: boolean
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
@@ -362,6 +365,15 @@ export default function SidebarShell({
       >
         {children}
       </main>
+
+      {/* ── Coach onboarding wizard ── */}
+      {!onboardingCompleted && (
+        <CoachOnboardingWizard
+          coachName={coachName}
+          coachAvatarUrl={coachAvatarUrl}
+          coachId={coachId}
+        />
+      )}
     </div>
   )
 }

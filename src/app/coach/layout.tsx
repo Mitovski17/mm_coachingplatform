@@ -108,7 +108,7 @@ async function fetchPendingCount(): Promise<number> {
   }
 }
 
-async function fetchCoachProfile(): Promise<{ id: string; name: string; email: string; avatarUrl: string | null }> {
+async function fetchCoachProfile(): Promise<{ id: string; name: string; email: string; avatarUrl: string | null; onboardingCompleted: boolean }> {
   try {
     if (process.env.NODE_ENV === 'development') {
       const cookieStore = await cookies()
@@ -121,10 +121,10 @@ async function fetchCoachProfile(): Promise<{ id: string; name: string; email: s
         )
         const { data: { users } } = await svc.auth.admin.listUsers({ perPage: 1000 })
         const adminUser = users.find((u) => u.email === mockEmail)
-        if (!adminUser) return { id: '', name: 'Coach', email: '', avatarUrl: null }
+        if (!adminUser) return { id: '', name: 'Coach', email: '', avatarUrl: null, onboardingCompleted: true }
         const { data: profile } = await svc
           .from('profiles')
-          .select('id, full_name, avatar_url')
+          .select('id, full_name, avatar_url, onboarding_completed')
           .eq('id', adminUser.id)
           .single()
         return {
@@ -132,16 +132,18 @@ async function fetchCoachProfile(): Promise<{ id: string; name: string; email: s
           name: profile?.full_name ?? 'Coach',
           email: adminUser.email ?? '',
           avatarUrl: profile?.avatar_url ?? ((adminUser.user_metadata?.avatar_url as string | undefined) ?? null),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onboardingCompleted: (profile as any)?.onboarding_completed ?? false,
         }
       }
     }
 
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { id: '', name: 'Coach', email: '', avatarUrl: null }
+    if (!user) return { id: '', name: 'Coach', email: '', avatarUrl: null, onboardingCompleted: true }
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, full_name, avatar_url')
+      .select('id, full_name, avatar_url, onboarding_completed')
       .eq('id', user.id)
       .single()
     return {
@@ -149,9 +151,11 @@ async function fetchCoachProfile(): Promise<{ id: string; name: string; email: s
       name: profile?.full_name ?? 'Coach',
       email: user.email ?? '',
       avatarUrl: profile?.avatar_url ?? ((user.user_metadata?.avatar_url as string | undefined) ?? null),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onboardingCompleted: (profile as any)?.onboarding_completed ?? false,
     }
   } catch {
-    return { id: '', name: 'Coach', email: '', avatarUrl: null }
+    return { id: '', name: 'Coach', email: '', avatarUrl: null, onboardingCompleted: true }
   }
 }
 
@@ -186,6 +190,7 @@ export default async function CoachLayout({ children }: { children: React.ReactN
       coachName={coachProfile.name}
       coachEmail={coachProfile.email}
       coachAvatarUrl={coachProfile.avatarUrl}
+      onboardingCompleted={coachProfile.onboardingCompleted}
     >
       {children}
     </SidebarShell>

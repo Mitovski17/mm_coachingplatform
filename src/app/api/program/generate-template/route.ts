@@ -12,6 +12,35 @@ function adminClient() {
   )
 }
 
+type AiSet = {
+  set_number: number
+  target_reps: number
+  target_weight?: string
+  rpe?: string
+  notes?: string
+}
+
+type AiExercise = {
+  exercise_name: string
+  muscle_group: string
+  equipment: string
+  rest_seconds: number
+  notes?: string
+  sets: AiSet[]
+}
+
+type AiDay = {
+  label: string
+  notes?: string
+  exercises: AiExercise[]
+}
+
+type AiResponse = {
+  name: string
+  notes?: string
+  days: AiDay[]
+}
+
 export async function POST(request: NextRequest) {
   let body: unknown
   try {
@@ -46,48 +75,61 @@ export async function POST(request: NextRequest) {
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+  const schemaExample = JSON.stringify({
+    name: 'Upper/Lower 4-Day Split',
+    notes: 'Optional coaching notes',
+    days: [
+      {
+        label: 'Day 1 – Upper Push',
+        notes: '',
+        exercises: [
+          {
+            exercise_name: 'Barbell Bench Press',
+            muscle_group: 'chest',
+            equipment: 'barbell',
+            rest_seconds: 90,
+            notes: '',
+            sets: [
+              { set_number: 1, target_reps: 6, target_weight: '', rpe: '8', notes: '' },
+              { set_number: 2, target_reps: 8, target_weight: '', rpe: '8', notes: '' },
+              { set_number: 3, target_reps: 10, target_weight: '', rpe: '7', notes: '' },
+            ],
+          },
+        ],
+      },
+    ],
+  }, null, 2)
+
+  const userMessage = current_template
+    ? `Here is the current workout template:\n${JSON.stringify(current_template, null, 2)}\n\nApply this instruction and return the complete modified template using the SAME JSON schema:\n"${description}"`
+    : `Generate a workout template based on this description: "${description}"`
+
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 3000,
+    max_tokens: 8000,
     temperature: 0,
-    system: 'You are an expert personal trainer and strength coach. Output ONLY valid JSON, no markdown fences, no explanation.',
+    system: `You are an expert personal trainer and strength coach.
+Output ONLY valid JSON — no markdown fences, no explanation, no extra text whatsoever.
+The JSON must start with { and end with }.`,
     messages: [
       {
         role: 'user',
-        content: `${
-          current_template
-            ? `Here is the current workout template:\n${JSON.stringify(current_template, null, 2)}\n\nApply this edit instruction and return the complete modified template using the same JSON schema:\n"${description}"`
-            : `Generate a workout template based on this description: "${description}"`
-        }
+        content: `${userMessage}
 
-Available exercises — use names from this list when possible, otherwise invent appropriate ones:
+Available exercises — use EXACT names from this list when possible:
 ${JSON.stringify(exercises.map((e) => ({ name: e.name, muscle_group: e.muscle_group, equipment: e.equipment })))}
 
-Return this exact JSON schema:
-{
-  "name": "template name",
-  "notes": "optional coaching notes",
-  "exercises": [
-    {
-      "exercise_name": "Barbell Bench Press",
-      "muscle_group": "chest",
-      "equipment": "barbell",
-      "rest_seconds": 90,
-      "notes": "",
-      "sets": [
-        { "set_number": 1, "target_reps": 6, "target_weight": "", "rpe": "8", "notes": "" },
-        { "set_number": 2, "target_reps": 8, "target_weight": "", "rpe": "8", "notes": "" },
-        { "set_number": 3, "target_reps": 10, "target_weight": "", "rpe": "7", "notes": "" }
-      ]
-    }
-  ]
-}
+Return EXACTLY this JSON schema (no extra keys, no markdown):
+${schemaExample}
 
 Rules:
-- Each exercise must have individual set definitions, not a generic rep range
+- Always use the "days" array, even for a single-day template
+- Give each day a descriptive label (e.g. "Day 1 – Upper Push", "Day 2 – Lower Quads")
+- Each exercise must have individual set definitions (not a generic rep range)
 - Vary reps per set when appropriate (pyramid, reverse pyramid, straight sets, etc.)
-- rest_seconds should be realistic (60-180s depending on exercise type)
-- Use exercise names exactly as they appear in the available list when possible`,
+- rest_seconds should be realistic: 60–90s isolation, 120–180s compound lifts
+- Use exercise names EXACTLY as they appear in the available list when possible
+- target_weight can be empty string — the client will fill it in`,
       },
     ],
   })
@@ -98,6 +140,7 @@ Rules:
   try {
     parsed = JSON.parse(rawText)
   } catch {
+    // Strip any accidental markdown fences and retry
     const match = rawText.match(/\{[\s\S]*\}/)
     if (!match) {
       return Response.json({ error: 'AI returned invalid JSON', raw: rawText.slice(0, 500) }, { status: 500 })
@@ -109,71 +152,81 @@ Rules:
     }
   }
 
-  const aiPlan = parsed as {
-    name: string
-    notes: string
-    exercises: Array<{
-      exercise_name: string
-      muscle_group: string
-      equipment: string
-      rest_seconds: number
-      notes: string
-      sets: Array<{
-        set_number: number
-        target_reps: number
-        target_weight: string
-        rpe: string
-        notes: string
-      }>
-    }>
+  const aiPlan = parsed as AiResponse
+
+  // Normalise: if AI still returned flat `exercises` (legacy fallback), wrap in one day
+  if (!aiPlan.days && (aiPlan as unknown as { exercises?: AiExercise[] }).exercises) {
+    const legacy = aiPlan as unknown as { name: string; notes?: string; exercises: AiExercise[] }
+    aiPlan.days = [{ label: 'Day 1', notes: '', exercises: legacy.exercises }]
   }
 
-  const resultExercises = []
-  for (const aiEx of aiPlan.exercises ?? []) {
-    const match = exercises.find(
-      (e) => e.name.toLowerCase() === aiEx.exercise_name.toLowerCase()
-    )
+  if (!Array.isArray(aiPlan.days) || aiPlan.days.length === 0) {
+    return Response.json({ error: 'AI returned no days', raw: rawText.slice(0, 500) }, { status: 500 })
+  }
 
-    let exerciseId: string
-    if (match) {
-      exerciseId = match.id
-    } else {
-      const { data: inserted, error: insertError } = await supabase
-        .from('exercises')
-        .insert({
+  // Resolve exercise names → DB IDs (insert new ones if not found)
+  const exerciseCache = new Map(exercises.map((e) => [e.name.toLowerCase(), e]))
+
+  const resolvedDays = []
+  for (const day of aiPlan.days) {
+    const resolvedExercises = []
+    for (const aiEx of day.exercises ?? []) {
+      const found = exerciseCache.get(aiEx.exercise_name.toLowerCase())
+      let exerciseId: string
+
+      if (found) {
+        exerciseId = found.id
+      } else {
+        const { data: inserted, error: insertError } = await supabase
+          .from('exercises')
+          .insert({
+            name: aiEx.exercise_name,
+            muscle_group: aiEx.muscle_group,
+            equipment: aiEx.equipment,
+            workspace_id,
+          })
+          .select('id')
+          .single()
+
+        if (insertError || !inserted) {
+          return Response.json({ error: `Failed to insert exercise: ${aiEx.exercise_name}` }, { status: 500 })
+        }
+        exerciseId = inserted.id
+        // Cache it so duplicate names in same request are reused
+        exerciseCache.set(aiEx.exercise_name.toLowerCase(), {
+          id: exerciseId,
           name: aiEx.exercise_name,
           muscle_group: aiEx.muscle_group,
           equipment: aiEx.equipment,
-          workspace_id,
         })
-        .select('id')
-        .single()
-
-      if (insertError || !inserted) {
-        return Response.json({ error: `Failed to insert exercise: ${aiEx.exercise_name}` }, { status: 500 })
       }
-      exerciseId = inserted.id
+
+      resolvedExercises.push({
+        exerciseId,
+        exerciseName: aiEx.exercise_name,
+        muscleGroup: aiEx.muscle_group,
+        restSeconds: aiEx.rest_seconds ?? 90,
+        notes: aiEx.notes ?? '',
+        sets: (aiEx.sets ?? []).map((s) => ({
+          setNumber: s.set_number,
+          targetReps: s.target_reps,
+          targetWeight: s.target_weight ?? '',
+          rpe: s.rpe ?? '',
+          notes: s.notes ?? '',
+        })),
+      })
     }
 
-    resultExercises.push({
-      exerciseId,
-      exerciseName: aiEx.exercise_name,
-      muscleGroup: aiEx.muscle_group,
-      restSeconds: aiEx.rest_seconds,
-      notes: aiEx.notes ?? '',
-      sets: (aiEx.sets ?? []).map((s) => ({
-        setNumber: s.set_number,
-        targetReps: s.target_reps,
-        targetWeight: s.target_weight ?? '',
-        rpe: s.rpe ?? '',
-        notes: s.notes ?? '',
-      })),
+    resolvedDays.push({
+      label: day.label,
+      notes: day.notes ?? '',
+      exercises: resolvedExercises,
     })
   }
 
   return Response.json({
     name: aiPlan.name,
     notes: aiPlan.notes ?? '',
-    exercises: resultExercises,
+    days: resolvedDays,
   })
 }

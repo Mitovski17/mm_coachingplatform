@@ -60,8 +60,8 @@ function makeDefaultDay(index: number): DayState {
 
 const MUSCLE_GROUP_ORDER = [
   'chest', 'back', 'shoulders', 'core', 'cardio',
-  'biceps', 'triceps',
-  'quads', 'hamstrings', 'glutes', 'calves', 'abductors', 'adductors',
+  'biceps', 'triceps', 'arms',
+  'quads', 'hamstrings', 'glutes', 'calves', 'abductors', 'adductors', 'legs',
 ]
 
 const MUSCLE_GROUP_COLORS: Record<string, string> = {
@@ -72,12 +72,14 @@ const MUSCLE_GROUP_COLORS: Record<string, string> = {
   cardio: '#ef4444',
   biceps: '#ef4444',
   triceps: '#f97316',
+  arms: '#f59e0b',       // amber — fallback for un-migrated broad "arms" entries
   quads: '#14b8a6',
   hamstrings: '#10b981',
   glutes: '#ec4899',
   calves: '#84cc16',
   abductors: '#8b5cf6',
   adductors: '#d946ef',
+  legs: '#7c3aed',       // purple — fallback for any remaining broad "legs" entries
 }
 
 function muscleGroupLabel(g: string): string {
@@ -174,13 +176,16 @@ export default function TemplateEditor({
       counts[g] = (counts[g] || 0) + ex.sets.length
     }
     const total = Object.values(counts).reduce((a, b) => a + b, 0)
-    return MUSCLE_GROUP_ORDER
-      .filter((g) => counts[g] > 0)
-      .map((g) => ({
-        group: g,
-        count: counts[g],
-        pct: total > 0 ? Math.round((counts[g] / total) * 100) : 0,
-      }))
+    // Ordered groups first, then any unknown groups appended at end
+    const orderedGroups = [
+      ...MUSCLE_GROUP_ORDER.filter((g) => counts[g] > 0),
+      ...Object.keys(counts).filter((g) => !MUSCLE_GROUP_ORDER.includes(g)),
+    ]
+    return orderedGroups.map((g) => ({
+      group: g,
+      count: counts[g],
+      pct: total > 0 ? Math.round((counts[g] / total) * 100) : 0,
+    }))
   }, [exercises])
 
   const totalSets = useMemo(() => exercises.reduce((acc, ex) => acc + ex.sets.length, 0), [exercises])
@@ -309,21 +314,26 @@ export default function TemplateEditor({
 
   // ── AI generation ────────────────────────────────────────────────────────────
 
-  function serializeActiveDay() {
+  /** Serialise the full template (all days) for AI edit context */
+  function serializeTemplate() {
     return {
       name,
       notes,
-      exercises: exercises.map((ex) => ({
-        exercise_name: ex.exerciseName,
-        muscle_group: ex.muscleGroup,
-        rest_seconds: ex.restSeconds,
-        notes: ex.notes,
-        sets: ex.sets.map((s) => ({
-          set_number: s.setNumber,
-          target_reps: s.targetReps,
-          target_weight: s.targetWeight,
-          rpe: s.rpe,
-          notes: s.notes,
+      days: days.map((d) => ({
+        label: d.label,
+        notes: d.notes,
+        exercises: d.exercises.map((ex) => ({
+          exercise_name: ex.exerciseName,
+          muscle_group: ex.muscleGroup,
+          rest_seconds: ex.restSeconds,
+          notes: ex.notes,
+          sets: ex.sets.map((s) => ({
+            set_number: s.setNumber,
+            target_reps: s.targetReps,
+            target_weight: s.targetWeight,
+            rpe: s.rpe,
+            notes: s.notes,
+          })),
         })),
       })),
     }
@@ -340,59 +350,66 @@ export default function TemplateEditor({
         body: JSON.stringify({
           description: aiPrompt.trim(),
           workspace_id: workspaceId,
-          ...(aiGenerated ? { current_template: serializeActiveDay() } : {}),
+          // Pass the full template when editing so AI can modify any day
+          ...(aiGenerated ? { current_template: serializeTemplate() } : {}),
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+
+      type ResolvedExercise = {
+        exerciseId: string
+        exerciseName: string
+        muscleGroup: string
+        restSeconds: number
+        notes: string
+        sets: Array<{ setNumber: number; targetReps: number; targetWeight: string; rpe: string; notes: string }>
+      }
+      type ResolvedDay = { label: string; notes: string; exercises: ResolvedExercise[] }
+
+      const toExerciseRow = (ex: ResolvedExercise): ExerciseRow => ({
+        tempId: crypto.randomUUID(),
+        exerciseId: ex.exerciseId,
+        exerciseName: ex.exerciseName,
+        muscleGroup: ex.muscleGroup,
+        restSeconds: ex.restSeconds,
+        notes: ex.notes ?? '',
+        sets: ex.sets.map((s) => ({
+          tempId: crypto.randomUUID(),
+          setNumber: s.setNumber,
+          targetReps: s.targetReps,
+          targetWeight: s.targetWeight ?? '',
+          rpe: s.rpe ?? '',
+          notes: s.notes ?? '',
+        })),
+      })
+
+      // API always returns { name, notes, days: [...] }
+      if (Array.isArray(data.days) && data.days.length > 0) {
+        // Replace the entire template with the AI-generated days
+        const newDays: DayState[] = (data.days as ResolvedDay[]).map((d) => ({
+          tempId: crypto.randomUUID(),
+          label: d.label,
+          notes: d.notes ?? '',
+          exercises: d.exercises.map(toExerciseRow),
+        }))
+        setDays(newDays)
+        setActiveDayIndex(0)
+
+        // Merge any new exercises into the local library
+        setExerciseList((prev) => {
+          const existingIds = new Set(prev.map((e) => e.id))
+          const toAdd: Exercise[] = newDays
+            .flatMap((d) => d.exercises)
+            .filter((r) => !existingIds.has(r.exerciseId))
+            .map((r) => ({ id: r.exerciseId, name: r.exerciseName, muscleGroup: r.muscleGroup, equipment: '' }))
+          return toAdd.length ? [...prev, ...toAdd] : prev
+        })
+      }
+
       if (data.name && !name) setName(data.name)
       if (data.notes && !notes) setNotes(data.notes)
-      const exerciseRows: ExerciseRow[] = (data.exercises ?? []).map(
-        (ex: {
-          exerciseId: string
-          exerciseName: string
-          muscleGroup: string
-          restSeconds: number
-          notes: string
-          sets: Array<{
-            setNumber: number
-            targetReps: number
-            targetWeight: string
-            rpe: string
-            notes: string
-          }>
-        }) => ({
-          tempId: crypto.randomUUID(),
-          exerciseId: ex.exerciseId,
-          exerciseName: ex.exerciseName,
-          muscleGroup: ex.muscleGroup,
-          restSeconds: ex.restSeconds,
-          notes: ex.notes ?? '',
-          sets: ex.sets.map((s) => ({
-            tempId: crypto.randomUUID(),
-            setNumber: s.setNumber,
-            targetReps: s.targetReps,
-            targetWeight: s.targetWeight ?? '',
-            rpe: s.rpe ?? '',
-            notes: s.notes ?? '',
-          })),
-        })
-      )
-      setDays((prev) =>
-        prev.map((d, i) => (i === activeDayIndex ? { ...d, exercises: exerciseRows } : d))
-      )
-      setExerciseList((prev) => {
-        const existingIds = new Set(prev.map((e) => e.id))
-        const toAdd: Exercise[] = exerciseRows
-          .filter((r) => !existingIds.has(r.exerciseId))
-          .map((r) => ({
-            id: r.exerciseId,
-            name: r.exerciseName,
-            muscleGroup: r.muscleGroup,
-            equipment: '',
-          }))
-        return toAdd.length ? [...prev, ...toAdd] : prev
-      })
+
       setAiGenerated(true)
       setAiPrompt('')
       setAiEditModalOpen(false)

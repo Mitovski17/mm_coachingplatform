@@ -945,9 +945,8 @@ export default function ProfileClient({
   ]
 
   async function handleSignOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
+    await fetch('/api/auth/signout', { method: 'POST' })
+    window.location.href = '/login'
   }
 
   return (

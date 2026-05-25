@@ -23,7 +23,6 @@ export default function MessageInput({ value, onChange, onSend, sending, placeho
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange(e.target.value)
-    // Auto-resize up to ~4 rows
     const el = textareaRef.current
     if (el) {
       el.style.height = 'auto'
@@ -31,13 +30,15 @@ export default function MessageInput({ value, onChange, onSend, sending, placeho
     }
   }
 
+  const isEmpty = !value.trim()
+
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'flex-end',
         gap: 10,
-        padding: '12px 16px',
+        padding: '10px 14px',
         borderTop: '1px solid var(--color-border)',
         backgroundColor: 'var(--color-surface-1)',
       }}
@@ -47,14 +48,14 @@ export default function MessageInput({ value, onChange, onSend, sending, placeho
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder={placeholder ?? 'Type a message… (Enter to send)'}
+        placeholder={placeholder ?? 'Type a message…'}
         rows={1}
         style={{
           flex: 1,
           resize: 'none',
           border: '1px solid var(--color-border)',
-          borderRadius: 10,
-          padding: '9px 12px',
+          borderRadius: 20,
+          padding: '8px 14px',
           fontSize: 14,
           lineHeight: 1.5,
           color: 'var(--color-text-primary)',
@@ -63,21 +64,21 @@ export default function MessageInput({ value, onChange, onSend, sending, placeho
           fontFamily: 'inherit',
           overflowY: 'hidden',
         }}
-        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)' }}
+        onFocus={(e) => { e.currentTarget.style.borderColor = '#f97316' }}
         onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
       />
       <button
         type="button"
         onClick={onSend}
-        disabled={sending || !value.trim()}
+        disabled={sending || isEmpty}
         style={{
-          width: 38,
-          height: 38,
+          width: 36,
+          height: 36,
           borderRadius: '50%',
-          backgroundColor: sending || !value.trim() ? 'var(--color-surface-3)' : 'var(--color-accent)',
-          color: sending || !value.trim() ? 'var(--color-text-hint)' : '#ffffff',
+          backgroundColor: sending || isEmpty ? 'var(--color-surface-3)' : '#f97316',
+          color: sending || isEmpty ? 'var(--color-text-hint)' : '#ffffff',
           border: 'none',
-          cursor: sending || !value.trim() ? 'not-allowed' : 'pointer',
+          cursor: sending || isEmpty ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -85,7 +86,7 @@ export default function MessageInput({ value, onChange, onSend, sending, placeho
           transition: 'background-color 0.15s',
         }}
       >
-        <Send size={16} />
+        <Send size={15} />
       </button>
     </div>
   )

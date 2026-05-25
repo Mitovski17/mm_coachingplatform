@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Search, Loader2, Check, X, Plus, Pencil } from 'lucide-react'
+import { Search, Loader2, Check, X, Plus, Pencil, Scan } from 'lucide-react'
 import {
   getDayLogs,
   logMealOption,
@@ -17,6 +17,7 @@ import {
   type Option,
 } from './actions'
 import type { FoodSearchResult } from '@/lib/food-search'
+import BarcodeScannerModal from './BarcodeScannerModal'
 
 const COLOR_PROTEIN = '#3b82f6'
 const COLOR_CARBS = '#f97316'
@@ -351,6 +352,10 @@ export default function NutritionClient({
                     setActiveAddFoodMeal(activeAddFoodMeal === meal.name ? null : meal.name)
                   }
                   onAddCustomFood={(p) => handleAddCustomFood(meal.name, p)}
+                  clientId={clientId}
+                  workspaceId={workspaceId}
+                  logDate={selectedDate}
+                  onLogged={reloadDayLogs}
                 />
               )
             })}
@@ -368,6 +373,10 @@ export default function NutritionClient({
                 onUpdateCustomQty={handleUpdateCustomQty}
                 onRename={(newName) => handleRenameCustomMeal(mealName, newName)}
                 onRemove={() => handleRemoveCustomMeal(mealName)}
+                clientId={clientId}
+                workspaceId={workspaceId}
+                logDate={selectedDate}
+                onLogged={reloadDayLogs}
               />
             ))}
             <button
@@ -726,6 +735,10 @@ function CustomMealCard({
   onUpdateCustomQty,
   onRename,
   onRemove,
+  clientId,
+  workspaceId,
+  logDate,
+  onLogged,
 }: {
   mealName: string
   logs: DayLog[]
@@ -752,6 +765,10 @@ function CustomMealCard({
   ) => Promise<void>
   onRename: (newName: string) => void
   onRemove: () => void
+  clientId?: string | null
+  workspaceId?: string | null
+  logDate?: string
+  onLogged?: () => void
 }) {
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState(mealName)
@@ -961,7 +978,16 @@ function CustomMealCard({
           <Plus size={15} />
           {addFoodOpen ? 'Cancel' : 'Add food'}
         </button>
-        {addFoodOpen && <AddCustomFood mealName={mealName} onAdd={onAddCustomFood} />}
+        {addFoodOpen && (
+          <AddCustomFood
+            mealName={mealName}
+            onAdd={onAddCustomFood}
+            clientId={clientId}
+            workspaceId={workspaceId}
+            logDate={logDate}
+            onLogged={onLogged}
+          />
+        )}
       </div>
     </div>
   )
@@ -983,6 +1009,10 @@ function MealCard({
   addFoodOpen,
   onToggleAddFood,
   onAddCustomFood,
+  clientId,
+  workspaceId,
+  logDate,
+  onLogged,
 }: {
   meal: Meal
   activeOption: Option | undefined
@@ -1015,6 +1045,10 @@ function MealCard({
     carbsG: number
     fatG: number
   }) => void
+  clientId?: string | null
+  workspaceId?: string | null
+  logDate?: string
+  onLogged?: () => void
 }) {
   const [circleLoading, setCircleLoading] = useState(false)
   const [optimisticLogged, setOptimisticLogged] = useState<boolean | null>(null)
@@ -1352,7 +1386,16 @@ function MealCard({
           <Plus size={15} />
           {addFoodOpen ? 'Cancel' : 'Add food'}
         </button>
-        {addFoodOpen && <AddCustomFood mealName={meal.name} onAdd={onAddCustomFood} />}
+        {addFoodOpen && (
+          <AddCustomFood
+            mealName={meal.name}
+            onAdd={onAddCustomFood}
+            clientId={clientId}
+            workspaceId={workspaceId}
+            logDate={logDate}
+            onLogged={onLogged}
+          />
+        )}
       </div>
     </div>
   )
@@ -1580,6 +1623,10 @@ function Pill({ value, color, bg }: { value: number; color: string; bg: string }
 function AddCustomFood({
   mealName,
   onAdd,
+  clientId,
+  workspaceId,
+  logDate,
+  onLogged,
 }: {
   mealName: string
   onAdd: (p: {
@@ -1591,6 +1638,10 @@ function AddCustomFood({
     carbsG: number
     fatG: number
   }) => void
+  clientId?: string | null
+  workspaceId?: string | null
+  logDate?: string
+  onLogged?: () => void
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FoodSearchResult[]>([])
@@ -1598,6 +1649,7 @@ function AddCustomFood({
   const [selected, setSelected] = useState<FoodSearchResult | null>(null)
   const [quantity, setQuantity] = useState('100')
   const [manualOpen, setManualOpen] = useState(false)
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -1674,6 +1726,27 @@ function AddCustomFood({
               }}
             />
             {searching && <Loader2 size={12} className="animate-spin" style={{ color: 'var(--color-text-hint)' }} />}
+            {clientId && workspaceId && logDate && (
+              <button
+                type="button"
+                onClick={() => setShowBarcodeScanner(true)}
+                title="Scan barcode"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-hint)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  marginLeft: 2,
+                  flexShrink: 0,
+                }}
+              >
+                <Scan size={14} />
+              </button>
+            )}
           </div>
 
           {results.length > 0 && (
@@ -1783,6 +1856,20 @@ function AddCustomFood({
           mealName={mealName}
           onAdd={onAdd}
           onCancel={() => setManualOpen(false)}
+        />
+      )}
+
+      {showBarcodeScanner && clientId && workspaceId && logDate && (
+        <BarcodeScannerModal
+          clientId={clientId}
+          workspaceId={workspaceId}
+          mealName={mealName}
+          logDate={logDate}
+          onClose={() => setShowBarcodeScanner(false)}
+          onLogged={() => {
+            setShowBarcodeScanner(false)
+            onLogged?.()
+          }}
         />
       )}
     </div>

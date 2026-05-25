@@ -58,13 +58,15 @@ function parseI(v: string): number | null { const n = parseInt(v, 10); return v.
 const MUSCLE_COLORS: Record<string, string> = {
   chest: '#ef4444', back: '#3b82f6', shoulders: '#f59e0b', core: '#06b6d4', cardio: '#ec4899',
   biceps: '#ef4444', triceps: '#f97316',
+  arms: '#f59e0b',      // fallback for un-migrated broad "arms" entries
   quads: '#14b8a6', hamstrings: '#10b981', glutes: '#ec4899', calves: '#84cc16',
   abductors: '#8b5cf6', adductors: '#d946ef',
+  legs: '#7c3aed',      // fallback for any remaining broad "legs" entries
 }
 
 const MUSCLE_GROUP_ORDER = [
-  'chest', 'back', 'shoulders', 'biceps', 'triceps',
-  'quads', 'hamstrings', 'glutes', 'calves', 'abductors', 'adductors',
+  'chest', 'back', 'shoulders', 'biceps', 'triceps', 'arms',
+  'quads', 'hamstrings', 'glutes', 'calves', 'abductors', 'adductors', 'legs',
   'core', 'cardio',
 ]
 
@@ -295,6 +297,10 @@ function SessionInner() {
   // ── Load ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
+    // Reset to a clean loading state on every run so a stale error never
+    // blocks a valid re-run (e.g. when useSearchParams resolves late).
+    setLoading(true)
+    setError(null)
     async function init() {
       try {
         // Get email from cookie (dev) or supabase auth

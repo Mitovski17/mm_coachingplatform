@@ -14,12 +14,14 @@ const MUSCLE_COLORS: Record<string, string> = {
   cardio: '#ec4899',
   biceps: '#ef4444',
   triceps: '#f97316',
+  arms: '#f59e0b',      // fallback for un-migrated broad "arms" entries
   quads: '#14b8a6',
   hamstrings: '#10b981',
   glutes: '#ec4899',
   calves: '#84cc16',
   abductors: '#8b5cf6',
   adductors: '#d946ef',
+  legs: '#7c3aed',      // fallback for any remaining broad "legs" entries
 }
 
 export default async function SessionDetailPage({

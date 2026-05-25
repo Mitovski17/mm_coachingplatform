@@ -288,6 +288,43 @@ export async function searchFoodsForClient(query: string): Promise<FoodSearchRes
   return searchFoodsLib(query, client)
 }
 
+export async function lookupBarcode(barcode: string): Promise<FoodSearchResult | null> {
+  try {
+    const res = await fetch(
+      `https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,brands,nutriments`,
+      { cache: 'no-store' }
+    )
+    if (!res.ok) return null
+    const json = (await res.json()) as {
+      status?: number
+      product?: {
+        product_name?: string
+        brands?: string
+        nutriments?: Record<string, number>
+      }
+    }
+    if (!json.product) return null
+    const nutriments = json.product.nutriments ?? {}
+    const calories = nutriments['energy-kcal_100g']
+    const protein = nutriments['proteins_100g']
+    const carbs = nutriments['carbohydrates_100g']
+    const fat = nutriments['fat_100g']
+    if (calories == null || protein == null || carbs == null || fat == null) return null
+    return {
+      externalId: `off_${barcode}`,
+      name: json.product.product_name ?? 'Unknown Product',
+      brand: json.product.brands ?? null,
+      caloriesPer100g: Number(calories),
+      proteinPer100g: Number(protein),
+      carbsPer100g: Number(carbs),
+      fatPer100g: Number(fat),
+      source: 'custom',
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function deleteNutritionLog(logId: string): Promise<void> {
   const admin = adminClient()
   const { error } = await admin.from('nutrition_logs').delete().eq('id', logId)

@@ -56,7 +56,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginValues) => {
     setServerError(null)
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: authData, error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     })
@@ -64,7 +64,13 @@ export default function LoginPage() {
       setServerError(error.message)
       return
     }
-    router.push('/')
+    // Determine role directly — skip the / → middleware → redirect round-trip
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', authData.user.id)
+      .single()
+    router.replace(profile ? '/coach/dashboard' : '/client')
   }
 
   return (

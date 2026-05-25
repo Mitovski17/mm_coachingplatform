@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ChevronRight, Dumbbell } from 'lucide-react'
 import type { TodayTemplate, HistorySession, ProgramWorkoutDay } from './actions'
@@ -16,12 +15,14 @@ const MUSCLE_COLORS: Record<string, string> = {
   cardio: '#ec4899',
   biceps: '#ef4444',
   triceps: '#f97316',
+  arms: '#f59e0b',      // fallback for un-migrated broad "arms" entries
   quads: '#14b8a6',
   hamstrings: '#10b981',
   glutes: '#ec4899',
   calves: '#84cc16',
   abductors: '#8b5cf6',
   adductors: '#d946ef',
+  legs: '#7c3aed',      // fallback for any remaining broad "legs" entries
 }
 
 export default function WorkoutsClient({
@@ -33,7 +34,6 @@ export default function WorkoutsClient({
   history: HistorySession[]
   clientId: string
 }) {
-  const router = useRouter()
   const [activeTab, setActiveTab] = useState<'today' | 'history'>('today')
 
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -110,26 +110,6 @@ export default function WorkoutsClient({
       {activeTab === 'today' && (
         <div style={{ padding: '16px 16px 16px' }}>
           <TodayWorkoutCard today={todayTemplate} onSwitch={openPicker} />
-
-          {/* Custom Workout button — always visible below the card */}
-          <button
-            type="button"
-            onClick={() => router.push('/client/workouts/session?custom=true')}
-            style={{
-              marginTop: 10,
-              width: '100%',
-              padding: '11px',
-              backgroundColor: 'transparent',
-              border: '1px dashed var(--color-border)',
-              borderRadius: 12,
-              color: 'var(--color-text-hint)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            + Custom Workout
-          </button>
         </div>
       )}
 
@@ -144,8 +124,8 @@ export default function WorkoutsClient({
         <div
           onClick={() => setPickerOpen(false)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 50,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            position: 'fixed', inset: 0, zIndex: 200,
+            backgroundColor: 'rgba(0,0,0,0.65)',
             display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
           }}
         >
@@ -153,77 +133,171 @@ export default function WorkoutsClient({
             onClick={(e) => e.stopPropagation()}
             style={{
               backgroundColor: 'var(--color-surface-1)',
-              borderRadius: '20px 20px 0 0',
-              padding: '20px 20px 40px',
-              maxHeight: '75vh',
-              overflowY: 'auto',
+              borderRadius: '24px 24px 0 0',
+              minHeight: '70vh',
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
-                Choose Workout
-              </p>
+            {/* Drag handle */}
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 14, paddingBottom: 6, flexShrink: 0 }}>
+              <div style={{ width: 40, height: 4, borderRadius: 999, backgroundColor: 'var(--color-surface-3)' }} />
+            </div>
+
+            {/* Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 20px 14px',
+              borderBottom: '1px solid var(--color-border)',
+              flexShrink: 0,
+            }}>
+              <div>
+                <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+                  Choose Workout
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>
+                  Pick a template or build your own
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setPickerOpen(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--color-text-hint)', cursor: 'pointer', fontSize: 20, padding: 4 }}
+                style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  backgroundColor: 'var(--color-surface-3)',
+                  border: 'none', color: 'var(--color-text-hint)',
+                  cursor: 'pointer', fontSize: 20, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}
               >
                 ×
               </button>
             </div>
 
-            {pickerLoading ? (
-              <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 14, padding: '24px 0' }}>
-                Loading…
-              </p>
-            ) : pickerDays.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 14, padding: '24px 0' }}>
-                No workouts in your program yet.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {pickerDays.map((day) => (
-                  <Link
-                    key={day.templateDayId}
-                    href={`/client/workouts/session?templateDayId=${encodeURIComponent(day.templateDayId)}&templateName=${encodeURIComponent(day.label)}`}
-                    onClick={() => setPickerOpen(false)}
-                    style={{
-                      display: 'block',
-                      padding: '14px 16px',
-                      backgroundColor: 'var(--color-surface-2)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 14,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
-                      {day.label}
-                    </p>
-                    <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '0 0 8px' }}>
-                      {day.templateName} · {day.exerciseCount} {day.exerciseCount === 1 ? 'exercise' : 'exercises'}
-                    </p>
-                    {day.muscleGroups.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {day.muscleGroups.map((g) => (
-                          <span
-                            key={g}
-                            style={{
-                              fontSize: 10, fontWeight: 600, padding: '2px 8px',
-                              borderRadius: 999, textTransform: 'capitalize',
-                              backgroundColor: `${MUSCLE_COLORS[g] ?? '#6b7280'}20`,
-                              color: MUSCLE_COLORS[g] ?? '#9ca3af',
-                            }}
-                          >
-                            {g}
-                          </span>
-                        ))}
+            {/* Scrollable template list */}
+            <div style={{
+              overflowY: 'auto',
+              flex: 1,
+              padding: '16px 16px 0',
+            }}>
+              {pickerLoading ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 120 }}>
+                  <p style={{ color: 'var(--color-text-hint)', fontSize: 14 }}>Loading your program…</p>
+                </div>
+              ) : pickerDays.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 100, gap: 6 }}>
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500, margin: 0 }}>
+                    No program templates yet
+                  </p>
+                  <p style={{ color: 'var(--color-text-hint)', fontSize: 12, margin: 0 }}>
+                    Your coach will add workouts to your program soon.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {pickerDays.map((day) => (
+                    <Link
+                      key={day.templateDayId}
+                      href={`/client/workouts/session?templateDayId=${encodeURIComponent(day.templateDayId)}&templateName=${encodeURIComponent(day.label)}`}
+                      onClick={() => setPickerOpen(false)}
+                      style={{ display: 'block', textDecoration: 'none' }}
+                    >
+                      <div style={{
+                        padding: '14px 16px',
+                        backgroundColor: 'var(--color-surface-2)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 16,
+                        display: 'flex', alignItems: 'center', gap: 14,
+                      }}>
+                        {/* Icon circle */}
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                          backgroundColor: 'var(--color-surface-3)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-hint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 4v16M18 4v16M2 12h4M18 12h4M4 8h2M4 16h2M18 8h2M18 16h2" />
+                          </svg>
+                        </div>
+                        {/* Text */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {day.label}
+                          </p>
+                          <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '0 0 6px' }}>
+                            {day.templateName && day.templateName !== day.label ? `${day.templateName} · ` : ''}{day.exerciseCount} {day.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                          </p>
+                          {day.muscleGroups.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {day.muscleGroups.map((g) => (
+                                <span key={g} style={{
+                                  fontSize: 10, fontWeight: 600, padding: '2px 7px',
+                                  borderRadius: 999, textTransform: 'capitalize',
+                                  backgroundColor: `${MUSCLE_COLORS[g] ?? '#6b7280'}22`,
+                                  color: MUSCLE_COLORS[g] ?? '#9ca3af',
+                                }}>
+                                  {g}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {/* Chevron */}
+                        <ChevronRight size={16} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
                       </div>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Custom workout — pinned at the bottom, always visible */}
+            <div style={{
+              padding: '12px 16px',
+              paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
+              borderTop: '1px solid var(--color-border)',
+              flexShrink: 0,
+            }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerOpen(false)
+                  // Use window.location for reliable navigation — router.push
+                  // can silently drop when the sheet unmounts in the same tick.
+                  window.location.href = '/client/workouts/session?custom=true'
+                }}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  backgroundColor: 'var(--color-surface-2)',
+                  border: '1px dashed var(--color-border)',
+                  borderRadius: 16,
+                  color: 'var(--color-text-muted)',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}
+              >
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                  backgroundColor: 'var(--color-surface-3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-hint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Create Custom Workout</p>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-hint)', fontWeight: 400 }}>Pick any exercises and log your sets</p>
+                </div>
+              </button>
+            </div>
+
+          </div>{/* end sheet panel */}
         </div>
       )}
     </div>

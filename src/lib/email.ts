@@ -1,6 +1,8 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY?.trim())
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY?.trim())
+}
 
 const FROM = 'noreply@mitovski.co'
 const REPLY_TO = 'martinmitovski17@gmail.com'
@@ -15,7 +17,7 @@ export async function sendInviteEmail({
   inviteUrl: string
   coachName: string
 }) {
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `${coachName} invited you to join their coaching platform`,
@@ -103,7 +105,7 @@ export async function sendCheckinReminderEmail({
   const config = REMINDER_CONFIG[hoursLate] ?? REMINDER_CONFIG[12]
   const checkinUrl = `${APP_URL}/check-in`
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: config.subject,

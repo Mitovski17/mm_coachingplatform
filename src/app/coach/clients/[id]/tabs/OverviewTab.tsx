@@ -26,19 +26,31 @@ type Props = {
 
 // ─── Circular metric gauge ────────────────────────────────────────────────────
 
+function percentColor(value: number, maxValue: number): string {
+  const pct = (value / maxValue) * 100
+  if (pct >= 75) return '#22c55e'
+  if (pct >= 50) return '#f59e0b'
+  return '#ef4444'
+}
+
 function MetricCircle({
   label,
   value,
   color,
+  maxValue = 10,
+  dynamicColor = false,
 }: {
   label: string
   value: number | null
   color: string
+  maxValue?: number
+  dynamicColor?: boolean
 }) {
   const r = 24
   const circ = 2 * Math.PI * r
-  const pct = value !== null ? Math.max(0, Math.min(value / 10, 1)) : 0
+  const pct = value !== null ? Math.max(0, Math.min(value / maxValue, 1)) : 0
   const dash = pct * circ
+  const resolvedColor = value !== null && dynamicColor ? percentColor(value, maxValue) : color
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -54,7 +66,7 @@ function MetricCircle({
         <circle
           cx={32} cy={32} r={r}
           fill="none"
-          stroke={value !== null ? color : 'transparent'}
+          stroke={value !== null ? resolvedColor : 'transparent'}
           strokeWidth={5}
           strokeDasharray={`${dash} ${circ}`}
           strokeLinecap="round"
@@ -64,7 +76,7 @@ function MetricCircle({
         <text
           x={32} y={28}
           textAnchor="middle"
-          fontSize={14}
+          fontSize={maxValue === 100 ? 11 : 14}
           fontWeight={700}
           fill={value !== null ? '#fff' : 'rgba(255,255,255,0.25)'}
         >
@@ -76,7 +88,7 @@ function MetricCircle({
           fontSize={8}
           fill="rgba(255,255,255,0.35)"
         >
-          /10
+          /{maxValue}
         </text>
       </svg>
       <span style={{ fontSize: 11, color: 'var(--color-text-hint)', fontWeight: 500 }}>
@@ -327,8 +339,8 @@ export default function OverviewTab({
             <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: 16 }}>
               <MetricCircle label="Energy"     value={energyScore}    color="#f97316" />
               <MetricCircle label="Sleep"      value={sleepScore}     color="#3b82f6" />
-              <MetricCircle label="Adherence"  value={adherenceScore} color="#a855f7" />
-              <MetricCircle label="Training"   value={trainingScore}  color="#22c55e" />
+              <MetricCircle label="Adherence"  value={adherenceScore} color="#a855f7" maxValue={100} dynamicColor />
+              <MetricCircle label="Training"   value={trainingScore}  color="#22c55e" maxValue={100} dynamicColor />
             </div>
 
             {/* Client note */}

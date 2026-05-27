@@ -48,7 +48,7 @@ export default async function UsersPage() {
   const users = await fetchUsers()
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1200 }}>
+    <div className="admin-page" style={{ padding: '32px 40px', maxWidth: 1200 }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
           Users
@@ -66,7 +66,8 @@ export default async function UsersPage() {
           overflow: 'hidden',
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="admin-table-wrap">
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
               {['Name', 'Email', 'Role', 'Workspace', 'Joined', 'Last Sign-in', ''].map((h) => (
@@ -140,6 +141,7 @@ export default async function UsersPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

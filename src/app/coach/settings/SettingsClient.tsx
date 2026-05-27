@@ -504,6 +504,7 @@ export default function SettingsClient({
   const [openSection, setOpenSection] = useState<ActiveSection>(null)
   const [displayName, setDisplayName] = useState(fullName)
   const [displayAvatar, setDisplayAvatar] = useState(avatarUrl)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
   const notifKey = `coach_notif_prefs_${userId}`
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>(DEFAULT_NOTIF)
@@ -537,7 +538,7 @@ export default function SettingsClient({
   ]
 
   return (
-    <div style={{ padding: '40px', maxWidth: 760, margin: '0 auto' }}>
+    <div className="coach-settings-page">
 
       {/* Page title */}
       <div style={{ marginBottom: 32 }}>
@@ -850,24 +851,102 @@ export default function SettingsClient({
       </div>
 
       {/* ── Sign out ── */}
-      <form action={signOut}>
-        <button
-          type="submit"
+      <button
+        type="button"
+        onClick={() => setShowSignOutConfirm(true)}
+        style={{
+          width: '100%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          padding: '14px',
+          backgroundColor: 'rgba(239,68,68,0.08)',
+          border: '1px solid rgba(239,68,68,0.2)',
+          borderRadius: 14,
+          cursor: 'pointer',
+          fontSize: 15, fontWeight: 600, color: '#ef4444',
+        }}
+      >
+        <LogOut size={17} />
+        Sign out
+      </button>
+
+      {/* ── Sign out confirmation modal ── */}
+      {showSignOutConfirm && (
+        <div
           style={{
-            width: '100%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            padding: '14px',
-            backgroundColor: 'rgba(239,68,68,0.08)',
-            border: '1px solid rgba(239,68,68,0.2)',
-            borderRadius: 14,
-            cursor: 'pointer',
-            fontSize: 15, fontWeight: 600, color: '#ef4444',
+            position: 'fixed', inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
           }}
+          onClick={() => setShowSignOutConfirm(false)}
         >
-          <LogOut size={17} />
-          Sign out
-        </button>
-      </form>
+          <div
+            style={{
+              backgroundColor: 'var(--color-surface-1)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 20,
+              padding: '28px 24px',
+              width: '100%', maxWidth: 340,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+              textAlign: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: 52, height: 52, borderRadius: '50%',
+                backgroundColor: 'rgba(239,68,68,0.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <LogOut size={22} color="#ef4444" />
+            </div>
+            <div>
+              <p style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                Sign out?
+              </p>
+              <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+                You&apos;ll be returned to the login screen.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 10, width: '100%', marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setShowSignOutConfirm(false)}
+                style={{
+                  flex: 1, padding: '12px 0',
+                  backgroundColor: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 12,
+                  fontSize: 15, fontWeight: 600,
+                  color: 'var(--color-text-primary)',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <form action={signOut} style={{ flex: 1 }}>
+                <button
+                  type="submit"
+                  style={{
+                    width: '100%', padding: '12px 0',
+                    backgroundColor: '#ef4444',
+                    border: 'none',
+                    borderRadius: 12,
+                    fontSize: 15, fontWeight: 600,
+                    color: '#fff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Sign out
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

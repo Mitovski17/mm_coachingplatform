@@ -97,26 +97,52 @@ export default function DashboardClient({
   const showAlert = needAttention > 0 && !alertDismissed
 
   return (
-    <div style={{ padding: '32px 28px', minHeight: '100vh' }}>
+    <div className="coach-page" style={{ minHeight: '100vh' }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Your Clients
-          </p>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
-            {clients.length} active
-            {needAttention > 0 && (
-              <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--color-accent)', marginLeft: 10 }}>
-                · {needAttention} need attention
-              </span>
-            )}
-          </h1>
+      <div className="coach-dash-header" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+
+        {/* Title row (on mobile this becomes its own row via .coach-dash-header-row) */}
+        <div className="coach-dash-header-row" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Your Clients
+            </p>
+            <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
+              {clients.length} active
+              {needAttention > 0 && (
+                <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--color-accent)', marginLeft: 10 }}>
+                  · {needAttention} need attention
+                </span>
+              )}
+            </h1>
+          </div>
+
+          {/* Add client button — always visible */}
+          <Link
+            href="/coach/clients/new"
+            style={{
+              display:         'inline-flex',
+              alignItems:      'center',
+              gap:             7,
+              backgroundColor: 'var(--color-accent)',
+              color:           '#ffffff',
+              fontSize:        13,
+              fontWeight:      700,
+              borderRadius:    8,
+              padding:         '9px 16px',
+              textDecoration:  'none',
+              flexShrink:      0,
+              whiteSpace:      'nowrap',
+            }}
+          >
+            <UserPlus size={14} />
+            Add client
+          </Link>
         </div>
 
-        {/* Search */}
-        <div style={{ position: 'relative', flexShrink: 0 }}>
+        {/* Search — full-width on mobile, fixed on desktop */}
+        <div className="coach-search-wrap" style={{ position: 'relative', flexShrink: 0 }}>
           <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-hint)', pointerEvents: 'none' }} />
           <input
             type="text"
@@ -124,39 +150,17 @@ export default function DashboardClient({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
-              background: 'var(--color-surface-1)',
-              border: '1px solid var(--color-border)',
+              background:   'var(--color-surface-1)',
+              border:       '1px solid var(--color-border)',
               borderRadius: 8,
-              padding: '8px 12px 8px 34px',
-              fontSize: 13,
-              color: 'var(--color-text-primary)',
-              outline: 'none',
-              width: 200,
+              padding:      '8px 12px 8px 34px',
+              fontSize:     13,
+              color:        'var(--color-text-primary)',
+              outline:      'none',
+              width:        200,
             }}
           />
         </div>
-
-        {/* Add client */}
-        <Link
-          href="/coach/clients/new"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 7,
-            backgroundColor: 'var(--color-accent)',
-            color: '#ffffff',
-            fontSize: 13,
-            fontWeight: 700,
-            borderRadius: 8,
-            padding: '9px 16px',
-            textDecoration: 'none',
-            flexShrink: 0,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <UserPlus size={14} />
-          Add client
-        </Link>
       </div>
 
       {/* ── Alert banner ── */}
@@ -208,11 +212,12 @@ export default function DashboardClient({
 
       {/* ── Filter tabs ── */}
       <div
+        className="coach-tabs-scroll"
         style={{
-          display: 'flex',
-          gap: 6,
+          display:      'flex',
+          gap:          6,
           marginBottom: 20,
-          flexWrap: 'wrap',
+          flexWrap:     'wrap',
         }}
       >
         {allTabs.map((tab) => {
@@ -302,9 +307,9 @@ export default function DashboardClient({
       ) : (
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: 12,
+            display:             'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
+            gap:                 12,
           }}
         >
           {filtered.map((c) => (

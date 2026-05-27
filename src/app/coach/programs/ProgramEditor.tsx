@@ -107,7 +107,7 @@ export default function ProgramEditor({
   }
 
   return (
-    <div className="px-6 py-8 max-w-3xl pb-32">
+    <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-3xl pb-32">
       {/* Back link */}
       <Link
         href="/coach/programs"
@@ -336,7 +336,7 @@ export default function ProgramEditor({
 
       {/* Sticky action bar */}
       <div
-        className="fixed bottom-0 left-0 right-0 px-6 py-3 flex items-center justify-end gap-3"
+        className="coach-sticky-bar fixed bottom-0 left-0 right-0 px-4 py-3 sm:px-6 flex items-center justify-end gap-3"
         style={{
           backgroundColor: 'var(--color-surface-1)',
           borderTop: '1px solid var(--color-border)',

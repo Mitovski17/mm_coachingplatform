@@ -55,7 +55,7 @@ export default async function ClientDetailPage({
   })
 
   return (
-    <div className="px-6 py-6">
+    <div className="px-4 py-4 sm:px-6 sm:py-6">
       <div className="mb-4">
         <Link
           href="/coach/dashboard"

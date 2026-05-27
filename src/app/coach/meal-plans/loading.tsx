@@ -1,6 +1,6 @@
 export default function Loading() {
   return (
-    <div style={{ padding: '32px 24px' }}>
+    <div className="coach-page">
       {/* Page title + action button */}
       <div className="flex items-center justify-between" style={{ marginBottom: 24 }}>
         <div

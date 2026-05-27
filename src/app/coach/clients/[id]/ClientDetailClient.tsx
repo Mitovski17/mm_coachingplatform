@@ -131,42 +131,42 @@ export default function ClientDetailClient(props: Props) {
       </div>
 
       {/* Title + action buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div className="coach-client-title-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
           {profile.name}
         </h1>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <Link
             href={`/coach/messages/${profile.id}`}
             style={{
-              padding: '8px 16px',
-              fontSize: 13,
-              fontWeight: 600,
-              color: 'var(--color-text-primary)',
+              padding:         '8px 16px',
+              fontSize:        13,
+              fontWeight:      600,
+              color:           'var(--color-text-primary)',
               backgroundColor: 'transparent',
-              border: '1px solid var(--color-border)',
-              borderRadius: 8,
-              cursor: 'pointer',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
+              border:          '1px solid var(--color-border)',
+              borderRadius:    8,
+              cursor:          'pointer',
+              textDecoration:  'none',
+              display:         'inline-flex',
+              alignItems:      'center',
             }}
           >
             Message
           </Link>
           <button
             style={{
-              padding: '8px 16px',
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#fff',
+              padding:         '8px 16px',
+              fontSize:        13,
+              fontWeight:      600,
+              color:           '#fff',
               backgroundColor: 'var(--color-accent)',
-              border: 'none',
-              borderRadius: 8,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
+              border:          'none',
+              borderRadius:    8,
+              cursor:          'pointer',
+              display:         'flex',
+              alignItems:      'center',
+              gap:             6,
             }}
           >
             Open as client <span style={{ fontSize: 15 }}>→</span>
@@ -176,15 +176,17 @@ export default function ClientDetailClient(props: Props) {
 
       {/* Client info card */}
       <div
+        className="coach-client-info-card"
         style={{
           backgroundColor: 'var(--color-surface-1)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 12,
-          padding: '14px 18px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          marginBottom: 20,
+          border:          '1px solid var(--color-border)',
+          borderRadius:    12,
+          padding:         '14px 18px',
+          display:         'flex',
+          alignItems:      'center',
+          gap:             16,
+          marginBottom:    20,
+          flexWrap:        'wrap',
         }}
       >
         {/* Avatar */}
@@ -240,7 +242,7 @@ export default function ClientDetailClient(props: Props) {
         </div>
 
         {/* Week + total change */}
-        <div style={{ display: 'flex', gap: 28, flexShrink: 0 }}>
+        <div className="coach-client-card-stats" style={{ display: 'flex', gap: 28, flexShrink: 0 }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-hint)', marginBottom: 2 }}>
               Week
@@ -262,7 +264,7 @@ export default function ClientDetailClient(props: Props) {
 
       {/* Tab bar */}
       <div
-        className="flex gap-6 mb-6"
+        className="coach-client-tabs flex gap-4 mb-6"
         style={{ borderBottom: '1px solid var(--color-border)' }}
       >
         {TABS.map((tab) => {

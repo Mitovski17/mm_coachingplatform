@@ -18,6 +18,7 @@ import {
 } from './actions'
 import type { FoodSearchResult } from '@/lib/food-search'
 import BarcodeScannerModal from './BarcodeScannerModal'
+import { useLanguage } from '@/lib/i18n'
 
 const COLOR_PROTEIN = '#3b82f6'
 const COLOR_CARBS = '#f97316'
@@ -62,6 +63,7 @@ export default function NutritionClient({
   initialPlanType,
   initialDate,
 }: Props) {
+  const { t } = useLanguage()
   const [clientId] = useState(initialClientId)
   const [workspaceId] = useState(initialWorkspaceId)
   const [selectedDate, setSelectedDate] = useState<string>(initialDate)
@@ -279,7 +281,7 @@ export default function NutritionClient({
               {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()}
             </p>
             <h1 style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-text-primary)', margin: '1px 0 0', lineHeight: 1.1 }}>
-              Food Diary
+              {t.nutrition.title}
             </h1>
           </div>
           <PlanTypeToggle value={planType} onChange={handleSetPlanType} />
@@ -399,7 +401,7 @@ export default function NutritionClient({
               }}
             >
               <Plus size={15} />
-              Add Another Meal
+              {t.nutrition.addFood}
             </button>
           </div>
         </div>
@@ -607,6 +609,7 @@ function MacrosCard({
   totals: { proteinG: number; carbsG: number; fatG: number }
   goal: { proteinG: number; carbsG: number; fatG: number } | null
 }) {
+  const { t } = useLanguage()
   return (
     <div
       style={{
@@ -617,9 +620,9 @@ function MacrosCard({
       }}
     >
       <div className="grid grid-cols-3 gap-3">
-        <MacroCol label="Protein" current={totals.proteinG} goal={goal?.proteinG ?? null} color={COLOR_PROTEIN} />
-        <MacroCol label="Carbs" current={totals.carbsG} goal={goal?.carbsG ?? null} color={COLOR_CARBS} />
-        <MacroCol label="Fat" current={totals.fatG} goal={goal?.fatG ?? null} color={COLOR_FAT} />
+        <MacroCol label={t.nutrition.protein} current={totals.proteinG} goal={goal?.proteinG ?? null} color={COLOR_PROTEIN} />
+        <MacroCol label={t.nutrition.carbs}   current={totals.carbsG}   goal={goal?.carbsG ?? null}   color={COLOR_CARBS} />
+        <MacroCol label={t.nutrition.fat}     current={totals.fatG}     goal={goal?.fatG ?? null}     color={COLOR_FAT} />
       </div>
     </div>
   )
@@ -678,15 +681,16 @@ function DiaryNotesTabs({
   tab: 'diary' | 'notes'
   onChange: (t: 'diary' | 'notes') => void
 }) {
+  const { t: tr } = useLanguage()
   return (
     <div className="flex items-center gap-2">
-      {(['diary', 'notes'] as const).map((t) => {
-        const active = tab === t
+      {(['diary', 'notes'] as const).map((tab2) => {
+        const active = tab === tab2
         return (
           <button
-            key={t}
+            key={tab2}
             type="button"
-            onClick={() => onChange(t)}
+            onClick={() => onChange(tab2)}
             className="px-3 py-1.5 text-sm font-semibold"
             style={{
               backgroundColor: active ? 'var(--color-surface-3)' : 'transparent',
@@ -696,7 +700,7 @@ function DiaryNotesTabs({
               cursor: 'pointer',
             }}
           >
-            {t === 'diary' ? 'Diary' : 'Notes'}
+            {tab2 === 'diary' ? tr.nutrition.title : tr.workouts.notes}
           </button>
         )
       })}
@@ -705,6 +709,8 @@ function DiaryNotesTabs({
 }
 
 function NoPlanCard({ planType }: { planType: 'training' | 'rest' }) {
+  const { t } = useLanguage()
+  void planType
   return (
     <div
       style={{
@@ -716,10 +722,10 @@ function NoPlanCard({ planType }: { planType: 'training' | 'rest' }) {
       }}
     >
       <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
-        No {planType === 'training' ? 'Training' : 'Rest'} day meal plan assigned yet.
+        {t.nutrition.emptyMeal}
       </p>
       <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>
-        Your coach will assign a meal plan to your profile.
+        {t.workouts.coachWillAdd}
       </p>
     </div>
   )
@@ -770,6 +776,9 @@ function CustomMealCard({
   logDate?: string
   onLogged?: () => void
 }) {
+  const { t } = useLanguage()
+  const cancelLabel = t.common.cancel
+  const addFoodLabel = t.nutrition.addFood
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState(mealName)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
@@ -880,7 +889,7 @@ function CustomMealCard({
           <button
             type="button"
             onClick={onRemove}
-            title="Remove meal"
+            title={t.common.delete}
             style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, flexShrink: 0 }}
           >
             <X size={15} />
@@ -935,7 +944,7 @@ function CustomMealCard({
                 <button
                   type="button"
                   onClick={() => { setEditingCustomId(l.id); setCustomEditQty(String(l.quantity)) }}
-                  title="Edit quantity"
+                  title={t.common.edit}
                   style={{ width: 22, height: 22, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <Pencil size={12} />
@@ -976,7 +985,7 @@ function CustomMealCard({
           }}
         >
           <Plus size={15} />
-          {addFoodOpen ? 'Cancel' : 'Add food'}
+          {addFoodOpen ? cancelLabel : addFoodLabel}
         </button>
         {addFoodOpen && (
           <AddCustomFood
@@ -1050,6 +1059,9 @@ function MealCard({
   logDate?: string
   onLogged?: () => void
 }) {
+  const { t } = useLanguage()
+  const cancelLabel = t.common.cancel
+  const addFoodLabel = t.nutrition.addFood
   const [circleLoading, setCircleLoading] = useState(false)
   const [optimisticLogged, setOptimisticLogged] = useState<boolean | null>(null)
   const [circleError, setCircleError] = useState(false)
@@ -1326,7 +1338,7 @@ function MealCard({
                     setEditingCustomId(l.id)
                     setCustomEditQty(String(l.quantity))
                   }}
-                  title="Edit quantity"
+                  title={t.common.edit}
                   style={{
                     width: 22,
                     height: 22,
@@ -1384,7 +1396,7 @@ function MealCard({
           }}
         >
           <Plus size={15} />
-          {addFoodOpen ? 'Cancel' : 'Add food'}
+          {addFoodOpen ? cancelLabel : addFoodLabel}
         </button>
         {addFoodOpen && (
           <AddCustomFood
@@ -1424,6 +1436,7 @@ function FoodRow({
   portionOverride: number | undefined
   onPortionOverride: (qty: number) => void
 }) {
+  const { t } = useLanguage()
   const [editing, setEditing] = useState(false)
   const [editQty, setEditQty] = useState('')
 
@@ -1542,7 +1555,7 @@ function FoodRow({
       <button
         type="button"
         onClick={handleEdit}
-        title="Edit quantity"
+        title={t.common.edit}
         style={{
           width: 22,
           height: 22,
@@ -1643,6 +1656,7 @@ function AddCustomFood({
   logDate?: string
   onLogged?: () => void
 }) {
+  const { t } = useLanguage()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FoodSearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -1715,7 +1729,7 @@ function AddCustomFood({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search food..."
+              placeholder={t.nutrition.searchFoods + '…'}
               style={{
                 flex: 1,
                 background: 'transparent',
@@ -1730,7 +1744,7 @@ function AddCustomFood({
               <button
                 type="button"
                 onClick={() => setShowBarcodeScanner(true)}
-                title="Scan barcode"
+                title={t.nutrition.scanBarcode}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -1794,7 +1808,7 @@ function AddCustomFood({
               textDecoration: 'underline',
             }}
           >
-            Enter manually
+            {t.nutrition.addCustom}
           </button>
         </>
       )}
@@ -1832,7 +1846,7 @@ function AddCustomFood({
                 cursor: 'pointer',
               }}
             >
-              Add to {mealName}
+              {t.nutrition.addToMeal}
             </button>
             <button
               type="button"
@@ -1845,7 +1859,7 @@ function AddCustomFood({
                 cursor: 'pointer',
               }}
             >
-              Cancel
+              {t.common.cancel}
             </button>
           </div>
         </div>
@@ -1893,6 +1907,7 @@ function ManualEntryForm({
   }) => void
   onCancel: () => void
 }) {
+  const { t } = useLanguage()
   const [name, setName] = useState('')
   const [cal, setCal] = useState('')
   const [p, setP] = useState('')
@@ -1929,15 +1944,15 @@ function ManualEntryForm({
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Food name"
+        placeholder={t.nutrition.foodName}
         style={{ ...inputStyle, marginBottom: 6 }}
       />
       <div className="grid grid-cols-2 gap-2 mb-2">
-        <input type="number" value={cal} onChange={(e) => setCal(e.target.value)} placeholder="Calories" style={inputStyle} />
-        <input type="number" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Quantity (g)" style={inputStyle} />
-        <input type="number" value={p} onChange={(e) => setP(e.target.value)} placeholder="Protein (g)" style={inputStyle} />
-        <input type="number" value={c} onChange={(e) => setC(e.target.value)} placeholder="Carbs (g)" style={inputStyle} />
-        <input type="number" value={f} onChange={(e) => setF(e.target.value)} placeholder="Fat (g)" style={inputStyle} />
+        <input type="number" value={cal} onChange={(e) => setCal(e.target.value)} placeholder={t.nutrition.calories} style={inputStyle} />
+        <input type="number" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`${t.nutrition.quantity} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="number" value={p} onChange={(e) => setP(e.target.value)} placeholder={`${t.nutrition.protein} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="number" value={c} onChange={(e) => setC(e.target.value)} placeholder={`${t.nutrition.carbs} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="number" value={f} onChange={(e) => setF(e.target.value)} placeholder={`${t.nutrition.fat} (${t.nutrition.grams})`} style={inputStyle} />
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -1952,7 +1967,7 @@ function ManualEntryForm({
             cursor: 'pointer',
           }}
         >
-          Add to {mealName}
+          {t.nutrition.addToMeal}
         </button>
         <button
           type="button"
@@ -1965,7 +1980,7 @@ function ManualEntryForm({
             cursor: 'pointer',
           }}
         >
-          Cancel
+          {t.common.cancel}
         </button>
       </div>
     </div>
@@ -1973,6 +1988,7 @@ function ManualEntryForm({
 }
 
 function NotesCard({ plan }: { plan: FullMealPlan | null }) {
+  const { t } = useLanguage()
   if (!plan) {
     return (
       <div
@@ -1985,7 +2001,7 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
         }}
       >
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0 }}>
-          No meal plan assigned yet.
+          {t.nutrition.emptyMeal}
         </p>
       </div>
     )
@@ -2023,7 +2039,7 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
           MC
         </div>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-          From your coach
+          {t.home.coach}
         </span>
       </div>
 
@@ -2038,7 +2054,7 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
             textTransform: 'uppercase',
           }}
         >
-          Notes
+          {t.workouts.notes}
         </p>
         {plan.notes ? (
           <p style={{ fontSize: 14, color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap', margin: 0 }}>
@@ -2046,7 +2062,7 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
           </p>
         ) : (
           <p style={{ fontSize: 13, color: 'var(--color-text-hint)', fontStyle: 'italic', margin: 0 }}>
-            No notes yet.
+            {t.nutrition.emptyMeal}
           </p>
         )}
       </div>
@@ -2065,7 +2081,7 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
             textTransform: 'uppercase',
           }}
         >
-          Recommendations
+          {t.workouts.notes}
         </p>
         {plan.recommendations ? (
           <p style={{ fontSize: 14, color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap', margin: 0 }}>
@@ -2073,13 +2089,13 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
           </p>
         ) : (
           <p style={{ fontSize: 13, color: 'var(--color-text-hint)', fontStyle: 'italic', margin: 0 }}>
-            No recommendations yet.
+            {t.nutrition.emptyMeal}
           </p>
         )}
       </div>
 
       <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: '8px 0 0' }}>
-        Last updated {updatedStr}
+        {updatedStr}
       </p>
     </div>
   )

@@ -49,7 +49,7 @@ export default function NewClientPage() {
   }
 
   return (
-    <div style={{ maxWidth: 520, margin: '0 auto', padding: '40px 24px' }}>
+    <div className="coach-settings-page" style={{ maxWidth: 520 }}>
       <Link
         href="/coach/dashboard"
         className="inline-flex items-center gap-1.5"

@@ -575,9 +575,9 @@ export default function TemplateEditor({
       </div>
 
       {/* Two-column layout */}
-      <div style={{ display: 'flex', height: 'calc(100vh - 53px)', overflow: 'hidden' }}>
+      <div className="coach-editor-body" style={{ overflow: 'hidden' }}>
         {/* Left: main editor */}
-        <div className="no-scrollbar" style={{ flex: '0 0 55%', overflowY: 'auto', padding: '28px 32px 80px' }}>
+        <div className="coach-editor-left no-scrollbar" style={{ flex: '0 0 55%', overflowY: 'auto', padding: '28px 32px 80px' }}>
 
           {/* AI panel */}
           {!aiGenerated ? (
@@ -1290,9 +1290,9 @@ export default function TemplateEditor({
           )}
         </div>
 
-        {/* Right: sidebar — stats for active day */}
+        {/* Right: sidebar — stats for active day (hidden on mobile) */}
         <div
-          className="no-scrollbar"
+          className="coach-editor-right no-scrollbar"
           style={{
             flex: '1 1 45%',
             borderLeft: '1px solid var(--color-border)',

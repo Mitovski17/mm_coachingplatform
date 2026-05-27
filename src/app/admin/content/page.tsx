@@ -46,7 +46,7 @@ export default async function ContentPage() {
   const flaggedCount = digests.filter((d: { flagged: boolean }) => d.flagged).length
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1200 }}>
+    <div className="admin-page" style={{ padding: '32px 40px', maxWidth: 1200 }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
           Content Moderation

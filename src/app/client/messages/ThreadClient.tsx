@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import MessageBubble from '@/components/shared/MessageBubble'
 import MessageInput from '@/components/shared/MessageInput'
 import { sendMessage, markMessagesRead, type Message } from './actions'
+import { useLanguage } from '@/lib/i18n'
 
 type Props = {
   conversationId: string
@@ -23,21 +24,21 @@ function isSameDay(a: string, b: string): boolean {
   return new Date(a).toDateString() === new Date(b).toDateString()
 }
 
-function getDateLabel(iso: string): string {
+function getDateLabel(iso: string, todayLabel: string, yesterdayLabel: string, locale: string): string {
   const d = new Date(iso)
   const today = new Date()
   const yesterday = new Date(today)
   yesterday.setDate(today.getDate() - 1)
-  if (d.toDateString() === today.toDateString()) return 'Today'
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+  if (d.toDateString() === today.toDateString()) return todayLabel
+  if (d.toDateString() === yesterday.toDateString()) return yesterdayLabel
+  return d.toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
 }
 
 type RenderItem =
   | { kind: 'separator'; label: string; key: string }
   | { kind: 'message'; msg: Message; isFirst: boolean; isLast: boolean; showAvatar: boolean; key: string }
 
-function buildRenderItems(messages: Message[]): RenderItem[] {
+function buildRenderItems(messages: Message[], todayLabel: string, yesterdayLabel: string, locale: string): RenderItem[] {
   const items: RenderItem[] = []
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
@@ -45,7 +46,7 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
     const next = messages[i + 1]
 
     if (!prev || !isSameDay(prev.created_at, msg.created_at)) {
-      items.push({ kind: 'separator', label: getDateLabel(msg.created_at), key: `sep-${msg.id}` })
+      items.push({ kind: 'separator', label: getDateLabel(msg.created_at, todayLabel, yesterdayLabel, locale), key: `sep-${msg.id}` })
     }
 
     const isFirst = !prev || prev.sender_role !== msg.sender_role || !isSameDay(prev.created_at, msg.created_at)
@@ -58,6 +59,7 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
 }
 
 export default function ThreadClient({ conversationId, coachName, initialMessages }: Props) {
+  const { t, lang } = useLanguage()
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [inputValue, setInputValue] = useState('')
   const [sending, setSending] = useState(false)
@@ -110,7 +112,7 @@ export default function ThreadClient({ conversationId, coachName, initialMessage
     }
   }
 
-  const renderItems = buildRenderItems(messages)
+  const renderItems = buildRenderItems(messages, t.common.today, t.common.yesterday, lang === 'bg' ? 'bg-BG' : 'en-US')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 68px)', backgroundColor: 'var(--color-base)' }}>
@@ -149,7 +151,7 @@ export default function ThreadClient({ conversationId, coachName, initialMessage
           <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
             {coachName}
           </p>
-          <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>Your coach</p>
+          <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>{t.messages.yourCoach}</p>
         </div>
       </div>
 
@@ -166,7 +168,7 @@ export default function ThreadClient({ conversationId, coachName, initialMessage
       >
         {messages.length === 0 && (
           <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 13, marginTop: 40 }}>
-            No messages yet. Say hi to your coach!
+            {t.messages.noMessagesYet}
           </p>
         )}
 
@@ -208,7 +210,7 @@ export default function ThreadClient({ conversationId, coachName, initialMessage
         onChange={setInputValue}
         onSend={handleSend}
         sending={sending}
-        placeholder={`Message ${coachName}…`}
+        placeholder={t.messages.messagePlaceholder(coachName)}
       />
     </div>
   )

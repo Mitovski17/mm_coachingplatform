@@ -1,6 +1,6 @@
 ﻿export default function Loading() {
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 680 }}>
+    <div className="coach-page" style={{ maxWidth: 680 }}>
       <div className="animate-pulse" style={{ width: 140, height: 24, backgroundColor: 'var(--color-surface-3)', borderRadius: 8, marginBottom: 32 }} />
       <div className="flex flex-col gap-4">
         {Array.from({ length: 5 }).map((_, i) => (

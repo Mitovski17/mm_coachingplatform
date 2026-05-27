@@ -36,7 +36,7 @@ export default function ProgramsClient({
   }
 
   return (
-    <div className="px-6 py-8 max-w-5xl">
+    <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-5xl">
       {/* Page header */}
       <div className="mb-6 flex items-start justify-between">
         <div>
@@ -171,7 +171,7 @@ function TemplatesPanel({
               }}
             >
               <div className="flex-1 min-w-0 mr-4">
-                <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                <p className="coach-card-name text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                   {t.name}
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-hint)' }}>

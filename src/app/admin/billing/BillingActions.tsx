@@ -81,7 +81,7 @@ function WorkspaceRow({ ws }: { ws: Workspace }) {
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, fontSize: 12 }}>
+      <div className="admin-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, fontSize: 12 }}>
         <div>
           <span style={{ color: 'var(--color-text-hint)' }}>Stripe Customer: </span>
           <span style={{ color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>

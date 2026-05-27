@@ -32,7 +32,7 @@ export default async function BillingPage() {
   const stripeConfigured = !!process.env.STRIPE_SECRET_KEY
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 900 }}>
+    <div className="admin-page" style={{ padding: '32px 40px', maxWidth: 900 }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
           Billing

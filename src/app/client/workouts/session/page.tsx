@@ -14,6 +14,7 @@ import {
   type LastSession,
   type LibraryExercise,
 } from '../actions'
+import { useLanguage, type Translations } from '@/lib/i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ const MUSCLE_GROUP_ORDER = [
 
 // ─── Confirm modal ────────────────────────────────────────────────────────────
 
-function ConfirmModal({ modal, onClose }: { modal: ModalState; onClose: () => void }) {
+function ConfirmModal({ modal, onClose, t }: { modal: ModalState; onClose: () => void; t: Translations }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.6)' }}>
       <div style={{
@@ -95,7 +96,7 @@ function ConfirmModal({ modal, onClose }: { modal: ModalState; onClose: () => vo
               borderRadius: 10, padding: 12, fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer',
             }}
           >
-            Cancel
+            {t.common.cancel}
           </button>
           <button
             type="button"
@@ -105,7 +106,7 @@ function ConfirmModal({ modal, onClose }: { modal: ModalState; onClose: () => vo
               borderRadius: 10, padding: 12, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer',
             }}
           >
-            Confirm
+            {t.common.confirm}
           </button>
         </div>
       </div>
@@ -119,10 +120,12 @@ function ExercisePicker({
   library,
   onSelect,
   onClose,
+  t,
 }: {
   library: LibraryExercise[]
   onSelect: (ex: LibraryExercise) => void
   onClose: () => void
+  t: Translations
 }) {
   const [search, setSearch] = useState('')
 
@@ -172,7 +175,7 @@ function ExercisePicker({
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0 }}>
           <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
-            Add Exercise
+            {t.workouts.addExercise}
           </p>
           <button
             type="button"
@@ -188,7 +191,7 @@ function ExercisePicker({
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search exercises…"
+          placeholder={`${t.common.search} ${t.workouts.exercises.toLowerCase()}…`}
           autoFocus
           style={{
             width: '100%', padding: '10px 14px', marginBottom: 14, flexShrink: 0,
@@ -204,7 +207,7 @@ function ExercisePicker({
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {grouped.length === 0 ? (
             <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 14, padding: '24px 0' }}>
-              No exercises found.
+              {t.nutrition.noFoodsFound}
             </p>
           ) : (
             grouped.map(([group, exList]) => (
@@ -263,13 +266,14 @@ export default function SessionPage() {
 }
 
 function Spinner() {
-  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--color-text-hint)', fontSize: 14 }}>Loading…</div>
+  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--color-text-hint)', fontSize: 14 }}>…</div>
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 function SessionInner() {
   const router  = useRouter()
+  const { t } = useLanguage()
   const params  = useSearchParams()
   const isCustom      = params.get('custom') === 'true'
   const templateDayId = params.get('templateDayId') ?? ''
@@ -278,7 +282,7 @@ function SessionInner() {
   const [loading,       setLoading]   = useState(true)
   const [loadError,     setError]     = useState<string | null>(null)
   const [clientInfo,    setClient]    = useState<{ id: string; workspace_id: string } | null>(null)
-  const [templateName,  setTName]     = useState(isCustom ? 'Custom Workout' : templateNameParam)
+  const [templateName,  setTName]     = useState(isCustom ? t.workouts.createCustom : templateNameParam)
   const [exercises,     setExercises] = useState<ExerciseState[]>([])
   const [sessionNotes,  setNotes]     = useState('')
   const [saving,        setSaving]    = useState(false)
@@ -322,7 +326,7 @@ function SessionInner() {
 
         if (isCustom) {
           // Custom mode: load exercise library, start with empty exercises
-          setTName('Custom Workout')
+          setTName(t.workouts.createCustom)
           const library = await getExerciseLibraryForClient(client.workspace_id)
           if (!cancelled) {
             setExerciseLibrary(library)
@@ -471,8 +475,8 @@ function SessionInner() {
 
     if (totalSets === 0) {
       setModal({
-        title: 'No sets logged',
-        body: 'Add at least one exercise and mark sets before finishing.',
+        title: t.workouts.noWorkoutsYet,
+        body: t.workouts.noWorkoutsYet,
         onConfirm: () => { /* noop */ },
       })
       return
@@ -482,8 +486,8 @@ function SessionInner() {
       handleSaveSession()
     } else {
       setModal({
-        title: 'Finish early?',
-        body: `You've completed ${completedSets} of ${totalSets} sets. Save this partial session?`,
+        title: t.workouts.finishWorkout + '?',
+        body: `${completedSets} / ${totalSets} ${t.workouts.sets}`,
         onConfirm: handleSaveSession,
       })
     }
@@ -507,8 +511,8 @@ function SessionInner() {
             onMouseEnter={() => setQuitHover(true)}
             onMouseLeave={() => setQuitHover(false)}
             onClick={() => setModal({
-              title: 'Quit workout?',
-              body: 'Your progress will not be saved. Are you sure you want to quit?',
+              title: t.workouts.discardConfirm,
+              body: t.workouts.discardConfirmSub,
               onConfirm: () => router.push('/client/workouts'),
             })}
             style={{
@@ -519,7 +523,7 @@ function SessionInner() {
               color: '#fff', cursor: 'pointer', fontSize: 18, fontWeight: 700, lineHeight: 1,
               transition: 'background-color 0.15s',
             }}
-            aria-label="Quit"
+            aria-label={t.workouts.discard}
           >
             ×
           </button>
@@ -534,7 +538,7 @@ function SessionInner() {
               border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
             }}
           >
-            {saving ? 'Saving…' : 'Finish Workout'}
+            {saving ? t.common.saving : t.workouts.finishWorkout}
           </button>
         </div>
 
@@ -545,7 +549,7 @@ function SessionInner() {
 
         {/* Elapsed + exercise count */}
         <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: '0 0 10px', fontVariantNumeric: 'tabular-nums' }}>
-          {fmt(elapsed)} elapsed · {completedExercises} of {exercises.length} exercises
+          {fmt(elapsed)} · {completedExercises} / {exercises.length} {t.workouts.exercises}
         </p>
 
         {/* Progress bar */}
@@ -566,7 +570,7 @@ function SessionInner() {
             borderRadius: 16,
             marginBottom: 12,
           }}>
-            No exercises yet. Tap &quot;Add Exercise&quot; to get started.
+            {t.workouts.addExercise}
           </div>
         )}
 
@@ -579,6 +583,7 @@ function SessionInner() {
             onToggleDone={toggleSetDone}
             onAddSet={addSet}
             onSkipRest={() => setRest((r) => ({ ...r, active: false, secondsLeft: 0 }))}
+            t={t}
           />
         ))}
 
@@ -598,19 +603,19 @@ function SessionInner() {
             }}
           >
             <Plus size={16} />
-            Add Exercise
+            {t.workouts.addExercise}
           </button>
         )}
 
         {/* Session notes */}
         <div style={{ marginTop: 4, marginBottom: 16 }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Session Notes
+            {t.workouts.notes}
           </p>
           <textarea
             value={sessionNotes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="How did it feel? Any PRs or notes for your coach..."
+            placeholder={t.workouts.addNote}
             rows={3}
             style={{
               width: '100%', backgroundColor: 'var(--color-surface-1)',
@@ -624,7 +629,7 @@ function SessionInner() {
       </div>
 
       {/* ── Confirm modal ── */}
-      {modal && <ConfirmModal modal={modal} onClose={() => setModal(null)} />}
+      {modal && <ConfirmModal modal={modal} onClose={() => setModal(null)} t={t} />}
 
       {/* ── Exercise picker (custom mode) ── */}
       {pickerOpen && (
@@ -632,6 +637,7 @@ function SessionInner() {
           library={exerciseLibrary}
           onSelect={addExerciseFromLibrary}
           onClose={() => setPickerOpen(false)}
+          t={t}
         />
       )}
     </div>
@@ -641,7 +647,7 @@ function SessionInner() {
 // ─── Exercise card ────────────────────────────────────────────────────────────
 
 function ExerciseCard({
-  exercise, restTimer, onUpdateSet, onToggleDone, onAddSet, onSkipRest,
+  exercise, restTimer, onUpdateSet, onToggleDone, onAddSet, onSkipRest, t,
 }: {
   exercise: ExerciseState
   restTimer: RestTimer
@@ -649,6 +655,7 @@ function ExerciseCard({
   onToggleDone: (id: string, num: number) => void
   onAddSet: (id: string) => void
   onSkipRest: () => void
+  t: Translations
 }) {
   const muscleColor = MUSCLE_COLORS[exercise.muscleGroup.toLowerCase()] ?? '#6b7280'
   const isResting   = restTimer.active && restTimer.exerciseId === exercise.exerciseId
@@ -690,7 +697,7 @@ function ExerciseCard({
           {exercise.targetSets} × {exercise.targetReps}
           {exercise.previousSets.length > 0 && (
             <span style={{ color: 'var(--color-text-hint)' }}>
-              {' · '}Last: {exercise.previousSets.map((s) => `${s.weightKg}kg×${s.reps}`).join(' · ')}
+              {' · '}{exercise.previousSets.map((s) => `${s.weightKg}${t.checkin.weightUnit}×${s.reps}`).join(' · ')}
             </span>
           )}
         </p>
@@ -708,6 +715,7 @@ function ExerciseCard({
                 isPR={!!isPR}
                 onChange={(patch) => onUpdateSet(exercise.exerciseId, s.setNumber, patch)}
                 onToggleDone={() => onToggleDone(exercise.exerciseId, s.setNumber)}
+                t={t}
               />
             )
           })}
@@ -724,7 +732,7 @@ function ExerciseCard({
             fontSize: 13, fontWeight: 500, cursor: 'pointer',
           }}
         >
-          + Add Set
+          + {t.workouts.addSet}
         </button>
       </div>
 
@@ -736,7 +744,7 @@ function ExerciseCard({
         }}>
           <RestRing pct={restTimer.secondsLeft / (restTimer.totalSeconds || 1)} />
           <div>
-            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Rest</p>
+            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t.workouts.rest}</p>
             <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
               {fmt(restTimer.secondsLeft)}
             </p>
@@ -751,7 +759,7 @@ function ExerciseCard({
               border: '1px solid var(--color-border)', cursor: 'pointer',
             }}
           >
-            Skip
+            {t.common.skip}
           </button>
         </div>
       )}
@@ -762,12 +770,13 @@ function ExerciseCard({
 // ─── Set row (inline inputs) ──────────────────────────────────────────────────
 
 function SetRowItem({
-  row, isPR, onChange, onToggleDone,
+  row, isPR, onChange, onToggleDone, t,
 }: {
   row: SetRow
   isPR: boolean
   onChange: (patch: Partial<SetRow>) => void
   onToggleDone: () => void
+  t: Translations
 }) {
   return (
     <div style={{
@@ -800,7 +809,7 @@ function SetRowItem({
           padding: '8px 0', fontSize: 14, fontWeight: 600, outline: 'none',
         }}
       />
-      <span style={{ fontSize: 11, color: 'var(--color-text-hint)', flexShrink: 0 }}>kg</span>
+      <span style={{ fontSize: 11, color: 'var(--color-text-hint)', flexShrink: 0 }}>{t.checkin.weightUnit}</span>
       <span style={{ fontSize: 12, color: 'var(--color-text-hint)', flexShrink: 0 }}>×</span>
 
       {/* Reps */}
@@ -835,7 +844,7 @@ function SetRowItem({
       <button
         type="button"
         onClick={onToggleDone}
-        aria-label={row.done ? 'Mark undone' : 'Mark done'}
+        aria-label={row.done ? t.workouts.completed : t.common.done}
         style={{
           width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',

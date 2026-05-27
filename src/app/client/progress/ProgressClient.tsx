@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Camera } from 'lucide-react'
 import type { ProgressData, WeightDataPoint } from './progress-actions'
 import { uploadStandalonePhoto } from './progress-actions'
+import { useLanguage, type Translations } from '@/lib/i18n'
 
 type FilterKey = '4W' | '8W' | '12W' | 'All'
 const FILTER_COUNT: Record<FilterKey, number> = { '4W': 4, '8W': 8, '12W': 12, All: 9999 }
@@ -13,10 +14,12 @@ function WeightChart({
   data,
   goal,
   filter,
+  t,
 }: {
   data: WeightDataPoint[]
   goal: number | null
   filter: FilterKey
+  t: Translations
 }) {
   const count = FILTER_COUNT[filter]
   const visible = data.slice(-count)
@@ -24,7 +27,7 @@ function WeightChart({
   if (visible.length === 0) {
     return (
       <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 12, color: 'var(--color-text-hint)' }}>No weight data yet</span>
+        <span style={{ fontSize: 12, color: 'var(--color-text-hint)' }}>{t.progress.noWeightData}</span>
       </div>
     )
   }
@@ -81,7 +84,7 @@ function WeightChart({
             fill="rgba(255,255,255,0.35)"
             textAnchor="start"
           >
-            Goal {goal}
+            {t.progress.goal} {goal}
           </text>
         </>
       )}
@@ -152,6 +155,7 @@ function DotRow({
 
 export default function ProgressClient({ data }: { data: ProgressData }) {
   const router = useRouter()
+  const { t } = useLanguage()
   const [filter, setFilter] = useState<FilterKey>('All')
 
   // Upload modal state
@@ -206,7 +210,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
       setUploadFile(null)
       router.refresh()
     } catch {
-      setUploadError('Upload failed. Please try again.')
+      setUploadError(t.progress.uploadFailed)
     } finally {
       setUploading(false)
     }
@@ -218,19 +222,19 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
       {/* Header */}
       <div style={{ padding: '52px 20px 16px' }}>
         <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 4px' }}>
-          Week {weekNum}
+          {t.progress.week} {weekNum}
         </p>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
-          Progress
+          {t.progress.title}
         </h1>
       </div>
 
       {/* Stat chips */}
       <div style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         {[
-          { label: 'Starting', value: starting != null ? `${starting}` : '—', unit: starting != null ? unit : '', color: 'var(--color-text-primary)' },
-          { label: 'Now',      value: current  != null ? `${current}`  : '—', unit: current  != null ? unit : '', color: 'var(--color-text-primary)' },
-          { label: 'Change',   value: changeStr, unit: change != null ? unit : '', color: changeColor },
+          { label: t.progress.starting, value: starting != null ? `${starting}` : t.common.noData, unit: starting != null ? unit : '', color: 'var(--color-text-primary)' },
+          { label: t.progress.current,  value: current  != null ? `${current}`  : t.common.noData, unit: current  != null ? unit : '', color: 'var(--color-text-primary)' },
+          { label: t.progress.change,   value: changeStr, unit: change != null ? unit : '', color: changeColor },
         ].map(({ label, value, unit: u, color }) => (
           <div
             key={label}
@@ -257,10 +261,10 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 2px' }}>
-                Bodyweight
+                {t.progress.bodyWeight}
               </p>
               <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>
-                {filter === 'All' ? 'All time' : `${FILTER_COUNT[filter]}-week trend`}
+                {filter === 'All' ? t.progress.all : `${FILTER_COUNT[filter]} ${t.progress.week.toLowerCase()}`}
               </p>
             </div>
             <div style={{ display: 'flex', gap: 2, backgroundColor: 'var(--color-surface-3)', borderRadius: 999, padding: 3 }}>
@@ -286,7 +290,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
               ))}
             </div>
           </div>
-          <WeightChart data={weightData} goal={goal} filter={filter} />
+          <WeightChart data={weightData} goal={goal} filter={filter} t={t} />
         </div>
       </div>
 
@@ -295,10 +299,10 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
         <section style={{ padding: '0 0 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 10px' }}>
             <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-muted)', margin: 0 }}>
-              Check-in Trends
+              {t.progress.weeklySummary}
             </h2>
             <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>
-              Last {weekCards.length} weeks
+              {weekCards.length} {t.progress.week.toLowerCase()}
             </span>
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingLeft: 16, paddingRight: 16, paddingBottom: 4, scrollbarWidth: 'none' }}>
@@ -311,9 +315,9 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
                   {wk.label}
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  <DotRow label="Energy"  score={wk.energy}    color="#f97316" />
-                  <DotRow label="Sleep"   score={wk.sleep}     color="#3b82f6" />
-                  <DotRow label="Adher."  score={wk.adherence} color="#22c55e" />
+                  <DotRow label={t.progress.energy}    score={wk.energy}    color="#f97316" />
+                  <DotRow label={t.progress.sleep}     score={wk.sleep}     color="#3b82f6" />
+                  <DotRow label={t.progress.nutrition} score={wk.adherence} color="#22c55e" />
                 </div>
               </div>
             ))}
@@ -322,10 +326,10 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
       ) : (
         <section style={{ padding: '0 16px 16px' }}>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-muted)', margin: '0 0 8px' }}>
-            Check-in Trends
+            {t.progress.weeklySummary}
           </p>
           <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: 0 }}>
-            Complete your first check-in to see trends here.
+            {t.progress.noCheckins}
           </p>
         </section>
       )}
@@ -334,11 +338,11 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
       <section style={{ padding: '0 0 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 10px' }}>
           <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-muted)', margin: 0 }}>
-            Progress Photos
+            {t.progress.photos}
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>
-              {photos.length} submitted
+              {photos.length}
             </span>
             <button
               type="button"
@@ -358,7 +362,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
               }}
             >
               <Camera size={12} />
-              Add Photo
+              {t.progress.addPhoto}
             </button>
           </div>
         </div>
@@ -383,7 +387,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
             >
               <Camera size={22} style={{ color: 'var(--color-text-hint)' }} />
               <span style={{ fontSize: 12, color: 'var(--color-text-hint)', fontWeight: 500 }}>
-                No photos yet
+                {t.progress.noPhotos}
               </span>
             </div>
           )}
@@ -401,7 +405,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 16px' }}>
-              Add Progress Photo
+              {t.progress.addPhoto}
             </h3>
 
             {/* Hidden file input */}
@@ -433,7 +437,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
                 }}
               >
                 <Camera size={28} />
-                <span style={{ fontSize: 14, fontWeight: 500 }}>Tap to select a photo</span>
+                <span style={{ fontSize: 14, fontWeight: 500 }}>{t.progress.selectPhoto}</span>
               </button>
             ) : (
               <div style={{ position: 'relative', aspectRatio: '3 / 4', borderRadius: 14, overflow: 'hidden', backgroundColor: 'var(--color-surface-2)' }}>
@@ -477,7 +481,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
                   opacity: uploading ? 0.5 : 1,
                 }}
               >
-                Cancel
+                {t.common.cancel}
               </button>
               <button
                 type="button"
@@ -495,7 +499,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
                   cursor: uploadFile && !uploading ? 'pointer' : 'not-allowed',
                 }}
               >
-                {uploading ? 'Uploading…' : 'Upload'}
+                {uploading ? t.progress.uploading : t.progress.uploadPhoto}
               </button>
             </div>
           </div>

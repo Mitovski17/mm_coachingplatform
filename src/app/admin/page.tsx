@@ -73,7 +73,7 @@ export default async function AdminDashboardPage() {
   const kpis = await fetchKPIs()
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1200 }}>
+    <div className="admin-page" style={{ padding: '32px 40px', maxWidth: 1200 }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
           Platform Overview
@@ -83,7 +83,7 @@ export default async function AdminDashboardPage() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 40 }}>
+      <div className="admin-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 40 }}>
         <KpiCard label="Total Workspaces" value={kpis.totalWorkspaces} sub={`${kpis.activeWorkspaces} active subscriptions`} />
         <KpiCard label="Coaches" value={kpis.totalCoaches} color="var(--color-accent)" />
         <KpiCard label="Clients" value={kpis.totalClients} color="#0ea5e9" />

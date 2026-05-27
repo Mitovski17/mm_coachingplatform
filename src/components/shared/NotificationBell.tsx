@@ -39,8 +39,13 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
     void loadNotifications()
 
     const supabase = createClient()
+    // Append a unique ID so each effect run creates a truly new channel entry.
+    // supabase/realtime-js ≥ 2.10 returns the *existing* channel when the name
+    // already exists (instead of creating a fresh one), which causes an error
+    // when .on('postgres_changes') is called on an already-subscribed channel.
+    const channelName = `notifications-${recipientType}-${recipientId}-${crypto.randomUUID()}`
     const channel = supabase
-      .channel(`notifications-${recipientType}-${recipientId}`)
+      .channel(channelName)
       .on(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         'postgres_changes' as any,

@@ -53,7 +53,7 @@ export default async function WorkspacesPage() {
   const workspaces = await fetchWorkspaces()
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1200 }}>
+    <div className="admin-page" style={{ padding: '32px 40px', maxWidth: 1200 }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
           Workspaces
@@ -71,7 +71,8 @@ export default async function WorkspacesPage() {
           overflow: 'hidden',
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="admin-table-wrap">
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 780 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
               {['Workspace', 'Owner', 'Plan', 'Status', 'Coaches', 'Clients', 'Created', ''].map((h) => (
@@ -151,6 +152,7 @@ export default async function WorkspacesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

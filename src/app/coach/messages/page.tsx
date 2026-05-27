@@ -122,7 +122,7 @@ export default async function MessagesPage() {
   const { rows } = await fetchConversations()
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 720 }}>
+    <div className="coach-page" style={{ maxWidth: 720 }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
           Messages

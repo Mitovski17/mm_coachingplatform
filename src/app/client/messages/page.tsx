@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import ThreadClient from './ThreadClient'
+import NoCoachState from './NoCoachState'
 import { getOrCreateConversation, markMessagesRead, type Message } from './actions'
 
 function adminClient() {
@@ -89,12 +90,7 @@ export default async function ClientMessagesPage() {
     .maybeSingle()
 
   if (!coachProfile) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 68px)', backgroundColor: 'var(--color-base)', alignItems: 'center', justifyContent: 'center', padding: '0 32px' }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 8px', textAlign: 'center' }}>No coach assigned yet</p>
-        <p style={{ fontSize: 13, color: 'var(--color-text-hint)', textAlign: 'center' }}>Your coach will appear here once they set up your account.</p>
-      </div>
-    )
+    return <NoCoachState />
   }
 
   coachId = coachProfile.id

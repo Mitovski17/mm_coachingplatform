@@ -273,7 +273,7 @@ export default function OverviewTab({
       )}
 
       {/* 4 stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <div className="coach-stat-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         <StatCard
           label="Current Weight"
           value={currentWeight !== null ? String(currentWeight) : '—'}
@@ -302,7 +302,7 @@ export default function OverviewTab({
       </div>
 
       {/* Bottom 2-column */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+      <div className="coach-overview-bottom" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
 
         {/* Latest check-in */}
         {latest ? (

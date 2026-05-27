@@ -40,7 +40,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
   const { authUser, profile, workspace, clientCount } = data
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 800 }}>
+    <div className="admin-page" style={{ padding: '32px 40px', maxWidth: 800 }}>
       <div style={{ marginBottom: 24 }}>
         <Link href="/admin/users" style={{ fontSize: 13, color: '#7c3aed', textDecoration: 'none' }}>
           ← Back to Users
@@ -63,7 +63,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
           {authUser?.email}
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 24 }}>
+        <div className="admin-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 24 }}>
           {[
             { label: 'Role', value: profile?.role ?? '—' },
             { label: 'Workspace', value: workspace?.name ?? '—' },

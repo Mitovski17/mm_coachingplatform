@@ -151,7 +151,7 @@ export default function ExerciseLibraryClient({
   }
 
   return (
-    <div className="px-6 py-8 max-w-5xl">
+    <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-5xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

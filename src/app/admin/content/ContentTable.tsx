@@ -52,7 +52,8 @@ export default function ContentTable({ digests }: { digests: Digest[] }) {
         overflow: 'hidden',
       }}
     >
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="admin-table-wrap">
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
             {['Client', 'Workspace', 'Week', 'Status', 'Summary', 'Flag', ''].map((h) => (
@@ -236,6 +237,7 @@ export default function ContentTable({ digests }: { digests: Digest[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

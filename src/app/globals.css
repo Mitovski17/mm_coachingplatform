@@ -205,3 +205,231 @@
 /* Messages list row hover */
 .messages-row { background-color: var(--color-surface-1); transition: background-color 0.15s; }
 .messages-row:hover { background-color: var(--color-surface-2); }
+
+/* ─── Coach mobile responsive layout ──────────────────────────────── */
+/* Hidden by default (desktop); shown on mobile */
+.coach-mobile-header { display: none; }
+.coach-mobile-nav    { display: none; }
+
+@media (max-width: 767px) {
+  /* Hide the desktop sidebar, show the mobile chrome */
+  .coach-sidebar { display: none !important; }
+  .coach-mobile-header { display: flex !important; }
+  .coach-mobile-nav    { display: flex !important; }
+
+  /* Push content below the fixed top header and above the fixed bottom nav */
+  .coach-main-content {
+    margin-left: 0 !important;
+    padding-top: 56px !important;
+    padding-bottom: 76px !important;
+    transition: none !important;
+  }
+
+  /* Reduce horizontal padding inside page containers */
+  .coach-page {
+    padding: 20px 16px !important;
+  }
+
+  /* Make the dashboard header stack on mobile */
+  .coach-dash-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  /* The title+button row stays inline */
+  .coach-dash-header-row {
+    flex: unset !important;
+  }
+  /* Search stretches full-width */
+  .coach-search-wrap {
+    flex-shrink: unset !important;
+    width: 100% !important;
+  }
+  .coach-search-wrap input {
+    width: 100% !important;
+  }
+
+  /* Horizontally scrollable tab bars */
+  .coach-tabs-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+  }
+  .coach-tabs-scroll::-webkit-scrollbar { display: none; }
+
+  /* Client detail tabs */
+  .coach-client-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+  }
+  .coach-client-tabs::-webkit-scrollbar { display: none; }
+
+  /* Client detail info card — stack week/weight on mobile */
+  .coach-client-card-stats {
+    flex-direction: column !important;
+    gap: 6px !important;
+    align-items: flex-start !important;
+  }
+  .coach-client-card-stats > div {
+    text-align: left !important;
+  }
+
+  /* Assistant: hide conversation sidebar on mobile, adjust body padding */
+  .assistant-convo-sidebar { display: none !important; }
+  .assistant-body { padding: 0 0 0 !important; }
+
+  /* Sticky bottom action bars need to sit above the mobile nav */
+  .coach-sticky-bar {
+    bottom: 76px !important;
+  }
+
+  /* Reduce settings padding */
+  .coach-settings-page {
+    padding: 20px 16px !important;
+  }
+
+  /* Prevent any horizontal overflow on the coach content area */
+  .coach-main-content {
+    overflow-x: hidden;
+  }
+
+  /* Overview: 4-stat cards → 2×2 grid on mobile */
+  .coach-stat-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Overview: bottom 2-col section → single column on mobile */
+  .coach-overview-bottom {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Client info card: stack avatar+name above stats on mobile */
+  .coach-client-info-card {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  /* Within the stacked card, keep WEEK / TOTAL CHANGE side-by-side */
+  .coach-client-info-card .coach-client-card-stats {
+    flex-direction: row !important;
+    gap: 24px !important;
+    align-items: flex-start !important;
+  }
+  .coach-client-info-card .coach-client-card-stats > div {
+    text-align: left !important;
+  }
+
+  /* Card items in programs / meal-plans: allow long names to wrap */
+  .coach-card-name {
+    word-break: break-word !important;
+    white-space: normal !important;
+  }
+
+  /* Client detail title + buttons: stack on mobile */
+  .coach-client-title-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  .coach-client-title-row > div {
+    width: 100% !important;
+  }
+}
+
+/* ─── Admin mobile responsive layout ─────────────────────────────── */
+/* Hidden by default (desktop); shown on mobile */
+.admin-mobile-header { display: none; }
+.admin-mobile-nav    { display: none; }
+
+@media (max-width: 767px) {
+  /* Hide the desktop sidebar, show the mobile chrome */
+  .admin-sidebar { display: none !important; }
+  .admin-mobile-header { display: flex !important; }
+  .admin-mobile-nav    { display: flex !important; }
+
+  /* Push content below the fixed top header and above the fixed bottom nav */
+  .admin-main-content {
+    margin-left:    0 !important;
+    padding-top:    56px !important;
+    padding-bottom: 76px !important;
+    overflow-x:     hidden;
+    transition:     none !important;
+  }
+
+  /* Responsive padding for admin pages */
+  .admin-page {
+    padding: 20px 16px !important;
+  }
+
+  /* KPI cards grid: auto-fill → 2 columns on small screens */
+  .admin-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* 2-column analytics grid → single column */
+  .admin-2col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Tables: horizontal scroll instead of overflow */
+  .admin-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .admin-table-wrap::-webkit-scrollbar { display: none; }
+}
+
+/* ─── Full-height coach pages (chat, assistant) ───────────────────── */
+/* Desktop: full viewport height */
+.coach-full-height {
+  height: 100vh;
+}
+@media (max-width: 767px) {
+  /* Subtract fixed header (56px) + fixed bottom nav (76px) */
+  .coach-full-height {
+    height: calc(100dvh - 56px - 76px);
+  }
+}
+
+/* ─── Responsive coach page content wrapper ───────────────────────── */
+.coach-page {
+  padding: 32px 28px;
+}
+
+/* ─── Responsive settings page ───────────────────────────────────── */
+.coach-settings-page {
+  padding: 40px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* ─── Split-panel editors (TemplateEditor, MealPlanEditor) ────────── */
+/* Desktop: two-column layout, height accounts for editor's own 53px header */
+.coach-editor-body {
+  display: flex;
+  height: calc(100vh - 53px);
+  overflow: hidden;
+}
+.coach-editor-right {
+  display: flex;
+  flex: 1 1 45%;
+}
+@media (max-width: 767px) {
+  .coach-editor-body {
+    /* subtract mobile top header (56px) + editor header (53px) + bottom nav (76px) */
+    height: calc(100dvh - 56px - 53px - 76px);
+    flex-direction: column;
+  }
+  /* Left panel fills all available space */
+  .coach-editor-left {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+  }
+  /* Right stats panel is hidden on mobile — too much for small screens */
+  .coach-editor-right {
+    display: none !important;
+  }
+}

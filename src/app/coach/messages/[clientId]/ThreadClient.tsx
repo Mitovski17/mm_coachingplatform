@@ -114,7 +114,7 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
   const renderItems = buildRenderItems(messages)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--color-base)' }}>
+    <div className="coach-full-height" style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-base)' }}>
 
       {/* Header */}
       <div
@@ -172,12 +172,12 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
       {/* Messages */}
       <div
         style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '16px 24px',
-          display: 'flex',
+          flex:          1,
+          overflowY:     'auto',
+          padding:       '16px',
+          display:       'flex',
           flexDirection: 'column',
-          gap: 3,
+          gap:           3,
         }}
       >
         {messages.length === 0 && (

@@ -10,10 +10,11 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { updatePersonalInfo, uploadAvatar, sendFeedbackToCoach } from './actions'
 import { toast } from 'sonner'
+import { useLanguage, type Translations, type Lang } from '@/lib/i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Panel = 'personal-info' | 'notifications' | 'appearance' | 'privacy-security' | 'help-feedback' | null
+type Panel = 'personal-info' | 'notifications' | 'appearance' | 'privacy-security' | 'help-feedback' | 'preferences' | null
 
 type NotifPrefs = {
   pushEnabled: boolean
@@ -222,32 +223,16 @@ function ToggleRow({ label, sub, checked, onChange, isLast = false }: {
 
 // ─── FAQ accordion ────────────────────────────────────────────────────────────
 
-const FAQS = [
-  {
-    q: 'How do I log a workout?',
-    a: 'Go to the Train tab, select your scheduled session, and tap "Start Workout." Log each set as you complete it, then tap "Finish Workout" to save.',
-  },
-  {
-    q: 'How do I track my nutrition?',
-    a: 'Go to the Food tab and use the search bar to find foods. You can log meals by type (breakfast, lunch, dinner, snacks) throughout the day.',
-  },
-  {
-    q: 'When is my check-in due?',
-    a: 'Check-ins are due every Sunday. You\'ll see a reminder on your home screen when the window opens. Complete it before it closes on Monday morning.',
-  },
-  {
-    q: 'How do I message my coach?',
-    a: 'Use the Messages tab at the bottom of the screen to send your coach a message at any time.',
-  },
-  {
-    q: 'Can I request changes to my program?',
-    a: 'Yes — message your coach through the Messages tab. They can adjust your workouts, nutrition plan, or goals at any time.',
-  },
-  {
-    q: 'What if I miss a workout?',
-    a: "Don't stress about it. Consistency over time matters more than any single session. Let your coach know if you're struggling and they can help adjust your schedule.",
-  },
-]
+function getFaqs(t: Translations) {
+  return [
+    { q: t.profile.faq.q1, a: t.profile.faq.a1 },
+    { q: t.profile.faq.q2, a: t.profile.faq.a2 },
+    { q: t.profile.faq.q3, a: t.profile.faq.a3 },
+    { q: t.profile.faq.q4, a: t.profile.faq.a4 },
+    { q: t.profile.faq.q5, a: t.profile.faq.a5 },
+    { q: t.profile.faq.q6, a: t.profile.faq.a6 },
+  ]
+}
 
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false)
@@ -283,21 +268,21 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 // ─── Password strength ────────────────────────────────────────────────────────
 
-function passwordStrength(pw: string): { score: number; label: string; color: string } {
+function passwordStrength(pw: string, t: Translations): { score: number; label: string; color: string } {
   let score = 0
   if (pw.length >= 8) score++
   if (pw.length >= 12) score++
   if (/[A-Z]/.test(pw)) score++
   if (/[0-9]/.test(pw)) score++
   if (/[^A-Za-z0-9]/.test(pw)) score++
-  if (score <= 1) return { score, label: 'Weak', color: '#ef4444' }
-  if (score <= 3) return { score, label: 'Fair', color: '#f59e0b' }
-  return { score, label: 'Strong', color: '#22c55e' }
+  if (score <= 1) return { score, label: t.profile.pwWeak, color: '#ef4444' }
+  if (score <= 3) return { score, label: t.profile.pwFair, color: '#f59e0b' }
+  return { score, label: t.profile.pwStrong, color: '#22c55e' }
 }
 
 // ─── Personal Info Panel ──────────────────────────────────────────────────────
 
-function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, avatarUrl, onSaved }: {
+function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, avatarUrl, onSaved, t }: {
   open: boolean
   onBack: () => void
   clientId: string
@@ -306,6 +291,7 @@ function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, ava
   phone: string | null
   avatarUrl: string | null
   onSaved: (name: string, phone: string | null, avatarUrl: string | null) => void
+  t: Translations
 }) {
   const [name, setName] = useState(fullName)
   const [phoneVal, setPhoneVal] = useState(phone ?? '')
@@ -327,7 +313,7 @@ function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, ava
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return }
+    if (!file.type.startsWith('image/')) { toast.error(t.profile.pickImage); return }
 
     // Show local preview immediately
     const reader = new FileReader()
@@ -344,23 +330,23 @@ function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, ava
       toast.error(result.error)
     } else {
       setAvatar(result.url)
-      toast.success('Profile photo updated')
+      toast.success(t.profile.profilePhotoUpdated)
     }
   }
 
   async function handleSave() {
-    if (!name.trim()) { toast.error('Name is required'); return }
+    if (!name.trim()) { toast.error(t.profile.nameRequired); return }
     setSaving(true)
     const result = await updatePersonalInfo(clientId, name, phoneVal)
     setSaving(false)
     if (result.error) { toast.error(result.error); return }
-    toast.success('Profile saved')
+    toast.success(t.profile.profileSaved)
     onSaved(name.trim(), phoneVal.trim() || null, avatar)
     onBack()
   }
 
   return (
-    <Panel open={open} onBack={onBack} title="Personal Info">
+    <Panel open={open} onBack={onBack} title={t.profile.personalInfoTitle}>
       {/* Avatar */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 28 }}>
         <div style={{ position: 'relative' }}>
@@ -408,7 +394,7 @@ function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, ava
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
         </div>
         <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: 0 }}>
-          {uploading ? 'Uploading…' : 'Tap the camera icon to change your photo'}
+          {uploading ? t.profile.uploading : t.profile.tapCamera}
         </p>
       </div>
 
@@ -416,33 +402,33 @@ function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, ava
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>
-            Full Name
+            {t.profile.fullName}
           </label>
           <input
             style={inputStyle}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Your full name"
+            placeholder={t.profile.yourFullName}
             autoComplete="name"
           />
         </div>
 
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>
-            Email
+            {t.profile.email}
           </label>
           <input
             style={{ ...inputStyle, color: 'var(--color-text-hint)', cursor: 'not-allowed' }}
             value={email}
             readOnly
-            title="Email cannot be changed"
+            title={t.profile.emailCantChange}
           />
-          <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: '5px 0 0' }}>Contact your coach to change your email address.</p>
+          <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: '5px 0 0' }}>{t.profile.emailCantChange}</p>
         </div>
 
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>
-            Phone (optional)
+            {t.profile.phoneOptional}
           </label>
           <input
             style={inputStyle}
@@ -455,7 +441,7 @@ function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, ava
         </div>
 
         <button type="button" onClick={handleSave} disabled={saving} style={{ ...primaryBtn, marginTop: 8, opacity: saving ? 0.7 : 1 }}>
-          {saving ? 'Saving…' : 'Save Changes'}
+          {saving ? t.common.saving : t.common.saveChanges}
         </button>
       </div>
     </Panel>
@@ -464,7 +450,7 @@ function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, ava
 
 // ─── Notifications Panel ──────────────────────────────────────────────────────
 
-function NotificationsPanel({ open, onBack, userId }: { open: boolean; onBack: () => void; userId: string }) {
+function NotificationsPanel({ open, onBack, userId, t }: { open: boolean; onBack: () => void; userId: string; t: Translations }) {
   const storageKey = `notif_prefs_${userId}`
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_NOTIF_PREFS)
 
@@ -487,23 +473,23 @@ function NotificationsPanel({ open, onBack, userId }: { open: boolean; onBack: (
   }, [storageKey])
 
   return (
-    <Panel open={open} onBack={onBack} title="Notifications">
+    <Panel open={open} onBack={onBack} title={t.profile.notifications}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         <div>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 8px 2px' }}>
-            Channels
+            {t.profile.channels}
           </p>
           <div style={card}>
             <ToggleRow
-              label="Push Notifications"
-              sub="In-app alerts on your device"
+              label={t.profile.pushNotifs}
+              sub={t.profile.pushNotifsSub}
               checked={prefs.pushEnabled}
               onChange={(v) => update({ pushEnabled: v })}
             />
             <ToggleRow
-              label="Email Notifications"
-              sub="Updates sent to your email"
+              label={t.profile.emailNotifs}
+              sub={t.profile.emailNotifsSub}
               checked={prefs.emailEnabled}
               onChange={(v) => update({ emailEnabled: v })}
               isLast
@@ -513,24 +499,24 @@ function NotificationsPanel({ open, onBack, userId }: { open: boolean; onBack: (
 
         <div>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 8px 2px' }}>
-            Reminders
+            {t.profile.reminders}
           </p>
           <div style={card}>
             <ToggleRow
-              label="Check-in Reminders"
-              sub="Weekly check-in due reminders"
+              label={t.profile.checkinReminders}
+              sub={t.profile.checkinRemindersSub}
               checked={prefs.checkinReminders}
               onChange={(v) => update({ checkinReminders: v })}
             />
             <ToggleRow
-              label="Workout Reminders"
-              sub="Daily training session alerts"
+              label={t.profile.workoutReminders}
+              sub={t.profile.workoutRemindersSub}
               checked={prefs.workoutReminders}
               onChange={(v) => update({ workoutReminders: v })}
             />
             <ToggleRow
-              label="Coach Messages"
-              sub="New messages from your coach"
+              label={t.profile.coachMessages}
+              sub={t.profile.coachMessagesSub}
               checked={prefs.coachMessages}
               onChange={(v) => update({ coachMessages: v })}
               isLast
@@ -539,7 +525,7 @@ function NotificationsPanel({ open, onBack, userId }: { open: boolean; onBack: (
         </div>
 
         <p style={{ fontSize: 12, color: 'var(--color-text-hint)', textAlign: 'center', lineHeight: 1.5, margin: 0 }}>
-          Preferences are saved on this device. Some notifications are controlled by your device&apos;s system settings.
+          {t.profile.notifsHint}
         </p>
       </div>
     </Panel>
@@ -548,12 +534,12 @@ function NotificationsPanel({ open, onBack, userId }: { open: boolean; onBack: (
 
 // ─── Appearance Panel ─────────────────────────────────────────────────────────
 
-function AppearancePanel({ open, onBack }: { open: boolean; onBack: () => void }) {
+function AppearancePanel({ open, onBack, t }: { open: boolean; onBack: () => void; t: Translations }) {
   return (
-    <Panel open={open} onBack={onBack} title="Appearance">
+    <Panel open={open} onBack={onBack} title={t.profile.appearance}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 8px 2px' }}>
-          Theme
+          {t.profile.theme}
         </p>
 
         <div style={card}>
@@ -583,8 +569,8 @@ function AppearancePanel({ open, onBack }: { open: boolean; onBack: () => void }
               <Moon size={18} color="var(--color-accent)" />
             </div>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>Dark Mode</p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>Currently active</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{t.profile.darkMode}</p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>{t.profile.darkModeActive}</p>
             </div>
             <div
               style={{
@@ -638,14 +624,14 @@ function AppearancePanel({ open, onBack }: { open: boolean; onBack: () => void }
               </svg>
             </div>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>Light Mode</p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>Coming soon</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{t.profile.lightMode}</p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>{t.profile.comingSoon}</p>
             </div>
           </div>
         </div>
 
         <p style={{ fontSize: 12, color: 'var(--color-text-hint)', textAlign: 'center', lineHeight: 1.5, margin: 0 }}>
-          Light mode is on the roadmap. Stay tuned for the update.
+          {t.profile.lightModeHint}
         </p>
       </div>
     </Panel>
@@ -654,7 +640,7 @@ function AppearancePanel({ open, onBack }: { open: boolean; onBack: () => void }
 
 // ─── Privacy & Security Panel ─────────────────────────────────────────────────
 
-function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: () => void; email: string }) {
+function PrivacySecurityPanel({ open, onBack, email, t }: { open: boolean; onBack: () => void; email: string; t: Translations }) {
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
@@ -666,12 +652,12 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
     if (open) { setCurrentPw(''); setNewPw(''); setConfirmPw('') }
   }, [open])
 
-  const strength = newPw ? passwordStrength(newPw) : null
+  const strength = newPw ? passwordStrength(newPw, t) : null
 
   async function handleChangePassword() {
-    if (!currentPw) { toast.error('Enter your current password'); return }
-    if (newPw.length < 8) { toast.error('New password must be at least 8 characters'); return }
-    if (newPw !== confirmPw) { toast.error('Passwords do not match'); return }
+    if (!currentPw) { toast.error(t.profile.enterCurrentPw); return }
+    if (newPw.length < 8) { toast.error(t.profile.pwMin8); return }
+    if (newPw !== confirmPw) { toast.error(t.profile.passwordsDontMatch); return }
 
     setSaving(true)
     const supabase = createClient()
@@ -680,7 +666,7 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: currentPw })
     if (signInErr) {
       setSaving(false)
-      toast.error('Current password is incorrect')
+      toast.error(t.profile.pwIncorrect)
       return
     }
 
@@ -690,7 +676,7 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
     if (error) {
       toast.error(error.message)
     } else {
-      toast.success('Password changed successfully')
+      toast.success(t.profile.pwChanged)
       setCurrentPw(''); setNewPw(''); setConfirmPw('')
     }
   }
@@ -710,13 +696,13 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
   }
 
   return (
-    <Panel open={open} onBack={onBack} title="Privacy & Security">
+    <Panel open={open} onBack={onBack} title={t.profile.privacyTitle}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Change password */}
         <div>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 8px 2px' }}>
-            Change Password
+            {t.profile.changePassword}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
@@ -726,7 +712,7 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
                 type={showCurrent ? 'text' : 'password'}
                 value={currentPw}
                 onChange={(e) => setCurrentPw(e.target.value)}
-                placeholder="Current password"
+                placeholder={t.profile.currentPassword}
                 autoComplete="current-password"
               />
               <button type="button" style={eyeBtn} onClick={() => setShowCurrent((s) => !s)}>
@@ -740,7 +726,7 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
                 type={showNew ? 'text' : 'password'}
                 value={newPw}
                 onChange={(e) => setNewPw(e.target.value)}
-                placeholder="New password"
+                placeholder={t.profile.newPassword}
                 autoComplete="new-password"
               />
               <button type="button" style={eyeBtn} onClick={() => setShowNew((s) => !s)}>
@@ -771,12 +757,12 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
               type="password"
               value={confirmPw}
               onChange={(e) => setConfirmPw(e.target.value)}
-              placeholder="Confirm new password"
+              placeholder={t.profile.confirmPassword}
               autoComplete="new-password"
             />
 
             {confirmPw && newPw !== confirmPw && (
-              <p style={{ fontSize: 12, color: '#ef4444', margin: '-4px 0 0' }}>Passwords do not match</p>
+              <p style={{ fontSize: 12, color: '#ef4444', margin: '-4px 0 0' }}>{t.profile.passwordsDontMatch}</p>
             )}
 
             <button
@@ -785,7 +771,7 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
               disabled={saving}
               style={{ ...primaryBtn, opacity: saving ? 0.7 : 1 }}
             >
-              {saving ? 'Changing…' : 'Change Password'}
+              {saving ? t.profile.changing : t.profile.changePassword}
             </button>
           </div>
         </div>
@@ -793,13 +779,13 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
         {/* Data & Privacy info */}
         <div>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 8px 2px' }}>
-            Data & Privacy
+            {t.profile.dataPrivacy}
           </p>
           <div style={{ ...card, overflow: 'visible' }}>
             {[
-              { title: 'Your data is encrypted', desc: 'All personal data is stored securely with industry-standard encryption.' },
-              { title: 'Private by default', desc: 'Your progress and health data is only visible to you and your coach.' },
-              { title: 'No third-party sharing', desc: 'We never sell or share your personal information with third parties.' },
+              { title: t.profile.dataEncrypted, desc: t.profile.dataEncryptedSub },
+              { title: t.profile.privateDefault, desc: t.profile.privateDefaultSub },
+              { title: t.profile.noThirdParty, desc: t.profile.noThirdPartySub },
             ].map((item, i, arr) => (
               <div
                 key={item.title}
@@ -824,36 +810,39 @@ function PrivacySecurityPanel({ open, onBack, email }: { open: boolean; onBack: 
 
 // ─── Help & Feedback Panel ────────────────────────────────────────────────────
 
-function HelpFeedbackPanel({ open, onBack, clientId, workspaceId, coachId }: {
+function HelpFeedbackPanel({ open, onBack, clientId, workspaceId, coachId, t }: {
   open: boolean
   onBack: () => void
   clientId: string
   workspaceId: string
   coachId: string | null
+  t: Translations
 }) {
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
 
   async function handleSend() {
-    if (!message.trim()) { toast.error('Write a message first'); return }
-    if (!coachId) { toast.error('No coach assigned yet'); return }
+    if (!message.trim()) { toast.error(t.profile.writeMessageFirst); return }
+    if (!coachId) { toast.error(t.messages.noCoachAssigned); return }
     setSending(true)
     const result = await sendFeedbackToCoach(clientId, workspaceId, coachId, message)
     setSending(false)
     if (result.error) { toast.error(result.error) } else {
-      toast.success('Message sent to your coach')
+      toast.success(t.profile.messageSent)
       setMessage('')
     }
   }
 
+  const FAQS = getFaqs(t)
+
   return (
-    <Panel open={open} onBack={onBack} title="Help & Feedback">
+    <Panel open={open} onBack={onBack} title={t.profile.helpTitle}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* FAQs */}
         <div>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 8px 2px' }}>
-            Frequently Asked Questions
+            {t.profile.faqs}
           </p>
           <div style={{ ...card, overflow: 'visible' }}>
             {FAQS.map((faq, i) => (
@@ -867,13 +856,13 @@ function HelpFeedbackPanel({ open, onBack, clientId, workspaceId, coachId }: {
         {/* Contact coach */}
         <div>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 8px 2px' }}>
-            Contact Your Coach
+            {t.profile.contactCoach}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ask a question or share feedback with your coach…"
+              placeholder={t.profile.askPlaceholder}
               rows={5}
               style={{
                 ...inputStyle,
@@ -897,14 +886,68 @@ function HelpFeedbackPanel({ open, onBack, clientId, workspaceId, coachId }: {
               }}
             >
               <Send size={16} />
-              {sending ? 'Sending…' : 'Send to Coach'}
+              {sending ? t.profile.sending : t.profile.sendToCoach}
             </button>
             {!coachId && (
               <p style={{ fontSize: 12, color: 'var(--color-text-hint)', textAlign: 'center', margin: 0 }}>
-                You&apos;ll be able to message your coach once one is assigned to you.
+                {t.profile.noCoachYet}
               </p>
             )}
           </div>
+        </div>
+      </div>
+    </Panel>
+  )
+}
+
+// ─── Preferences Panel (language) ────────────────────────────────────────────
+
+function PreferencesPanel({ open, onBack, t, lang, setLang }: {
+  open: boolean
+  onBack: () => void
+  t: Translations
+  lang: Lang
+  setLang: (l: Lang) => void
+}) {
+  const options: { value: Lang; label: string }[] = [
+    { value: 'en', label: t.profile.english },
+    { value: 'bg', label: t.profile.bulgarian },
+  ]
+  return (
+    <Panel open={open} onBack={onBack} title={t.profile.preferences}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 2px 2px' }}>
+          {t.profile.language}
+        </p>
+        <div style={card}>
+          {options.map((opt, i) => {
+            const active = lang === opt.value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setLang(opt.value)}
+                style={{
+                  ...rowBase,
+                  borderBottom: i === options.length - 1 ? 'none' : '1px solid var(--color-border)',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{opt.label}</p>
+                </div>
+                {active && (
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%',
+                    backgroundColor: 'var(--color-accent)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <Check size={13} color="#fff" />
+                  </div>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
     </Panel>
@@ -917,7 +960,9 @@ export default function ProfileClient({
   userId, email, avatarUrl, clientId, fullName, phone, coachId, workspaceId, weekNumber, totalWeeks,
 }: Props) {
   const router = useRouter()
+  const { t, lang, setLang } = useLanguage()
   const [activePanel, setActivePanel] = useState<Panel>(null)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
   // Local state updated after saves
   const [displayName, setDisplayName] = useState(fullName)
@@ -926,20 +971,28 @@ export default function ProfileClient({
 
   const initials = displayName.trim().split(' ').map((p) => p[0]?.toUpperCase() ?? '').join('').slice(0, 2) || '?'
 
+  const langSubLabel = lang === 'bg' ? t.profile.bulgarian : t.profile.english
+
   const MENU_SECTIONS = [
     {
-      title: 'Account',
+      title: t.profile.account,
       items: [
-        { icon: User, label: 'Personal info', sub: 'Name, photo, phone', panel: 'personal-info' as Panel },
-        { icon: Bell, label: 'Notifications', sub: 'Push & email preferences', panel: 'notifications' as Panel },
-        { icon: Moon, label: 'Appearance', sub: 'Dark mode', panel: 'appearance' as Panel },
+        { icon: User,   label: t.profile.personalInfo,   sub: t.profile.personalInfoSub, panel: 'personal-info' as Panel },
+        { icon: Bell,   label: t.profile.notifications,  sub: t.profile.notificationsSub, panel: 'notifications' as Panel },
+        { icon: Moon,   label: t.profile.appearance,     sub: t.profile.appearanceSub,    panel: 'appearance' as Panel },
       ],
     },
     {
-      title: 'Support',
+      title: t.profile.preferences,
       items: [
-        { icon: Shield, label: 'Privacy & security', sub: 'Change password, data', panel: 'privacy-security' as Panel },
-        { icon: HelpCircle, label: 'Help & feedback', sub: 'FAQs, contact coach', panel: 'help-feedback' as Panel },
+        { icon: User,   label: t.profile.language,       sub: langSubLabel,               panel: 'preferences' as Panel },
+      ],
+    },
+    {
+      title: t.profile.support,
+      items: [
+        { icon: Shield,     label: t.profile.privacy,    sub: t.profile.privacySub,       panel: 'privacy-security' as Panel },
+        { icon: HelpCircle, label: t.profile.help,       sub: t.profile.helpSub,          panel: 'help-feedback' as Panel },
       ],
     },
   ]
@@ -957,7 +1010,7 @@ export default function ProfileClient({
         {/* Header */}
         <div style={{ padding: '52px 20px 24px' }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
-            Profile
+            {t.profile.title}
           </h1>
         </div>
 
@@ -1017,7 +1070,7 @@ export default function ProfileClient({
               >
                 <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--color-accent)', display: 'inline-block', flexShrink: 0 }} />
                 <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-accent)' }}>
-                  Week {weekNumber} of {totalWeeks}
+                  {t.profile.week} {weekNumber} {t.profile.of} {totalWeeks}
                 </span>
               </div>
             </div>
@@ -1047,8 +1100,8 @@ export default function ProfileClient({
               <BarChart2 size={17} color="var(--color-accent)" />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.3 }}>Progress</p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '1px 0 0' }}>Weight, check-ins, photos</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.3 }}>{t.profile.progress}</p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '1px 0 0' }}>{t.profile.progressSub}</p>
             </div>
             <ChevronRight size={16} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
           </Link>
@@ -1101,7 +1154,7 @@ export default function ProfileClient({
         <div style={{ padding: '4px 16px 0' }}>
           <button
             type="button"
-            onClick={handleSignOut}
+            onClick={() => setShowSignOutConfirm(true)}
             style={{
               width: '100%',
               display: 'flex',
@@ -1119,10 +1172,88 @@ export default function ProfileClient({
             }}
           >
             <LogOut size={17} />
-            Sign out
+            {t.profile.signOut}
           </button>
         </div>
       </div>
+
+      {/* ── Sign out confirmation modal ── */}
+      {showSignOutConfirm && (
+        <div
+          style={{
+            position: 'fixed', inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+          }}
+          onClick={() => setShowSignOutConfirm(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--color-surface-1)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 20,
+              padding: '28px 24px',
+              width: '100%', maxWidth: 340,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+              textAlign: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: 52, height: 52, borderRadius: '50%',
+                backgroundColor: 'rgba(239,68,68,0.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <LogOut size={22} color="#ef4444" />
+            </div>
+            <div>
+              <p style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                {t.profile.signOutQ}
+              </p>
+              <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+                {t.profile.signOutSub}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 10, width: '100%', marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setShowSignOutConfirm(false)}
+                style={{
+                  flex: 1, padding: '12px 0',
+                  backgroundColor: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 12,
+                  fontSize: 15, fontWeight: 600,
+                  color: 'var(--color-text-primary)',
+                  cursor: 'pointer',
+                }}
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                style={{
+                  flex: 1, padding: '12px 0',
+                  backgroundColor: '#ef4444',
+                  border: 'none',
+                  borderRadius: 12,
+                  fontSize: 15, fontWeight: 600,
+                  color: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                {t.profile.signOut}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Panels (stacked above main view) ── */}
       <PersonalInfoPanel
@@ -1134,23 +1265,35 @@ export default function ProfileClient({
         phone={displayPhone}
         avatarUrl={displayAvatar}
         onSaved={(name, ph, av) => { setDisplayName(name); setDisplayPhone(ph); setDisplayAvatar(av) }}
+        t={t}
       />
 
       <NotificationsPanel
         open={activePanel === 'notifications'}
         onBack={() => setActivePanel(null)}
         userId={userId}
+        t={t}
       />
 
       <AppearancePanel
         open={activePanel === 'appearance'}
         onBack={() => setActivePanel(null)}
+        t={t}
+      />
+
+      <PreferencesPanel
+        open={activePanel === 'preferences'}
+        onBack={() => setActivePanel(null)}
+        t={t}
+        lang={lang}
+        setLang={setLang}
       />
 
       <PrivacySecurityPanel
         open={activePanel === 'privacy-security'}
         onBack={() => setActivePanel(null)}
         email={email}
+        t={t}
       />
 
       <HelpFeedbackPanel
@@ -1159,6 +1302,7 @@ export default function ProfileClient({
         clientId={clientId}
         workspaceId={workspaceId}
         coachId={coachId}
+        t={t}
       />
     </>
   )

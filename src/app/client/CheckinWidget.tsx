@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { formatCountdown } from '@/lib/checkin-window'
+import { useLanguage } from '@/lib/i18n'
 
 export default function CheckinWidget({
   submitted,
@@ -11,6 +12,7 @@ export default function CheckinWidget({
   submitted: boolean
   nextSundayMs: number
 }) {
+  const { t } = useLanguage()
   const [msLeft, setMsLeft] = useState<number>(() => nextSundayMs - Date.now())
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export default function CheckinWidget({
         {/* title + badge */}
         <div className="flex items-center gap-2" style={{ marginBottom: '6px' }}>
           <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            Weekly Check-in
+            {t.checkin.title}
           </span>
           {submitted ? (
             <span
@@ -56,7 +58,7 @@ export default function CheckinWidget({
                 borderRadius: '999px',
               }}
             >
-              Submitted ✓
+              {t.common.done} ✓
             </span>
           ) : (
             <span
@@ -69,7 +71,7 @@ export default function CheckinWidget({
                 borderRadius: '999px',
               }}
             >
-              Open now
+              {t.home.weeklyCheckinDue}
             </span>
           )}
         </div>
@@ -77,7 +79,7 @@ export default function CheckinWidget({
         {submitted ? (
           <>
             <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '0 0 14px' }}>
-              Your coach has your update. Next window opens in:
+              {t.checkin.nextWindowOpens}
             </p>
             <div
               style={{
@@ -103,7 +105,7 @@ export default function CheckinWidget({
         ) : (
           <>
             <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '0 0 14px' }}>
-              Tell your coach how the week went.
+              {t.home.takesAbout3Min}
             </p>
             <Link
               href="/check-in"
@@ -119,7 +121,7 @@ export default function CheckinWidget({
                 textDecoration: 'none',
               }}
             >
-              Start Check-in →
+              {t.common.start} →
             </Link>
           </>
         )}

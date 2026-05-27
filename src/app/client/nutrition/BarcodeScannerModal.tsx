@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { lookupBarcode, logCustomFood } from './actions'
 import type { FoodSearchResult } from '@/lib/food-search'
+import { useLanguage } from '@/lib/i18n'
 
 type Phase = 'scanning' | 'loading' | 'found' | 'not-found'
 
@@ -24,6 +25,7 @@ export default function BarcodeScannerModal({
   onClose,
   onLogged,
 }: Props) {
+  const { t } = useLanguage()
   const [phase, setPhase] = useState<Phase>('scanning')
   const [result, setResult] = useState<FoodSearchResult | null>(null)
   const [quantity, setQuantity] = useState('100')
@@ -77,7 +79,7 @@ export default function BarcodeScannerModal({
     startScanner().catch((err) => {
       console.error('Barcode scanner failed to start:', err)
       if (mountedRef.current) {
-        setScanError('Could not access camera. Please allow camera permission and try again.')
+        setScanError(t.nutrition.cameraPermission)
       }
     })
 
@@ -95,6 +97,7 @@ export default function BarcodeScannerModal({
         try { s.clear() } catch { /* ignore */ }
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleConfirm = async () => {
@@ -187,7 +190,7 @@ export default function BarcodeScannerModal({
         }}
       >
         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 20, textAlign: 'center' }}>
-          Point your camera at a product barcode
+          {t.nutrition.pointAtBarcode}
         </p>
         <div
           id="barcode-reader-container"
@@ -230,7 +233,7 @@ export default function BarcodeScannerModal({
               cursor: 'pointer',
             }}
           >
-            Close
+            {t.common.close}
           </button>
         </div>
       )}
@@ -249,7 +252,7 @@ export default function BarcodeScannerModal({
         >
           <Loader2 size={40} className="animate-spin" style={{ color: '#fff' }} />
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, margin: 0 }}>
-            Looking up product…
+            {t.nutrition.scanning}
           </p>
         </div>
       )}
@@ -300,10 +303,10 @@ export default function BarcodeScannerModal({
               }}
             >
               {[
-                { label: 'kcal', value: Math.round(result.caloriesPer100g), color: '#fff' },
-                { label: 'Protein', value: `${Math.round(result.proteinPer100g)}g`, color: '#3b82f6' },
-                { label: 'Carbs', value: `${Math.round(result.carbsPer100g)}g`, color: '#f97316' },
-                { label: 'Fat', value: `${Math.round(result.fatPer100g)}g`, color: '#ef4444' },
+                { label: t.nutrition.kcal, value: Math.round(result.caloriesPer100g), color: '#fff' },
+                { label: t.nutrition.protein, value: `${Math.round(result.proteinPer100g)}g`, color: '#3b82f6' },
+                { label: t.nutrition.carbs, value: `${Math.round(result.carbsPer100g)}g`, color: '#f97316' },
+                { label: t.nutrition.fat, value: `${Math.round(result.fatPer100g)}g`, color: '#ef4444' },
               ].map((m) => (
                 <div
                   key={m.label}
@@ -325,13 +328,13 @@ export default function BarcodeScannerModal({
             </div>
 
             <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
-              per 100g
+              {t.nutrition.per100g}
             </p>
 
             {/* Quantity input */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
               <label style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: 600, flexShrink: 0 }}>
-                Quantity
+                {t.nutrition.quantity}
               </label>
               <input
                 type="number"
@@ -371,7 +374,7 @@ export default function BarcodeScannerModal({
                 transition: 'opacity 0.15s',
               }}
             >
-              {logging ? 'Adding…' : `Add to ${mealName}`}
+              {logging ? t.common.sending : t.nutrition.addToMeal}
             </button>
           </div>
         </div>
@@ -392,10 +395,10 @@ export default function BarcodeScannerModal({
         >
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>
-              Food not found
+              {t.nutrition.barcodeNotFound}
             </p>
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
-              This product wasn&apos;t found in the database. Try searching by name instead.
+              {t.nutrition.barcodeNotFoundSub}
             </p>
           </div>
           <button
@@ -412,7 +415,7 @@ export default function BarcodeScannerModal({
               cursor: 'pointer',
             }}
           >
-            Close
+            {t.common.close}
           </button>
         </div>
       )}

@@ -49,7 +49,7 @@ export default function MealPlansClient({
   }, [assignments])
 
   return (
-    <div className="px-6 py-8 max-w-5xl">
+    <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-5xl">
       <div className="mb-6">
         <h1 className="text-2xl" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
           Meal Plans
@@ -280,7 +280,7 @@ function TemplateCard({
           </button>
         </div>
       </div>
-      <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+      <p className="coach-card-name text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
         {t.name}
       </p>
       <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-hint)' }}>

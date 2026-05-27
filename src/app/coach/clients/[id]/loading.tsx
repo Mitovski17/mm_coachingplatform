@@ -1,6 +1,6 @@
 export default function Loading() {
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="coach-page">
       <div
         className="animate-pulse"
         style={{

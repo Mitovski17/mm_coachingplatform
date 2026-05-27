@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { ChevronRight, Dumbbell } from 'lucide-react'
 import type { TodayTemplate, HistorySession, ProgramWorkoutDay } from './actions'
 import { getProgramWorkoutDays } from './actions'
+import { useLanguage, type Translations } from '@/lib/i18n'
 
 const MUSCLE_COLORS: Record<string, string> = {
   chest: '#ef4444',
@@ -34,6 +35,7 @@ export default function WorkoutsClient({
   history: HistorySession[]
   clientId: string
 }) {
+  const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState<'today' | 'history'>('today')
 
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -57,7 +59,7 @@ export default function WorkoutsClient({
         style={{ padding: '52px 20px 20px' }}
       >
         <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
-          Workouts
+          {t.workouts.title}
         </h1>
       </div>
 
@@ -85,7 +87,7 @@ export default function WorkoutsClient({
             marginBottom: -1,
           }}
         >
-          Today
+          {t.workouts.today}
         </button>
         <button
           type="button"
@@ -103,19 +105,19 @@ export default function WorkoutsClient({
             marginBottom: -1,
           }}
         >
-          History
+          {t.workouts.history}
         </button>
       </div>
 
       {activeTab === 'today' && (
         <div style={{ padding: '16px 16px 16px' }}>
-          <TodayWorkoutCard today={todayTemplate} onSwitch={openPicker} />
+          <TodayWorkoutCard today={todayTemplate} onSwitch={openPicker} t={t} />
         </div>
       )}
 
       {activeTab === 'history' && (
         <div style={{ padding: '16px 16px 8px' }}>
-          <HistoryList sessions={history} />
+          <HistoryList sessions={history} t={t} />
         </div>
       )}
 
@@ -154,10 +156,10 @@ export default function WorkoutsClient({
             }}>
               <div>
                 <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
-                  Choose Workout
+                  {t.workouts.chooseWorkout}
                 </p>
                 <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>
-                  Pick a template or build your own
+                  {t.workouts.pickOrBuild}
                 </p>
               </div>
               <button
@@ -184,15 +186,15 @@ export default function WorkoutsClient({
             }}>
               {pickerLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 120 }}>
-                  <p style={{ color: 'var(--color-text-hint)', fontSize: 14 }}>Loading your program…</p>
+                  <p style={{ color: 'var(--color-text-hint)', fontSize: 14 }}>{t.workouts.loadingProgram}</p>
                 </div>
               ) : pickerDays.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 100, gap: 6 }}>
                   <p style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500, margin: 0 }}>
-                    No program templates yet
+                    {t.workouts.noTemplates}
                   </p>
                   <p style={{ color: 'var(--color-text-hint)', fontSize: 12, margin: 0 }}>
-                    Your coach will add workouts to your program soon.
+                    {t.workouts.coachWillAdd}
                   </p>
                 </div>
               ) : (
@@ -227,7 +229,7 @@ export default function WorkoutsClient({
                             {day.label}
                           </p>
                           <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '0 0 6px' }}>
-                            {day.templateName && day.templateName !== day.label ? `${day.templateName} · ` : ''}{day.exerciseCount} {day.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                            {day.templateName && day.templateName !== day.label ? `${day.templateName} · ` : ''}{day.exerciseCount} {day.exerciseCount === 1 ? t.workouts.exercise : t.workouts.exercises}
                           </p>
                           {day.muscleGroups.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -291,8 +293,8 @@ export default function WorkoutsClient({
                   </svg>
                 </div>
                 <div style={{ textAlign: 'left' }}>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Create Custom Workout</p>
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-hint)', fontWeight: 400 }}>Pick any exercises and log your sets</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--color-text-secondary)' }}>{t.workouts.createCustom}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-hint)', fontWeight: 400 }}>{t.workouts.customSub}</p>
                 </div>
               </button>
             </div>
@@ -304,7 +306,7 @@ export default function WorkoutsClient({
   )
 }
 
-function TodayWorkoutCard({ today, onSwitch }: { today: TodayTemplate | null; onSwitch: () => void }) {
+function TodayWorkoutCard({ today, onSwitch, t }: { today: TodayTemplate | null; onSwitch: () => void; t: Translations }) {
   if (!today) {
     return (
       <div
@@ -325,13 +327,13 @@ function TodayWorkoutCard({ today, onSwitch }: { today: TodayTemplate | null; on
             letterSpacing: '0.1em',
           }}
         >
-          Today
+          {t.workouts.today}
         </p>
         <p style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 6px' }}>
-          Rest Day
+          {t.workouts.restDay}
         </p>
         <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
-          Recovery is part of the program.
+          {t.workouts.restSub}
         </p>
         <button
           type="button"
@@ -349,7 +351,7 @@ function TodayWorkoutCard({ today, onSwitch }: { today: TodayTemplate | null; on
             cursor: 'pointer',
           }}
         >
-          Train anyway →
+          {t.workouts.trainAnyway}
         </button>
       </div>
     )
@@ -374,7 +376,7 @@ function TodayWorkoutCard({ today, onSwitch }: { today: TodayTemplate | null; on
           letterSpacing: '0.1em',
         }}
       >
-        Today&apos;s Workout
+        {t.workouts.todaysWorkout}
       </p>
       <p
         style={{
@@ -388,7 +390,7 @@ function TodayWorkoutCard({ today, onSwitch }: { today: TodayTemplate | null; on
         {today.templateName}
       </p>
       <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '0 0 14px' }}>
-        {today.exerciseCount} {today.exerciseCount === 1 ? 'exercise' : 'exercises'}
+        {today.exerciseCount} {today.exerciseCount === 1 ? t.workouts.exercise : t.workouts.exercises}
       </p>
       {today.muscleGroups.length > 0 && (
         <div className="flex flex-wrap gap-1.5" style={{ marginBottom: '16px' }}>
@@ -424,9 +426,8 @@ function TodayWorkoutCard({ today, onSwitch }: { today: TodayTemplate | null; on
           textDecoration: 'none',
         }}
       >
-        Start Workout
+        {t.workouts.startWorkout}
       </Link>
-      {/* Switch workout link */}
       <button
         type="button"
         onClick={onSwitch}
@@ -443,13 +444,13 @@ function TodayWorkoutCard({ today, onSwitch }: { today: TodayTemplate | null; on
           textAlign: 'center',
         }}
       >
-        Switch workout
+        {t.workouts.switchWorkout}
       </button>
     </div>
   )
 }
 
-function HistoryList({ sessions }: { sessions: HistorySession[] }) {
+function HistoryList({ sessions, t }: { sessions: HistorySession[]; t: Translations }) {
   if (sessions.length === 0) {
     return (
       <div
@@ -477,7 +478,7 @@ function HistoryList({ sessions }: { sessions: HistorySession[] }) {
           <Dumbbell size={20} style={{ color: 'var(--color-text-hint)' }} />
         </div>
         <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>
-          No workouts logged yet. Start your first session above.
+          {t.workouts.noWorkoutsYet}
         </p>
       </div>
     )
@@ -495,10 +496,10 @@ function HistoryList({ sessions }: { sessions: HistorySession[] }) {
       {sessions.map((s, i) => {
         const date = format(new Date(s.performedAt), 'EEE, MMM d')
         const parts: string[] = []
-        if (s.durationMinutes !== null) parts.push(`${s.durationMinutes} min`)
-        parts.push(`${s.setCount} ${s.setCount === 1 ? 'set' : 'sets'}`)
+        if (s.durationMinutes !== null) parts.push(`${s.durationMinutes} ${t.home.min}`)
+        parts.push(`${s.setCount} ${s.setCount === 1 ? t.workouts.set : t.workouts.sets}`)
         if (s.totalVolumeKg > 0) {
-          parts.push(`${s.totalVolumeKg.toLocaleString(undefined, { maximumFractionDigits: 0 })} kg`)
+          parts.push(`${s.totalVolumeKg.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${t.checkin.weightUnit}`)
         }
         return (
           <Link

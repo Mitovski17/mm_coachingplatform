@@ -74,7 +74,7 @@ export default async function AnalyticsPage() {
   const featureMax = Math.max(stats.checkins30d, stats.workoutSessions30d, 1)
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1000 }}>
+    <div className="admin-page" style={{ padding: '32px 40px', maxWidth: 1000 }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
           Analytics
@@ -84,7 +84,7 @@ export default async function AnalyticsPage() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+      <div className="admin-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
         {/* Growth */}
         <div
           style={{

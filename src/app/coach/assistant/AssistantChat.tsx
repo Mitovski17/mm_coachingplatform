@@ -369,9 +369,9 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
   const canSend = input.trim().length > 0 && !loading
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="coach-full-height" style={{ display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{ padding: '32px 24px 24px', flexShrink: 0 }}>
+      <div className="px-4 py-6 sm:px-6 sm:py-8" style={{ flexShrink: 0 }}>
         <h1 className="text-2xl" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
           Assistant
         </h1>
@@ -381,19 +381,20 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
       </div>
 
       {/* Body: sidebar + chat */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', padding: '0 24px 24px', gap: 16 }}>
+      <div className="assistant-body" style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', padding: '0 16px 16px', gap: 16 }}>
 
-        {/* Conversation sidebar */}
+        {/* Conversation sidebar — hidden on mobile via CSS */}
         <div
+          className="assistant-convo-sidebar"
           style={{
-            width: 220,
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: 'column',
+            width:           220,
+            flexShrink:      0,
+            display:         'flex',
+            flexDirection:   'column',
             backgroundColor: 'var(--color-surface-2)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--color-border)',
-            overflow: 'hidden',
+            borderRadius:    'var(--radius-lg)',
+            border:          '1px solid var(--color-border)',
+            overflow:        'hidden',
           }}
         >
           <div style={{ padding: '12px', flexShrink: 0, borderBottom: '1px solid var(--color-border)' }}>

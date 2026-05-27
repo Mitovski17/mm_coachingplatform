@@ -518,27 +518,36 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          client_count_range: string | null
+          coaching_focus: string | null
           created_at: string
           full_name: string | null
           id: string
+          onboarding_completed: boolean
           role: string
           updated_at: string
           workspace_id: string
         }
         Insert: {
           avatar_url?: string | null
+          client_count_range?: string | null
+          coaching_focus?: string | null
           created_at?: string
           full_name?: string | null
           id: string
+          onboarding_completed?: boolean
           role?: string
           updated_at?: string
           workspace_id: string
         }
         Update: {
           avatar_url?: string | null
+          client_count_range?: string | null
+          coaching_focus?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
+          onboarding_completed?: boolean
           role?: string
           updated_at?: string
           workspace_id?: string

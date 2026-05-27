@@ -132,8 +132,7 @@ async function fetchCoachProfile(): Promise<{ id: string; name: string; email: s
           name: profile?.full_name ?? 'Coach',
           email: adminUser.email ?? '',
           avatarUrl: profile?.avatar_url ?? ((adminUser.user_metadata?.avatar_url as string | undefined) ?? null),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onboardingCompleted: (profile as any)?.onboarding_completed ?? false,
+          onboardingCompleted: profile?.onboarding_completed ?? false,
         }
       }
     }
@@ -151,8 +150,7 @@ async function fetchCoachProfile(): Promise<{ id: string; name: string; email: s
       name: profile?.full_name ?? 'Coach',
       email: user.email ?? '',
       avatarUrl: profile?.avatar_url ?? ((user.user_metadata?.avatar_url as string | undefined) ?? null),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onboardingCompleted: (profile as any)?.onboarding_completed ?? false,
+      onboardingCompleted: profile?.onboarding_completed ?? false,
     }
   } catch {
     return { id: '', name: 'Coach', email: '', avatarUrl: null, onboardingCompleted: true }

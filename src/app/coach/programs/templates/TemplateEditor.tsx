@@ -133,6 +133,7 @@ export default function TemplateEditor({
   const [activeDayIndex, setActiveDayIndex] = useState(0)
 
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exerciseList, setExerciseList] = useState<Exercise[]>(allExercises)
   const [aiPrompt, setAiPrompt] = useState('')
@@ -413,8 +414,8 @@ export default function TemplateEditor({
         })
       }
 
-      if (data.name && !name) setName(data.name)
-      if (data.notes && !notes) setNotes(data.notes)
+      if (data.name && !name) setName(data.name as string)
+      if (data.notes && !notes) setNotes(data.notes as string)
 
       setAiGenerated(true)
       setAiPrompt('')
@@ -471,8 +472,10 @@ export default function TemplateEditor({
           })),
         })),
       })
-      router.push('/coach/programs')
       router.refresh()
+      setSaving(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save template')
       setSaving(false)
@@ -480,7 +483,7 @@ export default function TemplateEditor({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', overflow: 'hidden' }}>
       {/* Top header bar */}
       <div
         style={{
@@ -561,21 +564,22 @@ export default function TemplateEditor({
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || saved}
             style={{
               padding: '6px 16px',
               fontSize: '0.8rem',
               fontWeight: 600,
-              backgroundColor: 'var(--color-accent)',
+              backgroundColor: saved ? '#16a34a' : 'var(--color-accent)',
               color: '#fff',
               border: 'none',
               borderRadius: 'var(--radius-md)',
-              cursor: saving ? 'not-allowed' : 'pointer',
+              cursor: saving || saved ? 'not-allowed' : 'pointer',
               opacity: saving ? 0.6 : 1,
               fontFamily: 'inherit',
+              transition: 'background-color 0.2s',
             }}
           >
-            {saving ? 'Saving…' : 'Save Template'}
+            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Template'}
           </button>
         </div>
       </div>
@@ -583,7 +587,7 @@ export default function TemplateEditor({
       {/* Two-column layout */}
       <div className="coach-editor-body" style={{ overflow: 'hidden' }}>
         {/* Left: main editor */}
-        <div className="coach-editor-left no-scrollbar" style={{ flex: '0 0 55%', overflowY: 'auto', padding: '28px 32px 80px' }}>
+        <div className="coach-editor-left no-scrollbar" style={{ flex: '0 0 55%', minWidth: 0, overflowY: 'auto', padding: '28px 32px 80px' }}>
 
           {/* AI panel */}
           {!aiGenerated ? (
@@ -1300,69 +1304,65 @@ export default function TemplateEditor({
         <div
           className="coach-editor-right no-scrollbar"
           style={{
-            flex: '1 1 45%',
+            flex: '1 1 0',
+            minWidth: 0,
             borderLeft: '1px solid var(--color-border)',
-            padding: '28px 32px',
+            padding: '24px 28px',
             overflowY: 'auto',
             backgroundColor: 'var(--color-surface-1)',
           }}
         >
           {/* Day indicator */}
-          <p style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--color-text-hint)', marginBottom: 14 }}>
+          <p style={{ fontSize: '0.68rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-hint)', marginBottom: 16 }}>
             {activeDay?.label || `Day ${activeDayIndex + 1}`} · {days.length} {days.length === 1 ? 'day' : 'days'} total
           </p>
 
-          {/* Stats summary */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 8,
-              marginBottom: 24,
-            }}
-          >
+          {/* Stats row */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 28 }}>
             <div
               style={{
-                padding: '12px 14px',
+                flex: 1,
+                padding: '14px 16px',
                 backgroundColor: 'var(--color-surface-2)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-lg)',
               }}
             >
-              <p style={{ fontSize: '0.65rem', color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              <p style={{ fontSize: '0.63rem', color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
                 Exercises
               </p>
-              <p style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
+              <p style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
                 {exercises.length}
               </p>
             </div>
             <div
               style={{
-                padding: '12px 14px',
+                flex: 1,
+                padding: '14px 16px',
                 backgroundColor: 'var(--color-surface-2)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-lg)',
               }}
             >
-              <p style={{ fontSize: '0.65rem', color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              <p style={{ fontSize: '0.63rem', color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
                 Total Sets
               </p>
-              <p style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
+              <p style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
                 {totalSets}
               </p>
             </div>
           </div>
 
           {/* Volume distribution */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-              <BarChart2 size={14} style={{ color: 'var(--color-text-hint)' }} />
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+              <BarChart2 size={13} style={{ color: 'var(--color-text-hint)' }} />
               <span
                 style={{
-                  fontSize: '0.72rem',
+                  fontSize: '0.68rem',
                   fontWeight: 600,
                   textTransform: 'uppercase',
-                  letterSpacing: '0.07em',
+                  letterSpacing: '0.08em',
                   color: 'var(--color-text-hint)',
                 }}
               >
@@ -1375,22 +1375,34 @@ export default function TemplateEditor({
                 Add exercises to see volume breakdown.
               </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {volumeDistribution.map(({ group, pct }) => {
                   const color = MUSCLE_GROUP_COLORS[group] ?? '#6b7280'
                   return (
                     <div key={group}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
-                          {muscleGroupLabel(group)}
-                        </span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-hint)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                          <span
+                            style={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: '50%',
+                              backgroundColor: color,
+                              flexShrink: 0,
+                              display: 'inline-block',
+                            }}
+                          />
+                          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                            {muscleGroupLabel(group)}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--color-text-hint)', fontWeight: 500 }}>
                           {pct}%
                         </span>
                       </div>
                       <div
                         style={{
-                          height: 8,
+                          height: 10,
                           borderRadius: 999,
                           backgroundColor: 'var(--color-surface-3)',
                           overflow: 'hidden',
@@ -1402,7 +1414,8 @@ export default function TemplateEditor({
                             width: `${pct}%`,
                             borderRadius: 999,
                             backgroundColor: color,
-                            transition: 'width 0.3s ease',
+                            transition: 'width 0.35s ease',
+                            opacity: 0.9,
                           }}
                         />
                       </div>
@@ -1415,21 +1428,21 @@ export default function TemplateEditor({
 
           {/* Exercise list summary */}
           {exercises.length > 0 && (
-            <div style={{ marginTop: 28 }}>
+            <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <span
                   style={{
-                    fontSize: '0.72rem',
+                    fontSize: '0.68rem',
                     fontWeight: 600,
                     textTransform: 'uppercase',
-                    letterSpacing: '0.07em',
+                    letterSpacing: '0.08em',
                     color: 'var(--color-text-hint)',
                   }}
                 >
                   Exercise List
                 </span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {exercises.map((ex, i) => (
                   <div
                     key={ex.tempId}
@@ -1437,7 +1450,7 @@ export default function TemplateEditor({
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
-                      padding: '8px 10px',
+                      padding: '9px 12px',
                       backgroundColor: 'var(--color-surface-2)',
                       border: '1px solid var(--color-border)',
                       borderRadius: 'var(--radius-md)',
@@ -1445,11 +1458,12 @@ export default function TemplateEditor({
                   >
                     <span
                       style={{
-                        fontSize: '0.7rem',
+                        fontSize: '0.68rem',
                         fontWeight: 700,
                         color: 'var(--color-text-hint)',
                         width: 16,
                         flexShrink: 0,
+                        textAlign: 'center',
                       }}
                     >
                       {i + 1}
@@ -1457,8 +1471,8 @@ export default function TemplateEditor({
                     {ex.muscleGroup && (
                       <span
                         style={{
-                          width: 6,
-                          height: 6,
+                          width: 7,
+                          height: 7,
                           borderRadius: '50%',
                           backgroundColor: MUSCLE_GROUP_COLORS[ex.muscleGroup.toLowerCase()] ?? '#6b7280',
                           flexShrink: 0,
@@ -1468,7 +1482,7 @@ export default function TemplateEditor({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p
                         style={{
-                          fontSize: '0.78rem',
+                          fontSize: '0.8rem',
                           color: ex.exerciseName ? 'var(--color-text-primary)' : 'var(--color-text-hint)',
                           fontWeight: 500,
                           overflow: 'hidden',
@@ -1478,7 +1492,7 @@ export default function TemplateEditor({
                       >
                         {ex.exerciseName || 'Unselected'}
                       </p>
-                      <p style={{ fontSize: '0.68rem', color: 'var(--color-text-hint)' }}>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--color-text-hint)', marginTop: 1 }}>
                         {ex.sets.length} {ex.sets.length === 1 ? 'set' : 'sets'}
                         {ex.restSeconds > 0 ? ` · ${ex.restSeconds}s rest` : ''}
                       </p>

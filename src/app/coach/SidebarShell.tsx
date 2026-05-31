@@ -436,8 +436,9 @@ export default function SidebarShell({
         className="coach-main-content flex-1 min-h-screen"
         style={{
           marginLeft:      `${w}px`,
+          maxWidth:        `calc(100vw - ${w}px)`,
           backgroundColor: 'var(--color-base)',
-          transition:      'margin-left 0.2s ease',
+          transition:      'margin-left 0.2s ease, max-width 0.2s ease',
         }}
       >
         {children}

@@ -111,11 +111,12 @@ export async function POST(request: NextRequest) {
     try {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 8000,
+        max_tokens: 16000,
         temperature: 0,
         system: `You are an expert personal trainer and strength coach.
 Output ONLY valid JSON — no markdown fences, no explanation, no extra text whatsoever.
-The JSON must start with { and end with }.`,
+The JSON must start with { and end with }.
+Be concise: use short notes (or omit them), keep exercise names brief, limit to 4 sets per exercise maximum.`,
         messages: [
           {
             role: 'user',
@@ -130,14 +131,21 @@ ${schemaExample}
 Rules:
 - Always use the "days" array, even for a single-day template
 - Give each day a descriptive label (e.g. "Day 1 – Upper Push", "Day 2 – Lower Quads")
-- Each exercise must have individual set definitions (not a generic rep range)
+- Include ONLY training days in the days array — omit rest days entirely
+- Each exercise must have individual set definitions (3–4 sets per exercise, no more)
 - Vary reps per set when appropriate (pyramid, reverse pyramid, straight sets, etc.)
 - rest_seconds should be realistic: 60–90s isolation, 120–180s compound lifts
 - Use exercise names EXACTLY as they appear in the available list when possible
-- target_weight can be empty string — the client will fill it in`,
+- target_weight and notes can be empty string — keep them short or empty to save space`,
           },
         ],
       })
+
+      if (response.stop_reason === 'max_tokens') {
+        console.error('[generate-template] Response truncated at max_tokens')
+        return Response.json({ error: 'The generated plan was too large. Try requesting fewer days or exercises.' }, { status: 500 })
+      }
+
       aiRawText = (response.content[0] as { text: string }).text.trim()
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)

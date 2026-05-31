@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ChevronUp, ChevronDown, Trash2, Plus, Search, Loader2, Sparkles, X } from 'lucide-react'
@@ -173,7 +173,8 @@ function fromInitial(initial: FullTemplate): MealEntry[] {
 
 export default function MealPlanEditor({ workspaceId, initialData }: { workspaceId: string; initialData?: FullTemplate }) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState(initialData?.name ?? '')
@@ -350,24 +351,26 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
     const valid = meals.every((m) => m.options.length > 0 && m.options.every((o) => o.foods.length > 0))
     if (!valid) { setError('Every meal needs at least one option, and every option needs at least one food'); return }
 
-    startTransition(async () => {
-      try {
-        await upsertMealPlanTemplate({
-          id: initialData?.id, workspaceId, name: name.trim(), planType, notes, recommendations,
-          meals: meals.map((m, mi) => ({
-            name: m.name, sortOrder: mi,
-            options: m.options.map((o, oi) => ({
-              label: o.label, sortOrder: oi,
-              foods: o.foods.map((f, fi) => ({ foodId: f.foodId, foodName: f.foodName, quantity: f.quantity, unit: f.unit, calories: f.calories, proteinG: f.proteinG, carbsG: f.carbsG, fatG: f.fatG, sortOrder: fi })),
-            })),
+    setSaving(true)
+    try {
+      await upsertMealPlanTemplate({
+        id: initialData?.id, workspaceId, name: name.trim(), planType, notes, recommendations,
+        meals: meals.map((m, mi) => ({
+          name: m.name, sortOrder: mi,
+          options: m.options.map((o, oi) => ({
+            label: o.label, sortOrder: oi,
+            foods: o.foods.map((f, fi) => ({ foodId: f.foodId, foodName: f.foodName, quantity: f.quantity, unit: f.unit, calories: f.calories, proteinG: f.proteinG, carbsG: f.carbsG, fatG: f.fatG, sortOrder: fi })),
           })),
-        })
-        router.push('/coach/meal-plans')
-        router.refresh()
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to save')
-      }
-    })
+        })),
+      })
+      router.refresh()
+      setSaving(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save')
+      setSaving(false)
+    }
   }
 
   return (
@@ -406,10 +409,10 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           <button
             type="button"
             onClick={handleSave}
-            disabled={pending}
-            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: '#f97316', color: '#fff', border: 'none', cursor: pending ? 'not-allowed' : 'pointer', opacity: pending ? 0.6 : 1 }}
+            disabled={saving || saved}
+            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: saved ? '#16a34a' : '#f97316', color: '#fff', border: 'none', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, transition: 'background-color 0.2s' }}
           >
-            {pending ? 'Saving…' : 'Save template'}
+            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save template'}
           </button>
         </div>
       </div>

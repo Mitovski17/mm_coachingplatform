@@ -4,9 +4,37 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getClientId, getTodayTemplate } from './workouts/actions'
-import { getDayLogs } from './nutrition/actions'
+import { getDayLogs, getActiveMealPlan, type FullMealPlan } from './nutrition/actions'
 import { getHomeStats } from './home-actions'
 import HomeView from './HomeView'
+
+export type NutritionTargets = {
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+}
+
+function computeTargets(plan: FullMealPlan | null): NutritionTargets | null {
+  if (!plan || plan.meals.length === 0) return null
+  let calories = 0, proteinG = 0, carbsG = 0, fatG = 0
+  for (const meal of plan.meals) {
+    const firstOption = meal.options[0]
+    if (!firstOption) continue
+    for (const food of firstOption.foods) {
+      calories += food.calories
+      proteinG += food.proteinG
+      carbsG += food.carbsG
+      fatG += food.fatG
+    }
+  }
+  return {
+    calories: Math.round(calories),
+    proteinG: Math.round(proteinG),
+    carbsG: Math.round(carbsG),
+    fatG: Math.round(fatG),
+  }
+}
 
 async function resolveData() {
   let email: string | null = null
@@ -45,7 +73,11 @@ async function resolveData() {
     redirect('/onboarding')
   }
 
-  return { today, logs, stats, avatarUrl, onboardingComplete: stats.onboardingComplete }
+  const planType = today ? 'training' : 'rest'
+  const mealPlan = await getActiveMealPlan(client.id, planType)
+  const targets = computeTargets(mealPlan)
+
+  return { today, logs, stats, avatarUrl, onboardingComplete: stats.onboardingComplete, targets }
 }
 
 export default async function ClientHomePage() {
@@ -57,6 +89,7 @@ export default async function ClientHomePage() {
       stats={data?.stats ?? null}
       avatarUrl={data?.avatarUrl ?? null}
       onboardingComplete={data?.onboardingComplete ?? true}
+      targets={data?.targets ?? null}
     />
   )
 }

@@ -5,12 +5,8 @@ import { Check, Bell, ChevronRight, Dumbbell, MessageCircle, ClipboardList } fro
 import type { TodayTemplate } from './workouts/actions'
 import type { DayLog } from './nutrition/actions'
 import type { HomeStats } from './home-actions'
+import type { NutritionTargets } from './page'
 import { useLanguage } from '@/lib/i18n'
-
-const CAL_TARGET  = 2400
-const PRO_TARGET  = 180
-const CARB_TARGET = 260
-const FAT_TARGET  = 75
 
 function getInitials(name: string): string {
   const p = name.trim().split(/\s+/)
@@ -32,9 +28,10 @@ type Props = {
   stats: HomeStats | null
   avatarUrl: string | null
   onboardingComplete: boolean
+  targets: NutritionTargets | null
 }
 
-export default function HomeView({ today, logs, stats, avatarUrl, onboardingComplete }: Props) {
+export default function HomeView({ today, logs, stats, avatarUrl, onboardingComplete, targets }: Props) {
   const { t, lang } = useLanguage()
 
   const clientName = stats?.clientName ?? 'there'
@@ -78,15 +75,21 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
     }),
     { cal: 0, pro: 0, carbs: 0, fat: 0 }
   )
-  const remaining   = Math.max(CAL_TARGET - Math.round(totals.cal), 0)
   const calConsumed = Math.round(totals.cal)
   const proG        = Math.round(totals.pro)
   const carbG       = Math.round(totals.carbs)
   const fatG        = Math.round(totals.fat)
 
+  const CAL_TARGET  = targets?.calories ?? null
+  const PRO_TARGET  = targets?.proteinG ?? null
+  const CARB_TARGET = targets?.carbsG ?? null
+  const FAT_TARGET  = targets?.fatG ?? null
+
+  const remaining = CAL_TARGET != null ? Math.max(CAL_TARGET - calConsumed, 0) : null
+
   const R = 68, SW = 10, CX = 84, CY = 84
   const circ = 2 * Math.PI * R
-  const pct  = Math.min(calConsumed / CAL_TARGET, 1)
+  const pct  = CAL_TARGET != null ? Math.min(calConsumed / CAL_TARGET, 1) : 1
   const dash = circ * (1 - pct)
 
   const checkinDue = !(stats?.checkinSubmittedThisWeek ?? false)
@@ -259,22 +262,35 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
                 position: 'absolute', inset: 0,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               }}>
-                <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {t.home.remaining}
-                </p>
-                <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
-                  {remaining.toLocaleString()}
-                </p>
-                <p style={{ fontSize: 10, color: 'var(--color-text-hint)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.3 }}>
-                  {calConsumed.toLocaleString()} / {CAL_TARGET.toLocaleString()}<br />{t.home.kcal}
-                </p>
+                {remaining != null ? (
+                  <>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      {t.home.remaining}
+                    </p>
+                    <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
+                      {remaining.toLocaleString()}
+                    </p>
+                    <p style={{ fontSize: 10, color: 'var(--color-text-hint)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.3 }}>
+                      {calConsumed.toLocaleString()} / {CAL_TARGET!.toLocaleString()}<br />{t.home.kcal}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
+                      {calConsumed.toLocaleString()}
+                    </p>
+                    <p style={{ fontSize: 10, color: 'var(--color-text-hint)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.3 }}>
+                      {t.home.kcal}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <MacroRow label={t.home.protein} value={proG} target={PRO_TARGET} color="#22c55e" />
               <MacroRow label={t.home.carbs}   value={carbG} target={CARB_TARGET} color="#3b82f6" />
-              <MacroRow label={t.home.fat}     value={fatG}  target={FAT_TARGET}  color="#f59e0b" />
+              <MacroRow label={t.home.fat}     value={fatG}  target={FAT_TARGET} color="#f59e0b" />
             </div>
           </div>
         </div>
@@ -357,19 +373,24 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
   )
 }
 
-function MacroRow({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
-  const pct = Math.min(value / target, 1)
+function MacroRow({ label, value, target, color }: { label: string; value: number; target: number | null; color: string }) {
+  const pct = target != null ? Math.min(value / target, 1) : 1
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, alignItems: 'baseline' }}>
         <span style={{ fontSize: 12, color: 'var(--color-text-hint)' }}>{label}</span>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
           <span style={{ color: 'var(--color-text-primary)' }}>{value}</span>
-          <span style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>/{target}g</span>
+          {target != null && (
+            <span style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>/{target}g</span>
+          )}
+          {target == null && (
+            <span style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>g</span>
+          )}
         </span>
       </div>
       <div style={{ height: 4, backgroundColor: 'var(--color-surface-3)', borderRadius: 999 }}>
-        <div style={{ height: '100%', width: `${pct * 100}%`, backgroundColor: color, borderRadius: 999 }} />
+        <div style={{ height: '100%', width: target != null ? `${pct * 100}%` : '100%', backgroundColor: color, borderRadius: 999, opacity: target != null ? 1 : 0.3 }} />
       </div>
     </div>
   )

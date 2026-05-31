@@ -220,6 +220,7 @@
   /* Push content below the fixed top header and above the fixed bottom nav */
   .coach-main-content {
     margin-left: 0 !important;
+    max-width: 100vw !important;
     padding-top: 56px !important;
     padding-bottom: 76px !important;
     transition: none !important;
@@ -415,7 +416,9 @@
 }
 .coach-editor-right {
   display: flex;
-  flex: 1 1 45%;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
 }
 @media (max-width: 767px) {
   .coach-editor-body {

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, FocusEvent, InputHTMLAttributes, TextareaH
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { uploadStandalonePhoto } from '@/app/client/progress/progress-actions'
+import { completeOnboarding } from './actions'
 
 const TOTAL_STEPS = 7
 
@@ -440,43 +441,41 @@ export default function OnboardingPage() {
     setIsSubmitting(true)
     setServerError(null)
 
-    // Save profile data
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('clients')
-      .update({
-        current_weight: parseFloat(currentWeight),
-        current_weight_unit: currentWeightUnit,
-        goal: goal === 'other' ? otherGoalText.trim() : goal,
-        desired_weight: parseFloat(desiredWeight),
-        desired_weight_unit: desiredWeightUnit,
-        meals_per_day: parseInt(mealsPerDay, 10),
-        foods_to_avoid: foodsToAvoid.trim() || null,
-        activity_level: activityLevel,
-        occupation_notes: occupationNotes.trim() || null,
-        health_notes: healthNotes.trim() || null,
-        training_location: trainingLocation,
-        training_days_per_week: parseInt(trainingDays, 10),
-        preferred_training_time: preferredTime,
-        onboarding_completed_at: new Date().toISOString(),
-      })
-      .eq('email', userEmail)
+    const result = await completeOnboarding(userEmail, {
+      current_weight: parseFloat(currentWeight),
+      current_weight_unit: currentWeightUnit,
+      goal: goal === 'other' ? otherGoalText.trim() : goal,
+      desired_weight: parseFloat(desiredWeight),
+      desired_weight_unit: desiredWeightUnit,
+      meals_per_day: parseInt(mealsPerDay, 10),
+      foods_to_avoid: foodsToAvoid.trim() || null,
+      activity_level: activityLevel,
+      occupation_notes: occupationNotes.trim() || null,
+      health_notes: healthNotes.trim() || null,
+      training_location: trainingLocation,
+      training_days_per_week: parseInt(trainingDays, 10),
+      preferred_training_time: preferredTime,
+    })
 
-    if (error) {
-      setServerError('Something went wrong. Please try again.')
+    if (result.error) {
+      setServerError(result.error)
       setIsSubmitting(false)
       return
     }
 
+    // Use IDs returned by the server action (works even if the row was just created)
+    const finalClientId = result.clientId ?? clientId
+    const finalWorkspaceId = result.workspaceId ?? workspaceId
+
     // Upload any selected photos (best effort — don't block completion on failure)
-    if (clientId && workspaceId) {
+    if (finalClientId && finalWorkspaceId) {
       const uploads = [frontFile, sideFile, backFile].filter(Boolean) as File[]
       await Promise.allSettled(
         uploads.map((file) => {
           const fd = new FormData()
           fd.append('file', file)
-          fd.append('clientId', clientId)
-          fd.append('workspaceId', workspaceId)
+          fd.append('clientId', finalClientId)
+          fd.append('workspaceId', finalWorkspaceId)
           return uploadStandalonePhoto(fd)
         })
       )

@@ -63,6 +63,7 @@ export default function InvitePage() {
   const [invite, setInvite] = useState<InviteStatus>({ kind: 'loading' })
   const [serverError, setServerError] = useState<string | null>(null)
   const [signedUpEmail, setSignedUpEmail] = useState<string | null>(null)
+  const [accountReady, setAccountReady] = useState(false)
 
   const {
     register,
@@ -112,7 +113,7 @@ export default function InvitePage() {
     setServerError(null)
 
     const supabase = createClient()
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: { data: { full_name: data.fullName } },
@@ -129,7 +130,18 @@ export default function InvitePage() {
       .eq('id', invite.inviteId)
 
     // Create the clients row so the client can access the platform immediately
-    await createClientFromInvite(invite.inviteId, data.email, data.fullName)
+    const clientResult = await createClientFromInvite(invite.inviteId, data.email, data.fullName)
+    if (clientResult.error) {
+      setServerError('Failed to set up your account. Please try again or contact your coach.')
+      return
+    }
+
+    // signUpData.user is null when the email is already registered and confirmed.
+    // In that case the clients row is now created — just tell them to log in.
+    if (!signUpData.user) {
+      setAccountReady(true)
+      return
+    }
 
     setSignedUpEmail(data.email)
   }
@@ -171,6 +183,57 @@ export default function InvitePage() {
           <p className="text-sm" style={{ color: 'var(--color-text-hint)', lineHeight: 1.6 }}>
             Click the link in the email to verify your account, then you can log in and complete your profile.
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (accountReady) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center px-8"
+        style={{ backgroundColor: 'var(--color-surface-1)' }}
+      >
+        <div className="w-full max-w-sm text-center">
+          <div
+            className="mx-auto mb-6 flex items-center justify-center"
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              backgroundColor: 'rgba(34,197,94,0.1)',
+              border: '1px solid rgba(34,197,94,0.2)',
+            }}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+          </div>
+          <h2
+            className="text-2xl mb-3"
+            style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}
+          >
+            You&apos;re all set
+          </h2>
+          <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+            Your account already exists. Log in and you&apos;ll be taken straight to your profile setup.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push('/login')}
+            className="w-full py-3 text-sm"
+            style={{
+              backgroundColor: 'var(--color-text-primary)',
+              color: 'var(--color-base)',
+              borderRadius: 'var(--radius-md)',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            Go to login
+          </button>
         </div>
       </div>
     )

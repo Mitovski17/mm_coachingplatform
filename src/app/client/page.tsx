@@ -58,7 +58,9 @@ async function resolveData() {
 
   if (!email) return null
   const client = await getClientId(email)
-  if (!client) return null
+  if (!client) {
+    redirect('/onboarding')
+  }
 
   const isoToday = new Date().toISOString().slice(0, 10)
   const onboardingSkipped = cs.get('onboarding_skipped')?.value === '1'
@@ -88,7 +90,7 @@ export default async function ClientHomePage() {
       logs={data?.logs ?? []}
       stats={data?.stats ?? null}
       avatarUrl={data?.avatarUrl ?? null}
-      onboardingComplete={data?.onboardingComplete ?? true}
+      onboardingComplete={data?.onboardingComplete ?? false}
       targets={data?.targets ?? null}
     />
   )

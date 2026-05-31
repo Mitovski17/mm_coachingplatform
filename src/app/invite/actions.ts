@@ -28,18 +28,31 @@ export async function createClientFromInvite(
     return { error: 'Invite not found' }
   }
 
-  // Create the clients row (upsert in case it somehow already exists)
+  // Check if a clients row already exists for this email
+  const { data: existing } = await admin
+    .from('clients')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (existing) {
+    // Row already exists — just ensure coach reference is set
+    const { error } = await admin
+      .from('clients')
+      .update({ ...(invite.invited_by ? { coach_id: invite.invited_by } : {}) })
+      .eq('email', email)
+    return { error: error?.message ?? null }
+  }
+
+  // Insert new clients row
   const { error } = await admin
     .from('clients')
-    .upsert(
-      {
-        email,
-        full_name: fullName,
-        workspace_id: invite.workspace_id,
-        ...(invite.invited_by ? { coach_id: invite.invited_by } : {}),
-      },
-      { onConflict: 'email', ignoreDuplicates: false }
-    )
+    .insert({
+      email,
+      full_name: fullName,
+      workspace_id: invite.workspace_id,
+      ...(invite.invited_by ? { coach_id: invite.invited_by } : {}),
+    })
 
   if (error) {
     return { error: error.message }

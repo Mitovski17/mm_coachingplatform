@@ -344,7 +344,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
     }))
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setError(null)
     if (!name.trim()) { setError('Template name is required'); return }
     if (meals.length === 0) { setError('Add at least one meal'); return }

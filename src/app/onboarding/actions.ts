@@ -66,8 +66,9 @@ export async function completeOnboarding(
   }
 
   // Look up full_name from Supabase auth metadata
-  const { data: authUser } = await admin.auth.admin.getUserByEmail(email)
-  const fullName = (authUser?.user?.user_metadata?.full_name as string | undefined) ?? email
+  const { data: authUsers } = await admin.auth.admin.listUsers()
+  const authUser = authUsers?.users?.find((u) => u.email === email)
+  const fullName = (authUser?.user_metadata?.full_name as string | undefined) ?? email
 
   const { data: created, error: insertErr } = await admin
     .from('clients')

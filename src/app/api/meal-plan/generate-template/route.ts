@@ -19,7 +19,9 @@ export async function POST(request: NextRequest) {
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-  const response = await anthropic.messages.create({
+  let response: Awaited<ReturnType<typeof anthropic.messages.create>>
+  try {
+    response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 4096,
     temperature: 0,
@@ -84,6 +86,10 @@ Unit rules (follow strictly):
       },
     ],
   })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return Response.json({ error: `AI request failed: ${message}` }, { status: 500 })
+  }
 
   const rawText = (response.content[0] as { text: string }).text.trim()
 

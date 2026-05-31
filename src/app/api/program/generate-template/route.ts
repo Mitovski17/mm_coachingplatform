@@ -104,17 +104,19 @@ export async function POST(request: NextRequest) {
     ? `Here is the current workout template:\n${JSON.stringify(current_template, null, 2)}\n\nApply this instruction and return the complete modified template using the SAME JSON schema:\n"${description}"`
     : `Generate a workout template based on this description: "${description}"`
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 8000,
-    temperature: 0,
-    system: `You are an expert personal trainer and strength coach.
+  let response: Awaited<ReturnType<typeof anthropic.messages.create>>
+  try {
+    response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8000,
+      temperature: 0,
+      system: `You are an expert personal trainer and strength coach.
 Output ONLY valid JSON — no markdown fences, no explanation, no extra text whatsoever.
 The JSON must start with { and end with }.`,
-    messages: [
-      {
-        role: 'user',
-        content: `${userMessage}
+      messages: [
+        {
+          role: 'user',
+          content: `${userMessage}
 
 Available exercises — use EXACT names from this list when possible:
 ${JSON.stringify(exercises.map((e) => ({ name: e.name, muscle_group: e.muscle_group, equipment: e.equipment })))}
@@ -130,9 +132,13 @@ Rules:
 - rest_seconds should be realistic: 60–90s isolation, 120–180s compound lifts
 - Use exercise names EXACTLY as they appear in the available list when possible
 - target_weight can be empty string — the client will fill it in`,
-      },
-    ],
-  })
+        },
+      ],
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return Response.json({ error: `AI request failed: ${message}` }, { status: 500 })
+  }
 
   const rawText = (response.content[0] as { text: string }).text.trim()
 

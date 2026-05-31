@@ -354,8 +354,14 @@ export default function TemplateEditor({
           ...(aiGenerated ? { current_template: serializeTemplate() } : {}),
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      const rawText = await res.text()
+      let data: Record<string, unknown>
+      try {
+        data = JSON.parse(rawText)
+      } catch {
+        throw new Error(`Server error (${res.status}): ${rawText.slice(0, 300)}`)
+      }
+      if (!res.ok) throw new Error((data.error as string) ?? `HTTP ${res.status}`)
 
       type ResolvedExercise = {
         exerciseId: string

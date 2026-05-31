@@ -42,81 +42,84 @@ type AiResponse = {
 }
 
 export async function POST(request: NextRequest) {
-  let body: unknown
   try {
-    body = await request.json()
-  } catch {
-    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
 
-  const { description, workspace_id, current_template } = body as {
-    description?: string
-    workspace_id?: string
-    current_template?: unknown
-  }
+    const { description, workspace_id, current_template } = body as {
+      description?: string
+      workspace_id?: string
+      current_template?: unknown
+    }
 
-  if (!description?.trim()) {
-    return Response.json({ error: 'description is required' }, { status: 400 })
-  }
-  if (!workspace_id) {
-    return Response.json({ error: 'workspace_id is required' }, { status: 400 })
-  }
+    if (!description?.trim()) {
+      return Response.json({ error: 'description is required' }, { status: 400 })
+    }
+    if (!workspace_id) {
+      return Response.json({ error: 'workspace_id is required' }, { status: 400 })
+    }
 
-  const supabase = adminClient()
+    const supabase = adminClient()
 
-  const { data: exercises, error: exercisesError } = await supabase
-    .from('exercises')
-    .select('id, name, muscle_group, equipment')
-    .or(`workspace_id.is.null,workspace_id.eq.${workspace_id}`)
+    const { data: exercisesRaw, error: exercisesError } = await supabase
+      .from('exercises')
+      .select('id, name, muscle_group, equipment')
+      .or(`workspace_id.is.null,workspace_id.eq.${workspace_id}`)
 
-  if (exercisesError) {
-    return Response.json({ error: 'Failed to fetch exercises' }, { status: 500 })
-  }
+    if (exercisesError) {
+      return Response.json({ error: 'Failed to fetch exercises' }, { status: 500 })
+    }
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const exercises = exercisesRaw ?? []
 
-  const schemaExample = JSON.stringify({
-    name: 'Upper/Lower 4-Day Split',
-    notes: 'Optional coaching notes',
-    days: [
-      {
-        label: 'Day 1 – Upper Push',
-        notes: '',
-        exercises: [
-          {
-            exercise_name: 'Barbell Bench Press',
-            muscle_group: 'chest',
-            equipment: 'barbell',
-            rest_seconds: 90,
-            notes: '',
-            sets: [
-              { set_number: 1, target_reps: 6, target_weight: '', rpe: '8', notes: '' },
-              { set_number: 2, target_reps: 8, target_weight: '', rpe: '8', notes: '' },
-              { set_number: 3, target_reps: 10, target_weight: '', rpe: '7', notes: '' },
-            ],
-          },
-        ],
-      },
-    ],
-  }, null, 2)
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-  const userMessage = current_template
-    ? `Here is the current workout template:\n${JSON.stringify(current_template, null, 2)}\n\nApply this instruction and return the complete modified template using the SAME JSON schema:\n"${description}"`
-    : `Generate a workout template based on this description: "${description}"`
+    const schemaExample = JSON.stringify({
+      name: 'Upper/Lower 4-Day Split',
+      notes: 'Optional coaching notes',
+      days: [
+        {
+          label: 'Day 1 – Upper Push',
+          notes: '',
+          exercises: [
+            {
+              exercise_name: 'Barbell Bench Press',
+              muscle_group: 'chest',
+              equipment: 'barbell',
+              rest_seconds: 90,
+              notes: '',
+              sets: [
+                { set_number: 1, target_reps: 6, target_weight: '', rpe: '8', notes: '' },
+                { set_number: 2, target_reps: 8, target_weight: '', rpe: '8', notes: '' },
+                { set_number: 3, target_reps: 10, target_weight: '', rpe: '7', notes: '' },
+              ],
+            },
+          ],
+        },
+      ],
+    }, null, 2)
 
-  let response: Awaited<ReturnType<typeof anthropic.messages.create>>
-  try {
-    response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
-      temperature: 0,
-      system: `You are an expert personal trainer and strength coach.
+    const userMessage = current_template
+      ? `Here is the current workout template:\n${JSON.stringify(current_template, null, 2)}\n\nApply this instruction and return the complete modified template using the SAME JSON schema:\n"${description}"`
+      : `Generate a workout template based on this description: "${description}"`
+
+    let aiRawText: string
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8000,
+        temperature: 0,
+        system: `You are an expert personal trainer and strength coach.
 Output ONLY valid JSON — no markdown fences, no explanation, no extra text whatsoever.
 The JSON must start with { and end with }.`,
-      messages: [
-        {
-          role: 'user',
-          content: `${userMessage}
+        messages: [
+          {
+            role: 'user',
+            content: `${userMessage}
 
 Available exercises — use EXACT names from this list when possible:
 ${JSON.stringify(exercises.map((e) => ({ name: e.name, muscle_group: e.muscle_group, equipment: e.equipment })))}
@@ -132,107 +135,111 @@ Rules:
 - rest_seconds should be realistic: 60–90s isolation, 120–180s compound lifts
 - Use exercise names EXACTLY as they appear in the available list when possible
 - target_weight can be empty string — the client will fill it in`,
-        },
-      ],
-    })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return Response.json({ error: `AI request failed: ${message}` }, { status: 500 })
-  }
-
-  const rawText = (response.content[0] as { text: string }).text.trim()
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(rawText)
-  } catch {
-    // Strip any accidental markdown fences and retry
-    const match = rawText.match(/\{[\s\S]*\}/)
-    if (!match) {
-      return Response.json({ error: 'AI returned invalid JSON', raw: rawText.slice(0, 500) }, { status: 500 })
+          },
+        ],
+      })
+      aiRawText = (response.content[0] as { text: string }).text.trim()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[generate-template] Anthropic error:', message)
+      return Response.json({ error: `AI request failed: ${message}` }, { status: 500 })
     }
+
+    let parsed: unknown
     try {
-      parsed = JSON.parse(match[0])
+      parsed = JSON.parse(aiRawText)
     } catch {
-      return Response.json({ error: 'AI returned invalid JSON', raw: rawText.slice(0, 500) }, { status: 500 })
+      const match = aiRawText.match(/\{[\s\S]*\}/)
+      if (!match) {
+        console.error('[generate-template] Unparseable AI output:', aiRawText.slice(0, 300))
+        return Response.json({ error: 'AI returned invalid JSON', raw: aiRawText.slice(0, 500) }, { status: 500 })
+      }
+      try {
+        parsed = JSON.parse(match[0])
+      } catch {
+        return Response.json({ error: 'AI returned invalid JSON', raw: aiRawText.slice(0, 500) }, { status: 500 })
+      }
     }
-  }
 
-  const aiPlan = parsed as AiResponse
+    const aiPlan = parsed as AiResponse
 
-  // Normalise: if AI still returned flat `exercises` (legacy fallback), wrap in one day
-  if (!aiPlan.days && (aiPlan as unknown as { exercises?: AiExercise[] }).exercises) {
-    const legacy = aiPlan as unknown as { name: string; notes?: string; exercises: AiExercise[] }
-    aiPlan.days = [{ label: 'Day 1', notes: '', exercises: legacy.exercises }]
-  }
+    // Normalise: if AI still returned flat `exercises` (legacy fallback), wrap in one day
+    if (!aiPlan.days && (aiPlan as unknown as { exercises?: AiExercise[] }).exercises) {
+      const legacy = aiPlan as unknown as { name: string; notes?: string; exercises: AiExercise[] }
+      aiPlan.days = [{ label: 'Day 1', notes: '', exercises: legacy.exercises }]
+    }
 
-  if (!Array.isArray(aiPlan.days) || aiPlan.days.length === 0) {
-    return Response.json({ error: 'AI returned no days', raw: rawText.slice(0, 500) }, { status: 500 })
-  }
+    if (!Array.isArray(aiPlan.days) || aiPlan.days.length === 0) {
+      return Response.json({ error: 'AI returned no days', raw: aiRawText.slice(0, 500) }, { status: 500 })
+    }
 
-  // Resolve exercise names → DB IDs (insert new ones if not found)
-  const exerciseCache = new Map(exercises.map((e) => [e.name.toLowerCase(), e]))
+    // Resolve exercise names → DB IDs (insert new ones if not found)
+    const exerciseCache = new Map(exercises.map((e) => [e.name.toLowerCase(), e]))
 
-  const resolvedDays = []
-  for (const day of aiPlan.days) {
-    const resolvedExercises = []
-    for (const aiEx of day.exercises ?? []) {
-      const found = exerciseCache.get(aiEx.exercise_name.toLowerCase())
-      let exerciseId: string
+    const resolvedDays = []
+    for (const day of aiPlan.days) {
+      const resolvedExercises = []
+      for (const aiEx of day.exercises ?? []) {
+        const found = exerciseCache.get(aiEx.exercise_name.toLowerCase())
+        let exerciseId: string
 
-      if (found) {
-        exerciseId = found.id
-      } else {
-        const { data: inserted, error: insertError } = await supabase
-          .from('exercises')
-          .insert({
+        if (found) {
+          exerciseId = found.id
+        } else {
+          const { data: inserted, error: insertError } = await supabase
+            .from('exercises')
+            .insert({
+              name: aiEx.exercise_name,
+              muscle_group: aiEx.muscle_group,
+              equipment: aiEx.equipment,
+              workspace_id,
+            })
+            .select('id')
+            .single()
+
+          if (insertError || !inserted) {
+            return Response.json({ error: `Failed to insert exercise: ${aiEx.exercise_name}` }, { status: 500 })
+          }
+          exerciseId = inserted.id
+          exerciseCache.set(aiEx.exercise_name.toLowerCase(), {
+            id: exerciseId,
             name: aiEx.exercise_name,
             muscle_group: aiEx.muscle_group,
             equipment: aiEx.equipment,
-            workspace_id,
           })
-          .select('id')
-          .single()
-
-        if (insertError || !inserted) {
-          return Response.json({ error: `Failed to insert exercise: ${aiEx.exercise_name}` }, { status: 500 })
         }
-        exerciseId = inserted.id
-        // Cache it so duplicate names in same request are reused
-        exerciseCache.set(aiEx.exercise_name.toLowerCase(), {
-          id: exerciseId,
-          name: aiEx.exercise_name,
-          muscle_group: aiEx.muscle_group,
-          equipment: aiEx.equipment,
+
+        resolvedExercises.push({
+          exerciseId,
+          exerciseName: aiEx.exercise_name,
+          muscleGroup: aiEx.muscle_group,
+          restSeconds: aiEx.rest_seconds ?? 90,
+          notes: aiEx.notes ?? '',
+          sets: (aiEx.sets ?? []).map((s) => ({
+            setNumber: s.set_number,
+            targetReps: s.target_reps,
+            targetWeight: s.target_weight ?? '',
+            rpe: s.rpe ?? '',
+            notes: s.notes ?? '',
+          })),
         })
       }
 
-      resolvedExercises.push({
-        exerciseId,
-        exerciseName: aiEx.exercise_name,
-        muscleGroup: aiEx.muscle_group,
-        restSeconds: aiEx.rest_seconds ?? 90,
-        notes: aiEx.notes ?? '',
-        sets: (aiEx.sets ?? []).map((s) => ({
-          setNumber: s.set_number,
-          targetReps: s.target_reps,
-          targetWeight: s.target_weight ?? '',
-          rpe: s.rpe ?? '',
-          notes: s.notes ?? '',
-        })),
+      resolvedDays.push({
+        label: day.label,
+        notes: day.notes ?? '',
+        exercises: resolvedExercises,
       })
     }
 
-    resolvedDays.push({
-      label: day.label,
-      notes: day.notes ?? '',
-      exercises: resolvedExercises,
+    return Response.json({
+      name: aiPlan.name,
+      notes: aiPlan.notes ?? '',
+      days: resolvedDays,
     })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[generate-template] Unhandled error:', message)
+    return Response.json({ error: `Internal error: ${message}` }, { status: 500 })
   }
-
-  return Response.json({
-    name: aiPlan.name,
-    notes: aiPlan.notes ?? '',
-    days: resolvedDays,
-  })
 }

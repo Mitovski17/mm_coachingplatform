@@ -297,7 +297,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
     updateSearch(optionTempId, { query: '', results: [], open: false, manualOpen: false })
   }
 
-  const addManualFood = async (mealTempId: string, optionTempId: string, payload: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number }) => {
+  const addManualFood = async (mealTempId: string, optionTempId: string, payload: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number; unit: string }) => {
     let foodId: string | null = null
     try {
       foodId = await upsertFood({
@@ -313,7 +313,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
     } catch { foodId = null }
     const food: FoodEntry = computeMacros({
       tempId: newId(), foodId, foodName: payload.foodName,
-      quantity: payload.quantity, unit: 'g',
+      quantity: payload.quantity, unit: payload.unit,
       caloriesPer100g: payload.caloriesPer100g, proteinPer100g: payload.proteinPer100g,
       carbsPer100g: payload.carbsPer100g, fatPer100g: payload.fatPer100g,
       calories: 0, proteinG: 0, carbsG: 0, fatG: 0, sortOrder: 0,
@@ -660,7 +660,7 @@ function MealCard({
   onAddOption: () => void; onSelectOption: (id: string) => void; onRemoveOption: (id: string) => void
   search: SearchState | undefined; onSearchChange: (patch: Partial<SearchState>) => void
   onAddFromResult: (r: FoodSearchResult) => void
-  onAddManual: (p: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number }) => void
+  onAddManual: (p: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number; unit: string }) => void
   onUpdateFoodQuantity: (foodId: string, q: number) => void; onUpdateFoodUnit: (foodId: string, u: string) => void; onRemoveFood: (foodId: string) => void
 }) {
   const isPreset = MEAL_PRESETS.includes(meal.name)
@@ -775,7 +775,7 @@ function OptionContent({
   search: SearchState | undefined
   onSearchChange: (patch: Partial<SearchState>) => void
   onAddFromResult: (r: FoodSearchResult) => void
-  onAddManual: (p: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number }) => void
+  onAddManual: (p: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number; unit: string }) => void
   onUpdateFoodQuantity: (foodId: string, q: number) => void
   onUpdateFoodUnit: (foodId: string, u: string) => void
   onRemoveFood: (foodId: string) => void
@@ -868,7 +868,7 @@ function FoodSearchBox({
   search: SearchState | undefined
   onChange: (patch: Partial<SearchState>) => void
   onAddFromResult: (r: FoodSearchResult) => void
-  onAddManual: (p: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number }) => void
+  onAddManual: (p: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number; unit: string }) => void
 }) {
   const s = search ?? { query: '', results: [], loading: false, open: false, manualOpen: false }
 
@@ -941,18 +941,55 @@ function FoodSearchBox({
   )
 }
 
-function ManualEntry({ onAdd, onClose }: { onAdd: (p: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number }) => void; onClose: () => void }) {
+// Units where the user enters macros per 100 of that unit (g, kg → per 100g; ml, L → per 100ml)
+const PER_100_UNITS = new Set(['g', 'kg', 'ml', 'L'])
+
+function macroLabel(unit: string): string {
+  if (unit === 'g' || unit === 'kg') return 'per 100g'
+  if (unit === 'ml' || unit === 'L') return 'per 100ml'
+  return `per ${unit}`
+}
+
+// Convert a "per-unit" macro value into the internal per-100g-equivalent
+function toPer100g(valuePerUnit: number, unit: string): number {
+  if (PER_100_UNITS.has(unit)) return valuePerUnit
+  return (valuePerUnit * 100) / (GRAM_EQUIVALENT[unit] ?? 1)
+}
+
+function ManualEntry({ onAdd, onClose }: { onAdd: (p: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number; unit: string }) => void; onClose: () => void }) {
   const [fname, setFname] = useState('')
+  const [unit, setUnit] = useState('g')
   const [cal, setCal] = useState('')
   const [p, setP] = useState('')
   const [c, setC] = useState('')
   const [f, setF] = useState('')
   const [q, setQ] = useState('100')
 
+  const per100 = PER_100_UNITS.has(unit)
+  const suffix = macroLabel(unit)
+
+  const handleUnitChange = (u: string) => {
+    setUnit(u)
+    // Reset quantity default: 100 for weight/volume, 1 for discrete units
+    setQ(PER_100_UNITS.has(u) ? '100' : '1')
+  }
+
   const handle = () => {
     if (!fname.trim()) return
-    onAdd({ foodName: fname.trim(), caloriesPer100g: parseFloat(cal) || 0, proteinPer100g: parseFloat(p) || 0, carbsPer100g: parseFloat(c) || 0, fatPer100g: parseFloat(f) || 0, quantity: parseFloat(q) || 100 })
-    setFname(''); setCal(''); setP(''); setC(''); setF(''); setQ('100')
+    const calVal = parseFloat(cal) || 0
+    const pVal   = parseFloat(p) || 0
+    const cVal   = parseFloat(c) || 0
+    const fVal   = parseFloat(f) || 0
+    onAdd({
+      foodName: fname.trim(),
+      caloriesPer100g: per100 ? calVal : toPer100g(calVal, unit),
+      proteinPer100g:  per100 ? pVal   : toPer100g(pVal, unit),
+      carbsPer100g:    per100 ? cVal   : toPer100g(cVal, unit),
+      fatPer100g:      per100 ? fVal   : toPer100g(fVal, unit),
+      quantity: parseFloat(q) || 1,
+      unit,
+    })
+    setFname(''); setCal(''); setP(''); setC(''); setF(''); setQ(per100 ? '100' : '1')
     onClose()
   }
 
@@ -964,13 +1001,22 @@ function ManualEntry({ onAdd, onClose }: { onAdd: (p: { foodName: string; calori
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
         <div style={{ gridColumn: 'span 2' }}>
           <label style={lbl}>Food name</label>
-          <input type="text" value={fname} onChange={(e) => setFname(e.target.value)} style={inp} />
+          <input type="text" value={fname} onChange={(e) => setFname(e.target.value)} placeholder="e.g. Large egg white" style={inp} />
         </div>
-        <div><label style={lbl}>kcal / 100g</label><input type="number" value={cal} onChange={(e) => setCal(e.target.value)} style={inp} /></div>
-        <div><label style={lbl}>Protein / 100g</label><input type="number" value={p} onChange={(e) => setP(e.target.value)} style={inp} /></div>
-        <div><label style={lbl}>Carbs / 100g</label><input type="number" value={c} onChange={(e) => setC(e.target.value)} style={inp} /></div>
-        <div><label style={lbl}>Fat / 100g</label><input type="number" value={f} onChange={(e) => setF(e.target.value)} style={inp} /></div>
-        <div style={{ gridColumn: 'span 2' }}><label style={lbl}>Quantity (g)</label><input type="number" value={q} onChange={(e) => setQ(e.target.value)} style={inp} /></div>
+        <div>
+          <label style={lbl}>Unit</label>
+          <select value={unit} onChange={(e) => handleUnitChange(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+            {UNITS.map((u) => <option key={u} value={u} style={{ background: '#1a1a1a' }}>{u}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>Quantity ({unit})</label>
+          <input type="number" min={0} step="any" value={q} onChange={(e) => setQ(e.target.value)} style={inp} />
+        </div>
+        <div><label style={lbl}>kcal {suffix}</label><input type="number" min={0} step="any" value={cal} onChange={(e) => setCal(e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>Protein {suffix}</label><input type="number" min={0} step="any" value={p} onChange={(e) => setP(e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>Carbs {suffix}</label><input type="number" min={0} step="any" value={c} onChange={(e) => setC(e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>Fat {suffix}</label><input type="number" min={0} step="any" value={f} onChange={(e) => setF(e.target.value)} style={inp} /></div>
       </div>
       <button
         type="button"

@@ -297,9 +297,22 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
     updateSearch(optionTempId, { query: '', results: [], open: false, manualOpen: false })
   }
 
-  const addManualFood = (mealTempId: string, optionTempId: string, payload: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number }) => {
+  const addManualFood = async (mealTempId: string, optionTempId: string, payload: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number }) => {
+    let foodId: string | null = null
+    try {
+      foodId = await upsertFood({
+        externalId: null,
+        name: payload.foodName,
+        brand: null,
+        caloriesPer100g: payload.caloriesPer100g,
+        proteinPer100g: payload.proteinPer100g,
+        carbsPer100g: payload.carbsPer100g,
+        fatPer100g: payload.fatPer100g,
+        source: 'custom',
+      })
+    } catch { foodId = null }
     const food: FoodEntry = computeMacros({
-      tempId: newId(), foodId: null, foodName: payload.foodName,
+      tempId: newId(), foodId, foodName: payload.foodName,
       quantity: payload.quantity, unit: 'g',
       caloriesPer100g: payload.caloriesPer100g, proteinPer100g: payload.proteinPer100g,
       carbsPer100g: payload.carbsPer100g, fatPer100g: payload.fatPer100g,

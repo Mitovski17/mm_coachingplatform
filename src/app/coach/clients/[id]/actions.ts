@@ -502,17 +502,22 @@ export async function getProgressPhotos(
 
   if (toSign.length === 0) return []
 
-  const results = await Promise.all(
-    toSign.map(async ({ path, submittedAt, weekStartDate }) => {
-      const { data } = await admin.storage
-        .from('progress-photos')
-        .createSignedUrl(path, 3600)
-      if (!data?.signedUrl) return null
-      return { url: data.signedUrl, submittedAt, weekStartDate } as ProgressPhoto
-    })
-  )
+  // Batch all signed-URL requests into a single round-trip instead of N parallel ones
+  const { data: signedData } = await admin.storage
+    .from('progress-photos')
+    .createSignedUrls(toSign.map((t) => t.path), 3600)
 
-  return results
+  const urlMap = new Map<string, string>()
+  for (const entry of signedData ?? []) {
+    if (entry.signedUrl && entry.path) urlMap.set(entry.path, entry.signedUrl)
+  }
+
+  return toSign
+    .map(({ path, submittedAt, weekStartDate }) => {
+      const signedUrl = urlMap.get(path)
+      if (!signedUrl) return null
+      return { url: signedUrl, submittedAt, weekStartDate } as ProgressPhoto
+    })
     .filter((p): p is ProgressPhoto => p !== null)
     .sort((a, b) => new Date(a.weekStartDate).getTime() - new Date(b.weekStartDate).getTime())
 }

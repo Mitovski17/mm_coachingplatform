@@ -304,6 +304,38 @@ export async function upsertMealPlanTemplate(payload: {
   return { id: templateId! }
 }
 
+export async function duplicateMealPlanTemplate(templateId: string): Promise<{ id: string }> {
+  const template = await getMealPlanTemplate(templateId)
+  if (!template) throw new Error('Template not found')
+
+  return upsertMealPlanTemplate({
+    workspaceId: template.workspaceId,
+    name: `Copy of ${template.name}`,
+    planType: template.planType,
+    notes: template.notes ?? '',
+    recommendations: template.recommendations ?? '',
+    meals: template.meals.map((m) => ({
+      name: m.name,
+      sortOrder: m.sortOrder,
+      options: m.options.map((o) => ({
+        label: o.label,
+        sortOrder: o.sortOrder,
+        foods: o.foods.map((f) => ({
+          foodId: f.foodId,
+          foodName: f.foodName,
+          quantity: f.quantity,
+          unit: f.unit,
+          calories: f.calories,
+          proteinG: f.proteinG,
+          carbsG: f.carbsG,
+          fatG: f.fatG,
+          sortOrder: f.sortOrder,
+        })),
+      })),
+    })),
+  })
+}
+
 export async function deleteMealPlanTemplate(templateId: string): Promise<void> {
   const admin = adminClient()
   const { error } = await admin.from('meal_plan_templates').delete().eq('id', templateId)

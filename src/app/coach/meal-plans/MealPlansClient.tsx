@@ -3,9 +3,10 @@
 import { useState, useTransition, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Pencil, Trash2, Plus, UtensilsCrossed, Users } from 'lucide-react'
+import { Pencil, Trash2, Plus, UtensilsCrossed, Users, Copy } from 'lucide-react'
 import {
   deleteMealPlanTemplate,
+  duplicateMealPlanTemplate,
   type MealPlanTemplate,
   type Assignment,
   type PlanType,
@@ -21,12 +22,25 @@ export default function MealPlansClient({
   const [tab, setTab] = useState<'templates' | 'assignments'>('templates')
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Delete template "${name}"? This cannot be undone.`)) return
     startTransition(async () => {
       await deleteMealPlanTemplate(id)
       router.refresh()
+    })
+  }
+
+  const handleDuplicate = (id: string) => {
+    setDuplicatingId(id)
+    startTransition(async () => {
+      try {
+        await duplicateMealPlanTemplate(id)
+        router.refresh()
+      } finally {
+        setDuplicatingId(null)
+      }
     })
   }
 
@@ -106,7 +120,7 @@ export default function MealPlansClient({
       </div>
 
       {tab === 'templates' ? (
-        <TemplatesPanel templates={templates} onDelete={handleDelete} deleting={pending} />
+        <TemplatesPanel templates={templates} onDelete={handleDelete} onDuplicate={handleDuplicate} deleting={pending} duplicatingId={duplicatingId} />
       ) : (
         <AssignmentsPanel rows={byClient} />
       )}
@@ -117,11 +131,15 @@ export default function MealPlansClient({
 function TemplatesPanel({
   templates,
   onDelete,
+  onDuplicate,
   deleting,
+  duplicatingId,
 }: {
   templates: MealPlanTemplate[]
   onDelete: (id: string, name: string) => void
+  onDuplicate: (id: string) => void
   deleting: boolean
+  duplicatingId: string | null
 }) {
   const training = templates.filter((t) => t.planType === 'training')
   const rest = templates.filter((t) => t.planType === 'rest')
@@ -149,13 +167,13 @@ function TemplatesPanel({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Section title="Training Day" planType="training" items={training} onDelete={onDelete} deleting={deleting} />
-        <Section title="Rest Day" planType="rest" items={rest} onDelete={onDelete} deleting={deleting} />
+        <Section title="Training Day" planType="training" items={training} onDelete={onDelete} onDuplicate={onDuplicate} deleting={deleting} duplicatingId={duplicatingId} />
+        <Section title="Rest Day" planType="rest" items={rest} onDelete={onDelete} onDuplicate={onDuplicate} deleting={deleting} duplicatingId={duplicatingId} />
       </div>
 
       {overall.length > 0 && (
         <div className="mt-4">
-          <Section title="Overall" planType="overall" items={overall} onDelete={onDelete} deleting={deleting} />
+          <Section title="Overall" planType="overall" items={overall} onDelete={onDelete} onDuplicate={onDuplicate} deleting={deleting} duplicatingId={duplicatingId} />
         </div>
       )}
     </>
@@ -167,13 +185,17 @@ function Section({
   planType,
   items,
   onDelete,
+  onDuplicate,
   deleting,
+  duplicatingId,
 }: {
   title: string
   planType: PlanType
   items: MealPlanTemplate[]
   onDelete: (id: string, name: string) => void
+  onDuplicate: (id: string) => void
   deleting: boolean
+  duplicatingId: string | null
 }) {
   return (
     <div>
@@ -198,7 +220,7 @@ function Section({
       ) : (
         <div className="flex flex-col gap-3">
           {items.map((t) => (
-            <TemplateCard key={t.id} t={t} planType={planType} onDelete={onDelete} deleting={deleting} />
+            <TemplateCard key={t.id} t={t} planType={planType} onDelete={onDelete} onDuplicate={onDuplicate} deleting={deleting} duplicating={duplicatingId === t.id} />
           ))}
         </div>
       )}
@@ -210,12 +232,16 @@ function TemplateCard({
   t,
   planType,
   onDelete,
+  onDuplicate,
   deleting,
+  duplicating,
 }: {
   t: MealPlanTemplate
   planType: PlanType
   onDelete: (id: string, name: string) => void
+  onDuplicate: (id: string) => void
   deleting: boolean
+  duplicating: boolean
 }) {
   const badgeStyle =
     planType === 'training'
@@ -261,7 +287,26 @@ function TemplateCard({
           </Link>
           <button
             type="button"
-            disabled={deleting}
+            disabled={duplicating || deleting}
+            onClick={() => onDuplicate(t.id)}
+            title="Duplicate"
+            className="inline-flex items-center justify-center"
+            style={{
+              width: 30,
+              height: 30,
+              color: 'var(--color-text-muted)',
+              backgroundColor: 'transparent',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              cursor: duplicating || deleting ? 'not-allowed' : 'pointer',
+              opacity: duplicating ? 0.5 : 1,
+            }}
+          >
+            <Copy size={13} />
+          </button>
+          <button
+            type="button"
+            disabled={deleting || duplicating}
             onClick={() => onDelete(t.id, t.name)}
             title="Delete"
             className="inline-flex items-center justify-center"

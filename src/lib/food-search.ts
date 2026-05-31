@@ -145,6 +145,15 @@ export async function upsertFood(
     return data.id
   }
 
+  // Return existing manual food with the same name instead of creating a duplicate
+  const { data: existing } = await adminClient
+    .from('foods')
+    .select('id')
+    .ilike('name', result.name)
+    .eq('source', 'manual')
+    .maybeSingle()
+  if (existing) return existing.id
+
   const { data, error } = await adminClient
     .from('foods')
     .insert({

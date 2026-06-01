@@ -30,9 +30,13 @@ export default function MealPlanAssignmentEditor({
   const [restTemplateId, setRestTemplateId] = useState<string>(
     initialData?.rest?.templateId ?? ''
   )
+  const [overallTemplateId, setOverallTemplateId] = useState<string>(
+    initialData?.overall?.templateId ?? ''
+  )
 
   const trainingTemplates = templates.filter((t) => t.planType === 'training')
   const restTemplates = templates.filter((t) => t.planType === 'rest')
+  const overallTemplates = templates.filter((t) => t.planType === 'overall')
   const lockedClient = !!initialClientId
   const clientName = clients.find((c) => c.id === clientId)?.name ?? ''
 
@@ -49,6 +53,7 @@ export default function MealPlanAssignmentEditor({
           clientId,
           trainingTemplateId: trainingTemplateId || null,
           restTemplateId: restTemplateId || null,
+          overallTemplateId: overallTemplateId || null,
         })
         router.push('/coach/meal-plans')
         router.refresh()
@@ -142,6 +147,28 @@ export default function MealPlanAssignmentEditor({
           >
             <option value="">None</option>
             {restTemplates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+            Overall Plan
+          </label>
+          <p className="text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
+            Shown when no training or rest day plan is assigned for a given day.
+          </p>
+          <select
+            value={overallTemplateId}
+            onChange={(e) => setOverallTemplateId(e.target.value)}
+            className="w-full px-3 py-2 text-sm"
+            style={selectStyle()}
+          >
+            <option value="">None</option>
+            {overallTemplates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>

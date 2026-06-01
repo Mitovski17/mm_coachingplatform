@@ -32,19 +32,21 @@ export default async function ClientNutritionPage() {
     )
   }
 
-  const [mealPlanTraining, mealPlanRest, todayLogs, todayTemplate] = await Promise.all([
+  const [mealPlanTraining, mealPlanRest, mealPlanOverall, todayLogs, todayTemplate] = await Promise.all([
     getCachedMealPlan(client.id, 'training'),
     getCachedMealPlan(client.id, 'rest'),
+    getCachedMealPlan(client.id, 'overall'),
     getDayLogs(client.id, today),
     getTodayTemplate(client.id),
   ])
 
+  // Fall back to the overall plan when no day-specific plan is assigned
   return (
     <NutritionClient
       initialClientId={client.id}
       initialWorkspaceId={client.workspaceId}
-      initialMealPlanTraining={mealPlanTraining}
-      initialMealPlanRest={mealPlanRest}
+      initialMealPlanTraining={mealPlanTraining ?? mealPlanOverall}
+      initialMealPlanRest={mealPlanRest ?? mealPlanOverall}
       initialDayLogs={todayLogs}
       initialPlanType={todayTemplate ? 'training' : 'rest'}
       initialDate={today}

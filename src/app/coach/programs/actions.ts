@@ -84,7 +84,7 @@ export type Exercise = {
 }
 
 export type ProgramDayPreview = {
-  dayOfWeek: number
+  dayOfWeek: number | null
   templateDayId: string | null
   templateDayLabel: string | null
 }
@@ -97,11 +97,13 @@ export type Program = {
   clientName: string
   dayCount: number
   days: ProgramDayPreview[]
+  scheduleType: 'weekly' | 'cyclic'
   createdAt: string
 }
 
 export type ProgramDay = {
-  dayOfWeek: number
+  dayOfWeek: number | null
+  cyclePosition: number | null
   templateDayId: string | null
   templateDayLabel: string | null
   templateName: string | null
@@ -113,6 +115,8 @@ export type ProgramWithDays = {
   isActive: boolean
   clientId: string
   workspaceId: string
+  scheduleType: 'weekly' | 'cyclic'
+  cycleStartDate: string | null
   days: ProgramDay[]
 }
 
@@ -455,7 +459,7 @@ const _getProgramsCached = unstable_cache(
     const admin = adminClient()
     const { data: programs, error } = await admin
       .from('workout_programs')
-      .select('id, name, is_active, client_id, created_at, clients(full_name)')
+      .select('id, name, is_active, client_id, created_at, schedule_type, clients(full_name)')
       .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -481,7 +485,8 @@ const _getProgramsCached = unstable_cache(
       }
     }
 
-    return (programs ?? []).map((p) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (programs ?? []).map((p: any) => {
       const c = p.clients as unknown as { full_name: string } | null
       const programDays = daysByProgram.get(p.id) ?? []
       return {
@@ -492,6 +497,7 @@ const _getProgramsCached = unstable_cache(
         clientName: c?.full_name ?? 'Unknown client',
         dayCount: programDays.length,
         days: programDays,
+        scheduleType: (p.schedule_type ?? 'weekly') as 'weekly' | 'cyclic',
         createdAt: p.created_at,
       }
     })
@@ -508,26 +514,60 @@ export async function getProgram(programId: string): Promise<ProgramWithDays | n
   const admin = adminClient()
   const { data: program, error } = await admin
     .from('workout_programs')
-    .select('id, name, is_active, client_id, workspace_id')
+    .select('id, name, is_active, client_id, workspace_id, schedule_type, cycle_start_date')
     .eq('id', programId)
     .single()
   if (error || !program) return null
 
   const { data: dayRows, error: e2 } = await admin
     .from('workout_program_days')
-    .select('day_of_week, template_day_id, workout_template_days(label, workout_templates(name))')
+    .select('day_of_week, cycle_position, template_day_id, workout_template_days(label, workout_templates(name))')
     .eq('program_id', programId)
   if (e2) throw new Error(e2.message)
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pgm = program as any
+  const scheduleType: 'weekly' | 'cyclic' = (pgm.schedule_type ?? 'weekly') as 'weekly' | 'cyclic'
+
+  if (scheduleType === 'cyclic') {
+    const days: ProgramDay[] = (dayRows ?? [])
+      .slice()
+      .sort((a, b) => ((a as any).cycle_position ?? 0) - ((b as any).cycle_position ?? 0))
+      .map((row) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const td = row.workout_template_days as unknown as any
+        return {
+          dayOfWeek: null,
+          cyclePosition: (row as any).cycle_position ?? null,
+          templateDayId: row.template_day_id,
+          templateDayLabel: td?.label ?? null,
+          templateName: td?.workout_templates?.name ?? null,
+        }
+      })
+    return {
+      id: program.id,
+      name: program.name,
+      isActive: program.is_active,
+      clientId: program.client_id,
+      workspaceId: program.workspace_id,
+      scheduleType,
+      cycleStartDate: pgm.cycle_start_date ?? null,
+      days,
+    }
+  }
+
+  // Weekly: build 7-slot array (rest days are implicit)
   const byDay = new Map<number, { templateDayId: string | null; templateDayLabel: string | null; templateName: string | null }>()
   for (const row of dayRows ?? []) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const td = row.workout_template_days as unknown as any
-    byDay.set(row.day_of_week, {
-      templateDayId: row.template_day_id,
-      templateDayLabel: td?.label ?? null,
-      templateName: td?.workout_templates?.name ?? null,
-    })
+    if (row.day_of_week !== null) {
+      byDay.set(row.day_of_week, {
+        templateDayId: row.template_day_id,
+        templateDayLabel: td?.label ?? null,
+        templateName: td?.workout_templates?.name ?? null,
+      })
+    }
   }
 
   const days: ProgramDay[] = []
@@ -535,6 +575,7 @@ export async function getProgram(programId: string): Promise<ProgramWithDays | n
     const found = byDay.get(i)
     days.push({
       dayOfWeek: i,
+      cyclePosition: null,
       templateDayId: found?.templateDayId ?? null,
       templateDayLabel: found?.templateDayLabel ?? null,
       templateName: found?.templateName ?? null,
@@ -547,6 +588,8 @@ export async function getProgram(programId: string): Promise<ProgramWithDays | n
     isActive: program.is_active,
     clientId: program.client_id,
     workspaceId: program.workspace_id,
+    scheduleType,
+    cycleStartDate: null,
     days,
   }
 }
@@ -557,7 +600,9 @@ export async function upsertProgram(payload: {
   clientId: string
   name: string
   isActive: boolean
-  days: Array<{ dayOfWeek: number; templateDayId: string | null }>
+  scheduleType: 'weekly' | 'cyclic'
+  cycleStartDate?: string | null
+  days: Array<{ dayOfWeek?: number | null; cyclePosition?: number | null; templateDayId: string | null }>
 }): Promise<{ id: string }> {
   const admin = adminClient()
 
@@ -570,7 +615,9 @@ export async function upsertProgram(payload: {
         client_id: payload.clientId,
         name: payload.name,
         is_active: payload.isActive,
-      })
+        schedule_type: payload.scheduleType,
+        cycle_start_date: payload.cycleStartDate ?? null,
+      } as Record<string, unknown>)
       .eq('id', programId)
     if (error) throw new Error(error.message)
   } else {
@@ -581,7 +628,9 @@ export async function upsertProgram(payload: {
         client_id: payload.clientId,
         name: payload.name,
         is_active: payload.isActive,
-      })
+        schedule_type: payload.scheduleType,
+        cycle_start_date: payload.cycleStartDate ?? null,
+      } as Record<string, unknown>)
       .select('id')
       .single()
     if (error || !data) throw new Error(error?.message ?? 'Failed to create program')
@@ -595,13 +644,22 @@ export async function upsertProgram(payload: {
     .eq('program_id', programId)
   if (delErr) throw new Error(delErr.message)
 
-  const inserts = payload.days
-    .filter((d) => d.templateDayId !== null)
-    .map((d) => ({
-      program_id: programId!,
-      day_of_week: d.dayOfWeek,
-      template_day_id: d.templateDayId,
-    }))
+  // Cyclic: store all positions (including rest days). Weekly: skip rest days (implicit by absence).
+  const inserts: Record<string, unknown>[] = payload.scheduleType === 'cyclic'
+    ? payload.days.map((d) => ({
+        program_id: programId!,
+        day_of_week: null,
+        cycle_position: d.cyclePosition ?? null,
+        template_day_id: d.templateDayId,
+      }))
+    : payload.days
+        .filter((d) => d.templateDayId !== null)
+        .map((d) => ({
+          program_id: programId!,
+          day_of_week: d.dayOfWeek ?? null,
+          cycle_position: null,
+          template_day_id: d.templateDayId,
+        }))
 
   if (inserts.length > 0) {
     const { error: insErr } = await admin

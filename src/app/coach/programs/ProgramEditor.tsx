@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import {
   upsertProgram,
   type Client,
@@ -29,31 +29,41 @@ export default function ProgramEditor({
   const [name, setName] = useState(initialData?.name ?? '')
   const [clientId, setClientId] = useState(initialData?.clientId ?? '')
   const [isActive, setIsActive] = useState(initialData?.isActive ?? true)
+  const [scheduleType, setScheduleType] = useState<'weekly' | 'cyclic'>(
+    initialData?.scheduleType ?? 'weekly'
+  )
+  const [cycleStartDate, setCycleStartDate] = useState<string>(
+    initialData?.cycleStartDate ?? ''
+  )
 
-  // days[i] = the final templateDayId assigned to day i (null = rest)
+  // ── Weekly state ───────────────────────────────────────────────────────────
+  // days[i] = the final templateDayId assigned to weekday i (null = rest)
   const [days, setDays] = useState<Record<number, string | null>>(() => {
     const map: Record<number, string | null> = {}
     for (let i = 0; i < 7; i++) {
-      const found = initialData?.days.find((d) => d.dayOfWeek === i)
+      const found = initialData?.scheduleType !== 'cyclic'
+        ? initialData?.days.find((d) => d.dayOfWeek === i)
+        : undefined
       map[i] = found?.templateDayId ?? null
     }
     return map
   })
+  // pendingTemplate[i] = templateId selected when template has multiple days but no day picked yet
+  const [pendingTemplate, setPendingTemplate] = useState<Record<number, string>>({})
 
-  // pendingTemplate[i] = templateId selected in step 1 when template has multiple days
-  // (needed so the step-1 select stays populated while user hasn't picked a day yet)
-  const [pendingTemplate, setPendingTemplate] = useState<Record<number, string>>(() => {
-    const map: Record<number, string> = {}
-    // Pre-populate from initialData if the day already has a templateDayId
-    if (initialData) {
-      for (const d of initialData.days) {
-        if (d.templateDayId) {
-          // We'll resolve this from the templates list below — handled in the render
-        }
-      }
+  // ── Cyclic state ───────────────────────────────────────────────────────────
+  // cycleDays[position] = { templateDayId } — null templateDayId = rest day
+  const [cycleDays, setCycleDays] = useState<Array<{ templateDayId: string | null }>>(() => {
+    if (initialData?.scheduleType === 'cyclic' && initialData.days.length > 0) {
+      return initialData.days
+        .filter((d) => d.cyclePosition !== null)
+        .sort((a, b) => (a.cyclePosition ?? 0) - (b.cyclePosition ?? 0))
+        .map((d) => ({ templateDayId: d.templateDayId }))
     }
-    return map
+    return []
   })
+  // cyclePendingTemplate[position] = templateId during 2-step selection
+  const [cyclePendingTemplate, setCyclePendingTemplate] = useState<Record<number, string>>({})
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -77,14 +87,18 @@ export default function ProgramEditor({
 
   const handleSave = async () => {
     setError(null)
-    if (!name.trim()) {
-      setError('Program name is required')
-      return
+    if (!name.trim()) { setError('Program name is required'); return }
+    if (!clientId) { setError('Select a client'); return }
+
+    if (scheduleType === 'cyclic') {
+      if (!cycleStartDate) { setError('Set a cycle start date'); return }
+      if (cycleDays.length === 0) { setError('Add at least one day to the cycle'); return }
+      if (!cycleDays.some((d) => d.templateDayId !== null)) {
+        setError('The cycle must have at least one training day')
+        return
+      }
     }
-    if (!clientId) {
-      setError('Select a client')
-      return
-    }
+
     setSaving(true)
     try {
       await upsertProgram({
@@ -93,10 +107,11 @@ export default function ProgramEditor({
         clientId,
         name: name.trim(),
         isActive,
-        days: Array.from({ length: 7 }, (_, i) => ({
-          dayOfWeek: i,
-          templateDayId: days[i] ?? null,
-        })),
+        scheduleType,
+        cycleStartDate: scheduleType === 'cyclic' ? cycleStartDate : null,
+        days: scheduleType === 'cyclic'
+          ? cycleDays.map((d, i) => ({ cyclePosition: i, templateDayId: d.templateDayId }))
+          : Array.from({ length: 7 }, (_, i) => ({ dayOfWeek: i, templateDayId: days[i] ?? null })),
       })
       router.push('/coach/programs')
       router.refresh()
@@ -104,6 +119,24 @@ export default function ProgramEditor({
       setError(e instanceof Error ? e.message : 'Failed to save program')
       setSaving(false)
     }
+  }
+
+  // ── Cyclic day helpers ────────────────────────────────────────────────────
+  const addCycleDay = (templateDayId: string | null) => {
+    setCycleDays((prev) => [...prev, { templateDayId }])
+  }
+
+  const removeCycleDay = (index: number) => {
+    setCycleDays((prev) => prev.filter((_, i) => i !== index))
+    setCyclePendingTemplate((prev) => {
+      const next: Record<number, string> = {}
+      for (const [k, v] of Object.entries(prev)) {
+        const ki = Number(k)
+        if (ki < index) next[ki] = v
+        else if (ki > index) next[ki - 1] = v
+      }
+      return next
+    })
   }
 
   return (
@@ -124,7 +157,9 @@ export default function ProgramEditor({
           {initialData ? initialData.name : 'New Program'}
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          Assign a weekly schedule of workouts to a client
+          {scheduleType === 'cyclic'
+            ? 'Build a repeating cycle of workouts assigned to a client'
+            : 'Assign a weekly schedule of workouts to a client'}
         </p>
       </div>
 
@@ -199,125 +234,348 @@ export default function ProgramEditor({
         </span>
       </div>
 
-      {/* Weekly schedule */}
-      <h2 className="text-base mb-3" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
-        Weekly Schedule
-      </h2>
+      {/* Schedule type toggle */}
+      <div className="mb-4">
+        <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
+          Schedule type
+        </label>
+        <div
+          className="inline-flex gap-1 p-1"
+          style={{
+            backgroundColor: 'var(--color-surface-2)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+          }}
+        >
+          {(['weekly', 'cyclic'] as const).map((type) => {
+            const active = scheduleType === type
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setScheduleType(type)}
+                className="px-3 py-1.5 text-sm font-medium transition-colors"
+                style={{
+                  backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
+                  color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  borderRadius: 'calc(var(--radius-md) - 2px)',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {type === 'weekly' ? 'Weekly' : 'Cyclic'}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
-      <div
-        className="flex flex-col"
-        style={{
-          backgroundColor: 'var(--color-surface-2)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
-        }}
-      >
-        {DAY_NAMES.map((label, i) => {
-          const assignedDayId = days[i] ?? null
-          // Resolve which template is "selected" for this row:
-          // - if a day is assigned, derive from its template parent
-          // - if a pending template is set (user picked template but no day yet), use that
-          const resolvedTemplateId =
-            (assignedDayId ? templateIdByDayId.get(assignedDayId) : null) ??
-            pendingTemplate[i] ??
-            ''
-          const resolvedTemplate = resolvedTemplateId ? templateById.get(resolvedTemplateId) : null
+      {/* ── Weekly schedule ─────────────────────────────────────────────────── */}
+      {scheduleType === 'weekly' && (
+        <>
+          <h2 className="text-base mb-3" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
+            Weekly Schedule
+          </h2>
+          <div
+            className="flex flex-col"
+            style={{
+              backgroundColor: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+              overflow: 'hidden',
+            }}
+          >
+            {DAY_NAMES.map((label, i) => {
+              const assignedDayId = days[i] ?? null
+              const resolvedTemplateId =
+                (assignedDayId ? templateIdByDayId.get(assignedDayId) : null) ??
+                pendingTemplate[i] ??
+                ''
+              const resolvedTemplate = resolvedTemplateId ? templateById.get(resolvedTemplateId) : null
 
-          return (
+              return (
+                <div
+                  key={i}
+                  style={{
+                    borderBottom: i < DAY_NAMES.length - 1 ? '1px solid var(--color-border)' : 'none',
+                    padding: '12px 20px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 16,
+                  }}
+                >
+                  <div style={{ width: 110, flexShrink: 0, paddingTop: 9 }}>
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                      {label}
+                    </p>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {/* Step 1: pick template */}
+                    <select
+                      value={resolvedTemplateId}
+                      onChange={(e) => {
+                        const tplId = e.target.value
+                        if (!tplId) {
+                          setDays((prev) => ({ ...prev, [i]: null }))
+                          setPendingTemplate((prev) => {
+                            const next = { ...prev }
+                            delete next[i]
+                            return next
+                          })
+                          return
+                        }
+                        const tpl = templateById.get(tplId)
+                        if (!tpl) return
+                        if (tpl.days.length === 1) {
+                          setDays((prev) => ({ ...prev, [i]: tpl.days[0].id }))
+                          setPendingTemplate((prev) => {
+                            const next = { ...prev }
+                            delete next[i]
+                            return next
+                          })
+                        } else {
+                          setDays((prev) => ({ ...prev, [i]: null }))
+                          setPendingTemplate((prev) => ({ ...prev, [i]: tplId }))
+                        }
+                      }}
+                      className="w-full text-sm"
+                      style={inputStyle()}
+                    >
+                      <option value="">— Rest Day —</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}{t.days.length > 1 ? ` (${t.days.length} days)` : ''}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Step 2: pick specific day (only for multi-day templates) */}
+                    {resolvedTemplate && resolvedTemplate.days.length > 1 && (
+                      <select
+                        value={assignedDayId ?? ''}
+                        onChange={(e) => {
+                          const dayId = e.target.value || null
+                          setDays((prev) => ({ ...prev, [i]: dayId }))
+                        }}
+                        className="w-full text-sm"
+                        style={{ ...inputStyle(), borderColor: 'var(--color-accent)' }}
+                      >
+                        <option value="">— Pick a workout day —</option>
+                        {resolvedTemplate.days.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.label} · {d.exerciseCount} {d.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {/* Summary line */}
+                    {assignedDayId && resolvedTemplate && (() => {
+                      const day = resolvedTemplate.days.find((d) => d.id === assignedDayId)
+                      if (!day) return null
+                      return (
+                        <p className="text-xs" style={{ color: 'var(--color-text-hint)' }}>
+                          {day.exerciseCount} {day.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                        </p>
+                      )
+                    })()}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {/* ── Cyclic schedule ─────────────────────────────────────────────────── */}
+      {scheduleType === 'cyclic' && (
+        <>
+          <h2 className="text-base mb-3" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
+            Cyclic Schedule
+          </h2>
+
+          {/* Cycle start date */}
+          <div className="mb-4">
+            <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
+              Cycle start date
+            </label>
+            <input
+              type="date"
+              value={cycleStartDate}
+              onChange={(e) => setCycleStartDate(e.target.value)}
+              className="w-full text-sm"
+              style={inputStyle()}
+            />
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-text-hint)' }}>
+              Day 1 of the cycle falls on this date. The cycle repeats from there, ignoring the day of the week.
+            </p>
+          </div>
+
+          {/* Cycle day list */}
+          {cycleDays.length > 0 && (
             <div
-              key={i}
+              className="flex flex-col mb-3"
               style={{
-                borderBottom: i < DAY_NAMES.length - 1 ? '1px solid var(--color-border)' : 'none',
-                padding: '12px 20px',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 16,
+                backgroundColor: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+                overflow: 'hidden',
               }}
             >
-              <div style={{ width: 110, flexShrink: 0, paddingTop: 9 }}>
-                <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                  {label}
-                </p>
-              </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {/* Step 1: pick template */}
-                <select
-                  value={resolvedTemplateId}
-                  onChange={(e) => {
-                    const tplId = e.target.value
-                    if (!tplId) {
-                      // Clear everything for this day
-                      setDays((prev) => ({ ...prev, [i]: null }))
-                      setPendingTemplate((prev) => {
-                        const next = { ...prev }
-                        delete next[i]
-                        return next
-                      })
-                      return
-                    }
-                    const tpl = templateById.get(tplId)
-                    if (!tpl) return
-                    if (tpl.days.length === 1) {
-                      // Auto-select the only day
-                      setDays((prev) => ({ ...prev, [i]: tpl.days[0].id }))
-                      setPendingTemplate((prev) => {
-                        const next = { ...prev }
-                        delete next[i]
-                        return next
-                      })
-                    } else {
-                      // Clear day assignment and set pending template
-                      setDays((prev) => ({ ...prev, [i]: null }))
-                      setPendingTemplate((prev) => ({ ...prev, [i]: tplId }))
-                    }
-                  }}
-                  className="w-full text-sm"
-                  style={inputStyle()}
-                >
-                  <option value="">— Rest Day —</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}{t.days.length > 1 ? ` (${t.days.length} days)` : ''}
-                    </option>
-                  ))}
-                </select>
+              {cycleDays.map((cycleDay, position) => {
+                const assignedDayId = cycleDay.templateDayId
+                const resolvedTemplateId =
+                  (assignedDayId ? templateIdByDayId.get(assignedDayId) : null) ??
+                  cyclePendingTemplate[position] ??
+                  ''
+                const resolvedTemplate = resolvedTemplateId ? templateById.get(resolvedTemplateId) : null
 
-                {/* Step 2: pick specific day (only for multi-day templates) */}
-                {resolvedTemplate && resolvedTemplate.days.length > 1 && (
-                  <select
-                    value={assignedDayId ?? ''}
-                    onChange={(e) => {
-                      const dayId = e.target.value || null
-                      setDays((prev) => ({ ...prev, [i]: dayId }))
+                return (
+                  <div
+                    key={position}
+                    style={{
+                      borderBottom: position < cycleDays.length - 1 ? '1px solid var(--color-border)' : 'none',
+                      padding: '12px 20px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 16,
                     }}
-                    className="w-full text-sm"
-                    style={{ ...inputStyle(), borderColor: 'var(--color-accent)' }}
                   >
-                    <option value="">— Pick a workout day —</option>
-                    {resolvedTemplate.days.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.label} · {d.exerciseCount} {d.exerciseCount === 1 ? 'exercise' : 'exercises'}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                    <div style={{ width: 60, flexShrink: 0, paddingTop: 9 }}>
+                      <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                        Day {position + 1}
+                      </p>
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {/* Step 1: pick template */}
+                      <select
+                        value={resolvedTemplateId}
+                        onChange={(e) => {
+                          const tplId = e.target.value
+                          if (!tplId) {
+                            setCycleDays((prev) => prev.map((d, idx) => idx === position ? { templateDayId: null } : d))
+                            setCyclePendingTemplate((prev) => {
+                              const next = { ...prev }
+                              delete next[position]
+                              return next
+                            })
+                            return
+                          }
+                          const tpl = templateById.get(tplId)
+                          if (!tpl) return
+                          if (tpl.days.length === 1) {
+                            setCycleDays((prev) => prev.map((d, idx) => idx === position ? { templateDayId: tpl.days[0].id } : d))
+                            setCyclePendingTemplate((prev) => {
+                              const next = { ...prev }
+                              delete next[position]
+                              return next
+                            })
+                          } else {
+                            setCycleDays((prev) => prev.map((d, idx) => idx === position ? { templateDayId: null } : d))
+                            setCyclePendingTemplate((prev) => ({ ...prev, [position]: tplId }))
+                          }
+                        }}
+                        className="w-full text-sm"
+                        style={inputStyle()}
+                      >
+                        <option value="">— Rest Day —</option>
+                        {templates.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}{t.days.length > 1 ? ` (${t.days.length} days)` : ''}
+                          </option>
+                        ))}
+                      </select>
 
-                {/* Summary line */}
-                {assignedDayId && resolvedTemplate && (() => {
-                  const day = resolvedTemplate.days.find((d) => d.id === assignedDayId)
-                  if (!day) return null
-                  return (
-                    <p className="text-xs" style={{ color: 'var(--color-text-hint)' }}>
-                      {day.exerciseCount} {day.exerciseCount === 1 ? 'exercise' : 'exercises'}
-                    </p>
-                  )
-                })()}
-              </div>
+                      {/* Step 2: pick specific day (only for multi-day templates) */}
+                      {resolvedTemplate && resolvedTemplate.days.length > 1 && (
+                        <select
+                          value={assignedDayId ?? ''}
+                          onChange={(e) => {
+                            const dayId = e.target.value || null
+                            setCycleDays((prev) => prev.map((d, idx) => idx === position ? { templateDayId: dayId } : d))
+                          }}
+                          className="w-full text-sm"
+                          style={{ ...inputStyle(), borderColor: 'var(--color-accent)' }}
+                        >
+                          <option value="">— Pick a workout day —</option>
+                          {resolvedTemplate.days.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.label} · {d.exerciseCount} {d.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      {/* Summary line */}
+                      {assignedDayId && resolvedTemplate && (() => {
+                        const day = resolvedTemplate.days.find((d) => d.id === assignedDayId)
+                        if (!day) return null
+                        return (
+                          <p className="text-xs" style={{ color: 'var(--color-text-hint)' }}>
+                            {day.exerciseCount} {day.exerciseCount === 1 ? 'exercise' : 'exercises'}
+                          </p>
+                        )
+                      })()}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeCycleDay(position)}
+                      title="Remove this day"
+                      className="inline-flex items-center justify-center flex-shrink-0"
+                      style={{
+                        width: 30,
+                        height: 30,
+                        marginTop: 6,
+                        color: '#ef4444',
+                        backgroundColor: 'transparent',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
-      </div>
+          )}
+
+          {/* Add day buttons */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => addCycleDay(null)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium"
+              style={{
+                backgroundColor: 'var(--color-surface-2)',
+                color: 'var(--color-text-secondary)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={13} />
+              Add Training Day
+            </button>
+            <button
+              type="button"
+              onClick={() => addCycleDay(null)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium"
+              style={{
+                backgroundColor: 'var(--color-surface-2)',
+                color: 'var(--color-text-muted)',
+                border: '1px dashed var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={13} />
+              Add Rest Day
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Error */}
       {error && (

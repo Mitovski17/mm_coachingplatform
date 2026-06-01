@@ -45,17 +45,19 @@ export default function MealPlansClient({
   }
 
   const byClient = useMemo(() => {
-    const m = new Map<string, { clientId: string; clientName: string; training: Assignment | null; rest: Assignment | null }>()
+    const m = new Map<string, { clientId: string; clientName: string; training: Assignment | null; rest: Assignment | null; overall: Assignment | null }>()
     for (const a of assignments) {
       const cur = m.get(a.clientId) ?? {
         clientId: a.clientId,
         clientName: a.clientName,
         training: null,
         rest: null,
+        overall: null,
       }
       if (a.isActive) {
         if (a.planType === 'training') cur.training = a
-        else cur.rest = a
+        else if (a.planType === 'rest') cur.rest = a
+        else if (a.planType === 'overall') cur.overall = a
       }
       m.set(a.clientId, cur)
     }
@@ -343,7 +345,7 @@ function TemplateCard({
 function AssignmentsPanel({
   rows,
 }: {
-  rows: Array<{ clientId: string; clientName: string; training: Assignment | null; rest: Assignment | null }>
+  rows: Array<{ clientId: string; clientName: string; training: Assignment | null; rest: Assignment | null; overall: Assignment | null }>
 }) {
   return (
     <>
@@ -407,6 +409,14 @@ function AssignmentsPanel({
                       {r.rest?.templateName ?? 'None assigned'}
                     </span>
                   </span>
+                  {r.overall && (
+                    <span>
+                      <span style={{ color: 'var(--color-text-hint)' }}>Overall: </span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>
+                        {r.overall.templateName}
+                      </span>
+                    </span>
+                  )}
                 </div>
               </div>
               <Link

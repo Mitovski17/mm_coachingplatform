@@ -98,10 +98,10 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
   const admin = adminClient()
   const today = getTodayDayOfWeek()
 
-  // Fetch active program with all program days
+  // Fetch active program with all program days (includes cyclic columns)
   const { data: program } = await admin
     .from('workout_programs')
-    .select('id, workout_program_days(template_day_id, day_of_week)')
+    .select('id, schedule_type, cycle_start_date, workout_program_days(template_day_id, day_of_week, cycle_position)')
     .eq('client_id', clientId)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
@@ -110,9 +110,39 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
 
   if (!program) return null
 
-  const days = (program.workout_program_days as { template_day_id: string | null; day_of_week: number }[] | undefined) ?? []
-  const templateDayId = days.find((d) => d.day_of_week === today)?.template_day_id
-  if (!templateDayId) return null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pgm = program as any
+  const scheduleType: string = pgm.schedule_type ?? 'weekly'
+  const days = (pgm.workout_program_days as {
+    template_day_id: string | null
+    day_of_week: number | null
+    cycle_position: number | null
+  }[] | undefined) ?? []
+
+  let templateDayId: string | null | undefined
+
+  if (scheduleType === 'cyclic') {
+    const cycleStartDate: string | null = pgm.cycle_start_date ?? null
+    if (!cycleStartDate) return null
+
+    const sorted = [...days].sort((a, b) => (a.cycle_position ?? 0) - (b.cycle_position ?? 0))
+    const cycleLength = sorted.length
+    if (cycleLength === 0) return null
+
+    const startMs = new Date(cycleStartDate).getTime()
+    const now = new Date()
+    const todayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+    const daysElapsed = Math.floor((todayMs - startMs) / 86400000)
+    if (daysElapsed < 0) return null
+
+    const position = daysElapsed % cycleLength
+    const row = sorted.find((d) => d.cycle_position === position)
+    if (!row || row.template_day_id === null) return null // rest day
+    templateDayId = row.template_day_id
+  } else {
+    templateDayId = days.find((d) => d.day_of_week === today)?.template_day_id
+    if (!templateDayId) return null
+  }
 
   // Fetch the day with its exercises and parent template name
   const { data: day } = await admin

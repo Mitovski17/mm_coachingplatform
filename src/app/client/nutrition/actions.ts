@@ -42,7 +42,7 @@ export type Meal = {
 export type FullMealPlan = {
   id: string
   name: string
-  planType: 'training' | 'rest'
+  planType: 'training' | 'rest' | 'overall'
   notes: string | null
   recommendations: string | null
   updatedAt: string
@@ -96,7 +96,7 @@ export async function getClientInfo(email: string): Promise<{ id: string; worksp
 
 export async function getActiveMealPlan(
   clientId: string,
-  planType: 'training' | 'rest'
+  planType: 'training' | 'rest' | 'overall'
 ): Promise<FullMealPlan | null> {
   const admin = adminClient()
   const { data: assignment, error: aErr } = await admin

@@ -363,13 +363,32 @@ function ProgramCard({
           </button>
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {DAY_LABELS.map((label, i) => {
-          const day = program.days.find((d) => d.dayOfWeek === i)
-          const templateName = day?.templateDayLabel ?? null
-          return <DayPill key={i} day={label} templateName={templateName} />
-        })}
-      </div>
+      {program.scheduleType === 'cyclic' ? (
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex items-center px-2.5 py-1 text-xs font-medium"
+            style={{
+              backgroundColor: 'var(--color-surface-3)',
+              color: 'var(--color-text-secondary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+            }}
+          >
+            Cyclic
+          </span>
+          <span className="text-xs" style={{ color: 'var(--color-text-hint)' }}>
+            {program.dayCount} {program.dayCount === 1 ? 'day' : 'days'} per cycle
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {DAY_LABELS.map((label, i) => {
+            const day = program.days.find((d) => d.dayOfWeek === i)
+            const templateName = day?.templateDayLabel ?? null
+            return <DayPill key={i} day={label} templateName={templateName} />
+          })}
+        </div>
+      )}
     </div>
   )
 }

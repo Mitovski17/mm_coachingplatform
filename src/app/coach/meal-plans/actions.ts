@@ -80,6 +80,7 @@ export type Assignment = {
 export type ClientAssignments = {
   training: Assignment | null
   rest: Assignment | null
+  overall: Assignment | null
 }
 
 const _getMealPlanTemplatesCached = unstable_cache(
@@ -375,7 +376,7 @@ export async function getClientAssignments(clientId: string): Promise<ClientAssi
     .eq('is_active', true)
   if (error) throw new Error(error.message)
 
-  const result: ClientAssignments = { training: null, rest: null }
+  const result: ClientAssignments = { training: null, rest: null, overall: null }
   for (const a of data ?? []) {
     const c = a.clients as unknown as { full_name: string } | null
     const t = a.meal_plan_templates as unknown as { name: string } | null
@@ -390,6 +391,7 @@ export async function getClientAssignments(clientId: string): Promise<ClientAssi
     }
     if (item.planType === 'training') result.training = item
     else if (item.planType === 'rest') result.rest = item
+    else if (item.planType === 'overall') result.overall = item
   }
   return result
 }
@@ -399,11 +401,13 @@ export async function upsertClientMealPlanAssignment(payload: {
   clientId: string
   trainingTemplateId: string | null
   restTemplateId: string | null
+  overallTemplateId: string | null
 }): Promise<void> {
   const admin = adminClient()
   const types: Array<{ planType: PlanType; templateId: string | null }> = [
     { planType: 'training', templateId: payload.trainingTemplateId },
     { planType: 'rest', templateId: payload.restTemplateId },
+    { planType: 'overall', templateId: payload.overallTemplateId },
   ]
 
   for (const { planType, templateId } of types) {
@@ -426,7 +430,7 @@ export async function upsertClientMealPlanAssignment(payload: {
       if (iErr) throw new Error(iErr.message)
     }
   }
-  const hasAssignment = payload.trainingTemplateId !== null || payload.restTemplateId !== null
+  const hasAssignment = payload.trainingTemplateId !== null || payload.restTemplateId !== null || payload.overallTemplateId !== null
   if (hasAssignment) {
     await createNotification({
       workspaceId: payload.workspaceId,

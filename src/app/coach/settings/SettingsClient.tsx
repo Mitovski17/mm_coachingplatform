@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { updateCoachProfile, uploadCoachAvatar, signOut } from './actions'
 import { toast } from 'sonner'
 import type { CoachClientRow } from './page'
+import { useTheme } from '@/app/ThemeProvider'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -505,6 +506,7 @@ export default function SettingsClient({
   const [displayName, setDisplayName] = useState(fullName)
   const [displayAvatar, setDisplayAvatar] = useState(avatarUrl)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   const notifKey = `coach_notif_prefs_${userId}`
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>(DEFAULT_NOTIF)
@@ -789,39 +791,67 @@ export default function SettingsClient({
             </div>
           </div>
 
-          {/* Appearance (static) */}
-          <div
-            style={{
-              display: 'flex', alignItems: 'center', gap: 14,
-              padding: '14px 16px',
-            }}
-          >
+          {/* Appearance */}
+          <div style={{ display: 'flex', flexDirection: 'column', padding: '6px 0' }}>
             <div
+              onClick={() => setTheme('dark')}
               style={{
-                width: 36, height: 36, borderRadius: 10,
-                backgroundColor: 'var(--color-surface-3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '10px 16px', cursor: 'pointer',
               }}
             >
-              <Moon size={17} style={{ color: 'var(--color-text-secondary)' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
-                Appearance
-              </p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '1px 0 0' }}>
-                Light mode coming soon
-              </p>
+              <div
+                style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  backgroundColor: '#111',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}
+              >
+                <Moon size={17} color="var(--color-accent)" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>Dark Mode</p>
+              </div>
+              {theme === 'dark' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 8, backgroundColor: 'var(--color-surface-3)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Active</span>
+                  <Check size={12} color="var(--color-accent)" />
+                </div>
+              )}
             </div>
             <div
+              onClick={() => setTheme('light')}
               style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '5px 10px', borderRadius: 8,
-                backgroundColor: 'var(--color-surface-3)',
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '10px 16px', cursor: 'pointer',
               }}
             >
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Dark</span>
-              <Check size={12} color="var(--color-accent)" />
+              <div
+                style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  backgroundColor: '#F9F6E8',
+                  border: '1px solid rgba(0,0,0,0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8B6914" strokeWidth="2">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>Light Mode</p>
+              </div>
+              {theme === 'light' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 8, backgroundColor: 'var(--color-surface-3)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Active</span>
+                  <Check size={12} color="var(--color-accent)" />
+                </div>
+              )}
             </div>
           </div>
         </div>

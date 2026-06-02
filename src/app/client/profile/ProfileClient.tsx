@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { updatePersonalInfo, uploadAvatar, sendFeedbackToCoach } from './actions'
 import { toast } from 'sonner'
 import { useLanguage, type Translations, type Lang } from '@/lib/i18n'
+import { useTheme } from '@/app/ThemeProvider'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -535,6 +536,8 @@ function NotificationsPanel({ open, onBack, userId, t }: { open: boolean; onBack
 // ─── Appearance Panel ─────────────────────────────────────────────────────────
 
 function AppearancePanel({ open, onBack, t }: { open: boolean; onBack: () => void; t: Translations }) {
+  const { theme, setTheme } = useTheme()
+
   return (
     <Panel open={open} onBack={onBack} title={t.profile.appearance}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -543,14 +546,16 @@ function AppearancePanel({ open, onBack, t }: { open: boolean; onBack: () => voi
         </p>
 
         <div style={card}>
-          {/* Dark mode — active */}
+          {/* Dark mode */}
           <div
+            onClick={() => setTheme('dark')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 14,
               padding: '14px 16px',
               borderBottom: '1px solid var(--color-border)',
+              cursor: 'pointer',
             }}
           >
             <div
@@ -559,7 +564,7 @@ function AppearancePanel({ open, onBack, t }: { open: boolean; onBack: () => voi
                 height: 44,
                 borderRadius: 12,
                 backgroundColor: '#111',
-                border: '1px solid var(--color-border)',
+                border: '1px solid rgba(255,255,255,0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -570,32 +575,35 @@ function AppearancePanel({ open, onBack, t }: { open: boolean; onBack: () => voi
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{t.profile.darkMode}</p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>{t.profile.darkModeActive}</p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>{theme === 'dark' ? t.profile.darkModeActive : ''}</p>
             </div>
-            <div
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                backgroundColor: 'var(--color-accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Check size={13} color="#fff" />
-            </div>
+            {theme === 'dark' && (
+              <div
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Check size={13} color="#fff" />
+              </div>
+            )}
           </div>
 
-          {/* Light mode — coming soon */}
+          {/* Light mode */}
           <div
+            onClick={() => setTheme('light')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 14,
               padding: '14px 16px',
-              opacity: 0.45,
+              cursor: 'pointer',
             }}
           >
             <div
@@ -603,15 +611,15 @@ function AppearancePanel({ open, onBack, t }: { open: boolean; onBack: () => voi
                 width: 44,
                 height: 44,
                 borderRadius: 12,
-                backgroundColor: '#f5f5f5',
-                border: '1px solid rgba(255,255,255,0.1)',
+                backgroundColor: '#F9F6E8',
+                border: '1px solid rgba(0,0,0,0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B6914" strokeWidth="2">
                 <circle cx="12" cy="12" r="5" />
                 <line x1="12" y1="1" x2="12" y2="3" />
                 <line x1="12" y1="21" x2="12" y2="23" />
@@ -625,14 +633,26 @@ function AppearancePanel({ open, onBack, t }: { open: boolean; onBack: () => voi
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{t.profile.lightMode}</p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>{t.profile.comingSoon}</p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>{theme === 'light' ? t.profile.darkModeActive : ''}</p>
             </div>
+            {theme === 'light' && (
+              <div
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Check size={13} color="#fff" />
+              </div>
+            )}
           </div>
         </div>
-
-        <p style={{ fontSize: 12, color: 'var(--color-text-hint)', textAlign: 'center', lineHeight: 1.5, margin: 0 }}>
-          {t.profile.lightModeHint}
-        </p>
       </div>
     </Panel>
   )

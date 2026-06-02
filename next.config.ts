@@ -32,16 +32,6 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Long-lived cache for immutable Next.js static assets
-        source: '/_next/static/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
-      {
         // Moderate cache for public assets (icons, fonts, etc.)
         source: '/icons/:path*',
         headers: [

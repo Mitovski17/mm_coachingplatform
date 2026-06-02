@@ -4,7 +4,6 @@ import { useState, forwardRef, FocusEvent, InputHTMLAttributes } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const loginSchema = z.object({
@@ -42,7 +41,6 @@ const InputField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputEle
 )
 
 export default function LoginPage() {
-  const router = useRouter()
   const [serverError, setServerError] = useState<string | null>(null)
 
   const {
@@ -70,7 +68,7 @@ export default function LoginPage() {
       .select('id')
       .eq('id', authData.user.id)
       .single()
-    router.replace(profile ? '/coach/dashboard' : '/client')
+    window.location.href = profile ? '/coach/dashboard' : '/client'
   }
 
   return (

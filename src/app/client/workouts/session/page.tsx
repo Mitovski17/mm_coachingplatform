@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, Plus } from 'lucide-react'
+import { Check, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
   getClientId,
@@ -413,6 +413,15 @@ function SessionInner() {
     }))
   }, [])
 
+  const deleteSet = useCallback((exerciseId: string, setNumber: number) => {
+    setExercises((prev) => prev.map((ex) => {
+      if (ex.exerciseId !== exerciseId) return ex
+      const filtered = ex.currentSets.filter((s) => s.setNumber !== setNumber)
+      const renumbered = filtered.map((s, i) => ({ ...s, setNumber: i + 1 }))
+      return { ...ex, currentSets: renumbered }
+    }))
+  }, [])
+
   // ── Add exercise from library (custom mode) ───────────────────────────────
   const addExerciseFromLibrary = useCallback((ex: LibraryExercise) => {
     const newState: ExerciseState = {
@@ -582,6 +591,7 @@ function SessionInner() {
             onUpdateSet={updateSet}
             onToggleDone={toggleSetDone}
             onAddSet={addSet}
+            onDeleteSet={deleteSet}
             onSkipRest={() => setRest((r) => ({ ...r, active: false, secondsLeft: 0 }))}
             t={t}
           />
@@ -647,13 +657,14 @@ function SessionInner() {
 // ─── Exercise card ────────────────────────────────────────────────────────────
 
 function ExerciseCard({
-  exercise, restTimer, onUpdateSet, onToggleDone, onAddSet, onSkipRest, t,
+  exercise, restTimer, onUpdateSet, onToggleDone, onAddSet, onDeleteSet, onSkipRest, t,
 }: {
   exercise: ExerciseState
   restTimer: RestTimer
   onUpdateSet: (id: string, num: number, patch: Partial<SetRow>) => void
   onToggleDone: (id: string, num: number) => void
   onAddSet: (id: string) => void
+  onDeleteSet: (id: string, num: number) => void
   onSkipRest: () => void
   t: Translations
 }) {
@@ -715,6 +726,7 @@ function ExerciseCard({
                 isPR={!!isPR}
                 onChange={(patch) => onUpdateSet(exercise.exerciseId, s.setNumber, patch)}
                 onToggleDone={() => onToggleDone(exercise.exerciseId, s.setNumber)}
+                onDelete={() => onDeleteSet(exercise.exerciseId, s.setNumber)}
                 t={t}
               />
             )
@@ -770,12 +782,13 @@ function ExerciseCard({
 // ─── Set row (inline inputs) ──────────────────────────────────────────────────
 
 function SetRowItem({
-  row, isPR, onChange, onToggleDone, t,
+  row, isPR, onChange, onToggleDone, onDelete, t,
 }: {
   row: SetRow
   isPR: boolean
   onChange: (patch: Partial<SetRow>) => void
   onToggleDone: () => void
+  onDelete: () => void
   t: Translations
 }) {
   return (
@@ -855,6 +868,25 @@ function SetRowItem({
         }}
       >
         <Check size={16} strokeWidth={3} />
+      </button>
+
+      {/* Delete set */}
+      <button
+        type="button"
+        onClick={onDelete}
+        aria-label="Delete set"
+        style={{
+          width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'transparent',
+          color: 'var(--color-text-hint)',
+          border: 'none', cursor: 'pointer',
+          opacity: 0.5,
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-hint)'; (e.currentTarget as HTMLButtonElement).style.opacity = '0.5' }}
+      >
+        <Trash2 size={14} />
       </button>
     </div>
   )

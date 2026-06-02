@@ -147,6 +147,22 @@ function serializePlan(meals: MealEntry[], name: string, planType: PlanType, not
   }
 }
 
+function serializeInitialMealPlan(initial: FullTemplate): string {
+  return JSON.stringify({
+    name: initial.name,
+    plan_type: initial.planType,
+    notes: initial.notes ?? '',
+    recommendations: initial.recommendations ?? '',
+    meals: initial.meals.map((m) => ({
+      name: m.name, sort_order: m.sortOrder,
+      options: m.options.map((o) => ({
+        label: o.label, sort_order: o.sortOrder,
+        foods: o.foods.map((f) => ({ food_name: f.foodName, quantity: f.quantity, unit: f.unit, calories: f.calories, protein_g: f.proteinG, carbs_g: f.carbsG, fat_g: f.fatG })),
+      })),
+    })),
+  })
+}
+
 function fromInitial(initial: FullTemplate): MealEntry[] {
   return initial.meals.map((m) => {
     const options: OptionEntry[] = m.options.map((o) => ({
@@ -174,7 +190,6 @@ function fromInitial(initial: FullTemplate): MealEntry[] {
 export default function MealPlanEditor({ workspaceId, initialData }: { workspaceId: string; initialData?: FullTemplate }) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState(initialData?.name ?? '')
@@ -182,6 +197,12 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   const [notes, setNotes] = useState(initialData?.notes ?? '')
   const [recommendations, setRecommendations] = useState(initialData?.recommendations ?? '')
   const [meals, setMeals] = useState<MealEntry[]>(initialData ? fromInitial(initialData) : [emptyMeal(0)])
+
+  const savedStateRef = useRef<string | null>(initialData ? serializeInitialMealPlan(initialData) : null)
+  const isDirty = useMemo(
+    () => savedStateRef.current === null || JSON.stringify(serializePlan(meals, name, planType, notes, recommendations)) !== savedStateRef.current,
+    [meals, name, planType, notes, recommendations],
+  )
   const [searches, setSearches] = useState<Record<string, SearchState>>({})
 
   const planTotals = useMemo(() => {
@@ -363,10 +384,9 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           })),
         })),
       })
-      router.refresh()
       setSaving(false)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      savedStateRef.current = JSON.stringify(serializePlan(meals, name, planType, notes, recommendations))
+      router.refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save')
       setSaving(false)
@@ -409,10 +429,10 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || saved}
-            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: saved ? '#16a34a' : '#f97316', color: '#fff', border: 'none', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, transition: 'background-color 0.2s' }}
+            disabled={saving || !isDirty}
+            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: '#f97316', color: '#fff', border: 'none', cursor: saving || !isDirty ? 'not-allowed' : 'pointer', opacity: saving || !isDirty ? 0.5 : 1, transition: 'opacity 0.15s' }}
           >
-            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save template'}
+            {saving ? 'Saving…' : 'Save template'}
           </button>
         </div>
       </div>

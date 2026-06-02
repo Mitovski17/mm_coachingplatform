@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Sparkles, Loader2, BarChart2 } from 'lucide-react'
@@ -86,6 +86,53 @@ function muscleGroupLabel(g: string): string {
   return g.charAt(0).toUpperCase() + g.slice(1)
 }
 
+function snapshotTemplate(name: string, notes: string, days: DayState[]): string {
+  return JSON.stringify({
+    name: name.trim(),
+    notes: notes.trim(),
+    days: days.map((d) => ({
+      label: d.label.trim(),
+      notes: d.notes.trim(),
+      exercises: d.exercises.map((ex) => ({
+        exerciseId: ex.exerciseId,
+        restSeconds: ex.restSeconds,
+        notes: ex.notes.trim(),
+        sets: ex.sets.map((s) => ({
+          setNumber: s.setNumber,
+          targetReps: s.targetReps,
+          targetWeight: s.targetWeight.trim(),
+          rpe: s.rpe.trim(),
+          notes: s.notes.trim(),
+        })),
+      })),
+    })),
+  })
+}
+
+function snapshotInitialTemplate(initialData?: TemplateWithDays): string | null {
+  if (!initialData) return null
+  return JSON.stringify({
+    name: initialData.name.trim(),
+    notes: (initialData.notes ?? '').trim(),
+    days: initialData.days.map((d) => ({
+      label: d.label.trim(),
+      notes: (d.notes ?? '').trim(),
+      exercises: d.exercises.map((ex) => ({
+        exerciseId: ex.exerciseId,
+        restSeconds: ex.restSeconds,
+        notes: (ex.notes ?? '').trim(),
+        sets: ex.sets.map((s) => ({
+          setNumber: s.setNumber,
+          targetReps: s.targetReps,
+          targetWeight: (s.targetWeight ?? '').trim(),
+          rpe: (s.rpe ?? '').trim(),
+          notes: (s.notes ?? '').trim(),
+        })),
+      })),
+    })),
+  })
+}
+
 export default function TemplateEditor({
   workspaceId,
   allExercises,
@@ -133,8 +180,12 @@ export default function TemplateEditor({
   const [activeDayIndex, setActiveDayIndex] = useState(0)
 
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const savedStateRef = useRef<string | null>(snapshotInitialTemplate(initialData))
+  const isDirty = useMemo(
+    () => savedStateRef.current === null || snapshotTemplate(name, notes, days) !== savedStateRef.current,
+    [name, notes, days],
+  )
   const [exerciseList, setExerciseList] = useState<Exercise[]>(allExercises)
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
@@ -472,10 +523,9 @@ export default function TemplateEditor({
           })),
         })),
       })
-      router.refresh()
       setSaving(false)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      savedStateRef.current = snapshotTemplate(name, notes, days)
+      router.refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save template')
       setSaving(false)
@@ -564,22 +614,22 @@ export default function TemplateEditor({
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || saved}
+            disabled={saving || !isDirty}
             style={{
               padding: '6px 16px',
               fontSize: '0.8rem',
               fontWeight: 600,
-              backgroundColor: saved ? '#16a34a' : 'var(--color-accent)',
+              backgroundColor: 'var(--color-accent)',
               color: '#fff',
               border: 'none',
               borderRadius: 'var(--radius-md)',
-              cursor: saving || saved ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.6 : 1,
+              cursor: saving || !isDirty ? 'not-allowed' : 'pointer',
+              opacity: saving || !isDirty ? 0.5 : 1,
               fontFamily: 'inherit',
-              transition: 'background-color 0.2s',
+              transition: 'opacity 0.15s',
             }}
           >
-            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Template'}
+            {saving ? 'Saving…' : 'Save Template'}
           </button>
         </div>
       </div>

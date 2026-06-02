@@ -413,7 +413,6 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
               ref={uploadInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
               className="sr-only"
               onChange={handleFileSelect}
             />

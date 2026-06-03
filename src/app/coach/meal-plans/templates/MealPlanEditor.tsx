@@ -190,7 +190,9 @@ function fromInitial(initial: FullTemplate): MealEntry[] {
 export default function MealPlanEditor({ workspaceId, initialData }: { workspaceId: string; initialData?: FullTemplate }) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const savedIdRef = useRef<string | undefined>(initialData?.id)
 
   const [name, setName] = useState(initialData?.name ?? '')
   const [planType, setPlanType] = useState<PlanType>(initialData?.planType ?? 'training')
@@ -374,8 +376,8 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
 
     setSaving(true)
     try {
-      await upsertMealPlanTemplate({
-        id: initialData?.id, workspaceId, name: name.trim(), planType, notes, recommendations,
+      const result = await upsertMealPlanTemplate({
+        id: savedIdRef.current, workspaceId, name: name.trim(), planType, notes, recommendations,
         meals: meals.map((m, mi) => ({
           name: m.name, sortOrder: mi,
           options: m.options.map((o, oi) => ({
@@ -384,9 +386,17 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           })),
         })),
       })
-      setSaving(false)
+      const isNew = !savedIdRef.current
+      savedIdRef.current = result.id
       savedStateRef.current = JSON.stringify(serializePlan(meals, name, planType, notes, recommendations))
-      router.refresh()
+      setSaving(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      if (isNew) {
+        router.replace(`/coach/meal-plans/templates/${result.id}`)
+      } else {
+        router.refresh()
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save')
       setSaving(false)
@@ -429,10 +439,10 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || !isDirty}
-            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: '#f97316', color: '#fff', border: 'none', cursor: saving || !isDirty ? 'not-allowed' : 'pointer', opacity: saving || !isDirty ? 0.5 : 1, transition: 'opacity 0.15s' }}
+            disabled={saving || (!isDirty && !saved)}
+            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: saved ? '#16a34a' : '#f97316', color: '#fff', border: 'none', cursor: saving || !isDirty ? 'not-allowed' : 'pointer', opacity: saving || (!isDirty && !saved) ? 0.5 : 1, transition: 'opacity 0.15s, background-color 0.2s' }}
           >
-            {saving ? 'Saving…' : 'Save template'}
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save template'}
           </button>
         </div>
       </div>

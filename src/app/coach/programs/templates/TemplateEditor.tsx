@@ -180,7 +180,9 @@ export default function TemplateEditor({
   const [activeDayIndex, setActiveDayIndex] = useState(0)
 
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const savedIdRef = useRef<string | undefined>(initialData?.id)
   const savedStateRef = useRef<string | null>(snapshotInitialTemplate(initialData))
   const isDirty = useMemo(
     () => savedStateRef.current === null || snapshotTemplate(name, notes, days) !== savedStateRef.current,
@@ -498,8 +500,8 @@ export default function TemplateEditor({
     }
     setSaving(true)
     try {
-      await upsertTemplate({
-        id: initialData?.id,
+      const result = await upsertTemplate({
+        id: savedIdRef.current,
         workspaceId,
         name: name.trim(),
         notes: notes.trim() ? notes.trim() : undefined,
@@ -523,9 +525,17 @@ export default function TemplateEditor({
           })),
         })),
       })
-      setSaving(false)
+      const isNew = !savedIdRef.current
+      savedIdRef.current = result.id
       savedStateRef.current = snapshotTemplate(name, notes, days)
-      router.refresh()
+      setSaving(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      if (isNew) {
+        router.replace(`/coach/programs/templates/${result.id}`)
+      } else {
+        router.refresh()
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save template')
       setSaving(false)
@@ -614,22 +624,22 @@ export default function TemplateEditor({
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || !isDirty}
+            disabled={saving || (!isDirty && !saved)}
             style={{
               padding: '6px 16px',
               fontSize: '0.8rem',
               fontWeight: 600,
-              backgroundColor: 'var(--color-accent)',
+              backgroundColor: saved ? '#16a34a' : 'var(--color-accent)',
               color: '#fff',
               border: 'none',
               borderRadius: 'var(--radius-md)',
               cursor: saving || !isDirty ? 'not-allowed' : 'pointer',
-              opacity: saving || !isDirty ? 0.5 : 1,
+              opacity: saving || (!isDirty && !saved) ? 0.5 : 1,
               fontFamily: 'inherit',
-              transition: 'opacity 0.15s',
+              transition: 'opacity 0.15s, background-color 0.2s',
             }}
           >
-            {saving ? 'Saving…' : 'Save Template'}
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Template'}
           </button>
         </div>
       </div>
@@ -1759,16 +1769,14 @@ function inputStyle(): React.CSSProperties {
 
 function iconBtnStyle(disabled: boolean): React.CSSProperties {
   return {
-    width: 22,
-    height: 22,
+    background: 'none',
+    border: 'none',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.3 : 0.6,
+    color: 'var(--color-text-secondary)',
+    padding: '2px 4px',
+    borderRadius: 4,
     display: 'inline-flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    color: disabled ? 'var(--color-text-hint)' : 'var(--color-text-muted)',
-    backgroundColor: 'transparent',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-sm)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.4 : 1,
   }
 }

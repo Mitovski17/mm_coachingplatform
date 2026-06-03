@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
@@ -20,7 +20,8 @@ export default function MealPlanAssignmentEditor({
   initialData?: ClientAssignments
 }) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [clientId, setClientId] = useState(initialClientId ?? clients[0]?.id ?? '')
@@ -34,33 +35,62 @@ export default function MealPlanAssignmentEditor({
     initialData?.overall?.templateId ?? ''
   )
 
+  const savedStateRef = useRef<string | null>(null)
+  if (savedStateRef.current === null) {
+    savedStateRef.current = JSON.stringify({
+      clientId: initialClientId ?? clients[0]?.id ?? '',
+      trainingTemplateId: initialData?.training?.templateId ?? '',
+      restTemplateId: initialData?.rest?.templateId ?? '',
+      overallTemplateId: initialData?.overall?.templateId ?? '',
+    })
+  }
+
+  const currentSnapshot = useMemo(() => {
+    return JSON.stringify({
+      clientId,
+      trainingTemplateId,
+      restTemplateId,
+      overallTemplateId,
+    })
+  }, [clientId, trainingTemplateId, restTemplateId, overallTemplateId])
+
+  const isDirty = useMemo(() => {
+    return savedStateRef.current !== currentSnapshot
+  }, [currentSnapshot])
+
   const trainingTemplates = templates.filter((t) => t.planType === 'training')
   const restTemplates = templates.filter((t) => t.planType === 'rest')
   const overallTemplates = templates.filter((t) => t.planType === 'overall')
   const lockedClient = !!initialClientId
   const clientName = clients.find((c) => c.id === clientId)?.name ?? ''
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setError(null)
     if (!clientId) {
       setError('Select a client')
       return
     }
-    startTransition(async () => {
-      try {
-        await upsertClientMealPlanAssignment({
-          workspaceId,
-          clientId,
-          trainingTemplateId: trainingTemplateId || null,
-          restTemplateId: restTemplateId || null,
-          overallTemplateId: overallTemplateId || null,
-        })
+    setSaving(true)
+    try {
+      await upsertClientMealPlanAssignment({
+        workspaceId,
+        clientId,
+        trainingTemplateId: trainingTemplateId || null,
+        restTemplateId: restTemplateId || null,
+        overallTemplateId: overallTemplateId || null,
+      })
+      savedStateRef.current = currentSnapshot
+      setSaving(false)
+      setSaved(true)
+      setTimeout(() => {
+        setSaved(false)
         router.push('/coach/meal-plans')
         router.refresh()
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to save')
-      }
-    })
+      }, 1000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save')
+      setSaving(false)
+    }
   }
 
   return (
@@ -186,19 +216,20 @@ export default function MealPlanAssignmentEditor({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          disabled={pending}
+          disabled={saving || saved || !isDirty}
           onClick={handleSave}
           className="px-4 py-2 text-sm font-medium"
           style={{
-            backgroundColor: 'var(--color-accent)',
+            backgroundColor: saved ? '#16a34a' : 'var(--color-accent)',
             color: '#fff',
             borderRadius: 'var(--radius-md)',
             border: 'none',
-            cursor: pending ? 'not-allowed' : 'pointer',
-            opacity: pending ? 0.6 : 1,
+            cursor: saving || saved || !isDirty ? 'not-allowed' : 'pointer',
+            opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1),
+            transition: 'opacity 0.15s, background-color 0.2s',
           }}
         >
-          {pending ? 'Saving…' : 'Save'}
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}
         </button>
         <Link
           href="/coach/meal-plans"

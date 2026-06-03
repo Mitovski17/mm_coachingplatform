@@ -370,7 +370,7 @@ export default function OnboardingPage() {
       const { data: client } = await supabase
         .from('clients')
         .select('id, workspace_id, onboarding_completed_at')
-        .eq('email', user.email!)
+        .eq('email', user.email!.toLowerCase().trim())
         .maybeSingle()
 
       if (client?.onboarding_completed_at) { router.replace('/client'); return }

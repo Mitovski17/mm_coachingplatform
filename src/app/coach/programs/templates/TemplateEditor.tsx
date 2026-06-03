@@ -530,12 +530,14 @@ export default function TemplateEditor({
       savedStateRef.current = snapshotTemplate(name, notes, days)
       setSaving(false)
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-      if (isNew) {
-        router.replace(`/coach/programs/templates/${result.id}`)
-      } else {
-        router.refresh()
-      }
+      setTimeout(() => {
+        setSaved(false)
+        if (isNew) {
+          router.replace(`/coach/programs/templates/${result.id}`)
+        } else {
+          router.refresh()
+        }
+      }, 1000)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save template')
       setSaving(false)
@@ -624,7 +626,7 @@ export default function TemplateEditor({
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || (!isDirty && !saved)}
+            disabled={saving || saved || !isDirty}
             style={{
               padding: '6px 16px',
               fontSize: '0.8rem',
@@ -633,8 +635,8 @@ export default function TemplateEditor({
               color: '#fff',
               border: 'none',
               borderRadius: 'var(--radius-md)',
-              cursor: saving || !isDirty ? 'not-allowed' : 'pointer',
-              opacity: saving || (!isDirty && !saved) ? 0.5 : 1,
+              cursor: saving || saved || !isDirty ? 'not-allowed' : 'pointer',
+              opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1),
               fontFamily: 'inherit',
               transition: 'opacity 0.15s, background-color 0.2s',
             }}
@@ -1614,6 +1616,7 @@ function CustomExerciseModal({
         muscleGroup,
         equipment,
       })
+      setSaving(false)
       onSave(exercise)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create exercise')

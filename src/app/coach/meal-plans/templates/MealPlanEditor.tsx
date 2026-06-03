@@ -391,12 +391,14 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
       savedStateRef.current = JSON.stringify(serializePlan(meals, name, planType, notes, recommendations))
       setSaving(false)
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-      if (isNew) {
-        router.replace(`/coach/meal-plans/templates/${result.id}`)
-      } else {
-        router.refresh()
-      }
+      setTimeout(() => {
+        setSaved(false)
+        if (isNew) {
+          router.replace(`/coach/meal-plans/templates/${result.id}`)
+        } else {
+          router.refresh()
+        }
+      }, 1000)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save')
       setSaving(false)
@@ -439,8 +441,8 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || (!isDirty && !saved)}
-            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: saved ? '#16a34a' : '#f97316', color: '#fff', border: 'none', cursor: saving || !isDirty ? 'not-allowed' : 'pointer', opacity: saving || (!isDirty && !saved) ? 0.5 : 1, transition: 'opacity 0.15s, background-color 0.2s' }}
+            disabled={saving || saved || !isDirty}
+            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: saved ? '#16a34a' : '#f97316', color: '#fff', border: 'none', cursor: saving || saved || !isDirty ? 'not-allowed' : 'pointer', opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1), transition: 'opacity 0.15s, background-color 0.2s' }}
           >
             {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save template'}
           </button>

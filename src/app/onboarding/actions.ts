@@ -31,18 +31,19 @@ export async function completeOnboarding(
   data: OnboardingData
 ): Promise<{ error: string | null; clientId: string | null; workspaceId: string | null }> {
   const admin = adminClient()
+  const normalizedEmail = email.toLowerCase().trim()
 
   const { data: existing } = await admin
     .from('clients')
     .select('id, workspace_id')
-    .eq('email', email)
+    .eq('email', normalizedEmail)
     .maybeSingle()
 
   if (existing) {
     const { error } = await admin
       .from('clients')
       .update({ ...data, onboarding_completed_at: new Date().toISOString() })
-      .eq('email', email)
+      .eq('email', normalizedEmail)
     if (error) return { error: error.message, clientId: null, workspaceId: null }
     return { error: null, clientId: existing.id, workspaceId: existing.workspace_id }
   }
@@ -52,7 +53,7 @@ export async function completeOnboarding(
   const { data: invite } = await admin
     .from('invites')
     .select('workspace_id, invited_by')
-    .eq('email', email)
+    .eq('email', normalizedEmail)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -67,13 +68,13 @@ export async function completeOnboarding(
 
   // Look up full_name from Supabase auth metadata
   const { data: authUsers } = await admin.auth.admin.listUsers()
-  const authUser = authUsers?.users?.find((u) => u.email === email)
+  const authUser = authUsers?.users?.find((u) => u.email === normalizedEmail)
   const fullName = (authUser?.user_metadata?.full_name as string | undefined) ?? email
 
   const { data: created, error: insertErr } = await admin
     .from('clients')
     .insert({
-      email,
+      email: normalizedEmail,
       full_name: fullName,
       workspace_id: invite.workspace_id,
       ...(invite.invited_by ? { coach_id: invite.invited_by } : {}),

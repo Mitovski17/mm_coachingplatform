@@ -16,6 +16,7 @@ export async function createClientFromInvite(
   fullName: string
 ): Promise<{ error: string | null }> {
   const admin = adminClient()
+  const normalizedEmail = email.toLowerCase().trim()
 
   // Get workspace_id and invited_by (coach) from the invite
   const { data: invite, error: inviteErr } = await admin
@@ -32,7 +33,7 @@ export async function createClientFromInvite(
   const { data: existing } = await admin
     .from('clients')
     .select('id')
-    .eq('email', email)
+    .eq('email', normalizedEmail)
     .maybeSingle()
 
   if (existing) {
@@ -40,7 +41,7 @@ export async function createClientFromInvite(
     const { error } = await admin
       .from('clients')
       .update({ ...(invite.invited_by ? { coach_id: invite.invited_by } : {}) })
-      .eq('email', email)
+      .eq('email', normalizedEmail)
     return { error: error?.message ?? null }
   }
 
@@ -48,7 +49,7 @@ export async function createClientFromInvite(
   const { error } = await admin
     .from('clients')
     .insert({
-      email,
+      email: normalizedEmail,
       full_name: fullName,
       workspace_id: invite.workspace_id,
       ...(invite.invited_by ? { coach_id: invite.invited_by } : {}),

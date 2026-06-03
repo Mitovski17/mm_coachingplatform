@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
@@ -66,7 +66,47 @@ export default function ProgramEditor({
   const [cyclePendingTemplate, setCyclePendingTemplate] = useState<Record<number, string>>({})
 
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const savedStateRef = useRef<string | null>(null)
+  if (savedStateRef.current === null) {
+    savedStateRef.current = JSON.stringify({
+      name: (initialData?.name ?? '').trim(),
+      clientId: initialData?.clientId ?? '',
+      isActive: initialData?.isActive ?? true,
+      scheduleType: initialData?.scheduleType ?? 'weekly',
+      cycleStartDate: initialData?.cycleStartDate ?? '',
+      days: Array.from({ length: 7 }, (_, i) => {
+        const found = initialData?.scheduleType !== 'cyclic'
+          ? initialData?.days.find((d) => d.dayOfWeek === i)
+          : undefined
+        return found?.templateDayId ?? null
+      }),
+      cycleDays: initialData?.scheduleType === 'cyclic' && initialData.days.length > 0
+        ? initialData.days
+            .filter((d) => d.cyclePosition !== null)
+            .sort((a, b) => (a.cyclePosition ?? 0) - (b.cyclePosition ?? 0))
+            .map((d) => ({ templateDayId: d.templateDayId }))
+        : []
+    })
+  }
+
+  const currentSnapshot = useMemo(() => {
+    return JSON.stringify({
+      name: name.trim(),
+      clientId,
+      isActive,
+      scheduleType,
+      cycleStartDate: scheduleType === 'cyclic' ? cycleStartDate : '',
+      days: Array.from({ length: 7 }, (_, i) => days[i] ?? null),
+      cycleDays: scheduleType === 'cyclic' ? cycleDays.map(d => ({ templateDayId: d.templateDayId })) : []
+    })
+  }, [name, clientId, isActive, scheduleType, cycleStartDate, days, cycleDays])
+
+  const isDirty = useMemo(() => {
+    return savedStateRef.current !== currentSnapshot
+  }, [currentSnapshot])
 
   // Build lookup maps
   const templateById = useMemo(() => {
@@ -113,8 +153,14 @@ export default function ProgramEditor({
           ? cycleDays.map((d, i) => ({ cyclePosition: i, templateDayId: d.templateDayId }))
           : Array.from({ length: 7 }, (_, i) => ({ dayOfWeek: i, templateDayId: days[i] ?? null })),
       })
-      router.push('/coach/programs')
-      router.refresh()
+      savedStateRef.current = currentSnapshot
+      setSaving(false)
+      setSaved(true)
+      setTimeout(() => {
+        setSaved(false)
+        router.push('/coach/programs')
+        router.refresh()
+      }, 1000)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save program')
       setSaving(false)
@@ -616,18 +662,19 @@ export default function ProgramEditor({
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || saved || !isDirty}
           className="px-4 py-2 text-sm font-medium"
           style={{
-            backgroundColor: 'var(--color-accent)',
+            backgroundColor: saved ? '#16a34a' : 'var(--color-accent)',
             color: '#fff',
             border: 'none',
             borderRadius: 'var(--radius-md)',
-            cursor: saving ? 'not-allowed' : 'pointer',
-            opacity: saving ? 0.6 : 1,
+            cursor: saving || saved || !isDirty ? 'not-allowed' : 'pointer',
+            opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1),
+            transition: 'opacity 0.15s, background-color 0.2s',
           }}
         >
-          {saving ? 'Saving…' : 'Save Program'}
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Program'}
         </button>
       </div>
     </div>

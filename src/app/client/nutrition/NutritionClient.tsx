@@ -78,6 +78,7 @@ export default function NutritionClient({
   const [selectedOption, setSelectedOption] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<'diary' | 'notes'>('diary')
   const [portionOverrides, setPortionOverrides] = useState<Record<string, number>>({})
+  const [deletedFoodIds, setDeletedFoodIds] = useState<Record<string, boolean>>({})
 
   const [customMealNames, setCustomMealNames] = useState<string[]>([])
 
@@ -115,8 +116,20 @@ export default function NutritionClient({
     }
     setLoading(true)
     setCustomMealNames([])
+    setPortionOverrides({})
+    setDeletedFoodIds({})
     reloadDayLogs()
   }, [clientId, selectedDate, reloadDayLogs])
+
+  useEffect(() => {
+    const overrides: Record<string, number> = {}
+    for (const log of dayLogs) {
+      if (log.templateFoodId) {
+        overrides[log.templateFoodId] = log.quantity
+      }
+    }
+    setPortionOverrides(overrides)
+  }, [dayLogs])
 
   const logsByMealType = useMemo(() => {
     const m = new Map<string, DayLog[]>()
@@ -168,13 +181,14 @@ export default function NutritionClient({
 
   const handleLogMeal = async (meal: Meal, option: Option) => {
     if (!clientId || !workspaceId) return
+    const activeFoods = option.foods.filter((f) => !deletedFoodIds[f.id])
     await logMealOption({
       clientId,
       workspaceId,
       loggedDate: selectedDate,
       mealType: meal.name,
       mealOptionId: option.id,
-      foods: option.foods.map((f) => {
+      foods: activeFoods.map((f) => {
         const qty = portionOverrides[f.id] ?? f.quantity
         const ratio = qty / f.quantity
         return {
@@ -195,7 +209,30 @@ export default function NutritionClient({
   const handleRemoveMeal = async (mealName: string) => {
     if (!clientId) return
     await removeOptionLog(clientId, selectedDate, mealName)
+    const meal = mealPlan?.meals.find((m) => m.name === mealName)
+    if (meal) {
+      const optKey = meal.id
+      const userSelectedOption = selectedOption[optKey] ?? meal.options[0]?.id
+      const activeOption = meal.options.find((o) => o.id === userSelectedOption) ?? meal.options[0]
+      if (activeOption) {
+        setDeletedFoodIds((prev) => {
+          const next = { ...prev }
+          for (const f of activeOption.foods) {
+            delete next[f.id]
+          }
+          return next
+        })
+      }
+    }
     await reloadDayLogs()
+  }
+
+  const handleDeleteFood = async (foodId: string, loggedFoodId?: string | null) => {
+    setDeletedFoodIds((prev) => ({ ...prev, [foodId]: true }))
+    if (loggedFoodId) {
+      await deleteNutritionLog(loggedFoodId)
+      await reloadDayLogs()
+    }
   }
 
   const handleDeleteCustom = async (logId: string) => {
@@ -338,7 +375,9 @@ export default function NutritionClient({
                   isLogged={isLogged}
                   loggedOptionId={loggedOptionId}
                   customLogs={customLogs}
+                  planLogs={planLogs}
                   portionOverrides={portionOverrides}
+                  deletedFoodIds={deletedFoodIds}
                   onSelectOption={(optId) =>
                     setSelectedOption((prev) => ({ ...prev, [optKey]: optId }))
                   }
@@ -349,6 +388,7 @@ export default function NutritionClient({
                   onPortionOverride={(foodId, qty) =>
                     setPortionOverrides((prev) => ({ ...prev, [foodId]: qty }))
                   }
+                  onDeleteFood={handleDeleteFood}
                   addFoodOpen={activeAddFoodMeal === meal.name}
                   onToggleAddFood={() =>
                     setActiveAddFoodMeal(activeAddFoodMeal === meal.name ? null : meal.name)
@@ -1008,13 +1048,16 @@ function MealCard({
   isLogged,
   loggedOptionId,
   customLogs,
+  planLogs,
   portionOverrides,
+  deletedFoodIds,
   onSelectOption,
   onLogMeal,
   onRemoveMeal,
   onDeleteCustom,
   onUpdateCustomQty,
   onPortionOverride,
+  onDeleteFood,
   addFoodOpen,
   onToggleAddFood,
   onAddCustomFood,
@@ -1028,7 +1071,9 @@ function MealCard({
   isLogged: boolean
   loggedOptionId: string | null
   customLogs: DayLog[]
+  planLogs: DayLog[]
   portionOverrides: Record<string, number>
+  deletedFoodIds: Record<string, boolean>
   onSelectOption: (id: string) => void
   onLogMeal: () => Promise<void>
   onRemoveMeal: () => Promise<void>
@@ -1043,6 +1088,7 @@ function MealCard({
     origF: number
   ) => Promise<void>
   onPortionOverride: (foodId: string, qty: number) => void
+  onDeleteFood: (foodId: string, loggedFoodId?: string | null) => Promise<void>
   addFoodOpen: boolean
   onToggleAddFood: () => void
   onAddCustomFood: (p: {
@@ -1097,6 +1143,11 @@ function MealCard({
       ? { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
       : activeOption.foods.reduce(
           (acc, f) => {
+            const isDeleted = isLogged
+              ? planLogs.every((l) => l.templateFoodId !== f.id)
+              : !!deletedFoodIds[f.id]
+            if (isDeleted) return acc
+
             const qty = portionOverrides[f.id] ?? f.quantity
             const ratio = qty / f.quantity
             return {
@@ -1118,7 +1169,7 @@ function MealCard({
       }),
       base
     )
-  }, [activeOption, portionOverrides, customLogs])
+  }, [activeOption, portionOverrides, customLogs, planLogs, isLogged, deletedFoodIds])
 
   const handleConfirmCustomEdit = async (log: DayLog) => {
     const qty = parseFloat(customEditQty)
@@ -1213,21 +1264,32 @@ function MealCard({
 
       {activeOption && (
         <div className="flex flex-col gap-1.5 mb-2">
-          {activeOption.foods.map((f) => (
-            <FoodRow
-              key={f.id}
-              foodId={f.id}
-              name={f.foodName}
-              quantity={f.quantity}
-              unit={f.unit}
-              calories={f.calories}
-              p={f.proteinG}
-              c={f.carbsG}
-              fat={f.fatG}
-              portionOverride={portionOverrides[f.id]}
-              onPortionOverride={(qty) => onPortionOverride(f.id, qty)}
-            />
-          ))}
+          {activeOption.foods
+            .filter((f) => {
+              const isDeleted = isLogged
+                ? planLogs.every((l) => l.templateFoodId !== f.id)
+                : !!deletedFoodIds[f.id]
+              return !isDeleted
+            })
+            .map((f) => {
+              const matchingLog = planLogs.find((l) => l.templateFoodId === f.id)
+              return (
+                <FoodRow
+                  key={f.id}
+                  foodId={f.id}
+                  name={f.foodName}
+                  quantity={f.quantity}
+                  unit={f.unit}
+                  calories={f.calories}
+                  p={f.proteinG}
+                  c={f.carbsG}
+                  fat={f.fatG}
+                  portionOverride={portionOverrides[f.id]}
+                  onPortionOverride={(qty) => onPortionOverride(f.id, qty)}
+                  onDelete={() => onDeleteFood(f.id, matchingLog?.id)}
+                />
+              )
+            })}
         </div>
       )}
 
@@ -1424,6 +1486,7 @@ function FoodRow({
   fat,
   portionOverride,
   onPortionOverride,
+  onDelete,
 }: {
   foodId: string
   name: string
@@ -1435,6 +1498,7 @@ function FoodRow({
   fat: number
   portionOverride: number | undefined
   onPortionOverride: (qty: number) => void
+  onDelete?: () => void
 }) {
   const { t } = useLanguage()
   const [editing, setEditing] = useState(false)
@@ -1570,6 +1634,24 @@ function FoodRow({
       >
         <Pencil size={12} />
       </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          title={t.common.delete}
+          className="ml-1 inline-flex items-center justify-center"
+          style={{
+            width: 22,
+            height: 22,
+            color: '#ef4444',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <X size={13} />
+        </button>
+      )}
     </div>
   )
 }

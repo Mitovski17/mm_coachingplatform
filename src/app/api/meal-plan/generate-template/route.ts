@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   try {
     response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 8192,
     temperature: 0,
     system: 'You are a nutrition expert. The user will either describe a meal plan they want generated, OR paste an existing meal plan. In both cases, output ONLY a valid JSON object matching the schema provided - no markdown fences, no explanation. Always use sensible units: "piece" for countable foods (eggs, fruit, bread slices, chicken breasts), "g" for weighed foods, "ml" for liquids, "tbsp"/"tsp" for condiments and oils. Never assign "g" to whole countable foods.',
     messages: [

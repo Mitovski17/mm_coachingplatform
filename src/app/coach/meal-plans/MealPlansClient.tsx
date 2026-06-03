@@ -168,7 +168,7 @@ function TemplatesPanel({
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         <Section title="Training Day" planType="training" items={training} onDelete={onDelete} onDuplicate={onDuplicate} deleting={deleting} duplicatingId={duplicatingId} />
         <Section title="Rest Day" planType="rest" items={rest} onDelete={onDelete} onDuplicate={onDuplicate} deleting={deleting} duplicatingId={duplicatingId} />
       </div>
@@ -200,7 +200,7 @@ function Section({
   duplicatingId: string | null
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="flex items-center gap-2 mb-3">
         <h3 className="text-sm" style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>
           {title}
@@ -254,16 +254,16 @@ function TemplateCard({
 
   return (
     <div
-      className="px-5 py-4"
+      className="px-5 py-4 overflow-hidden"
       style={{
         backgroundColor: 'var(--color-surface-2)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
       }}
     >
-      <div className="flex items-start justify-between mb-2">
+      <div className="flex items-start justify-between mb-2 gap-2">
         <span
-          className="inline-flex items-center px-2 py-0.5 text-xs font-medium"
+          className="inline-flex items-center px-2 py-0.5 text-xs font-medium flex-shrink-0"
           style={{
             backgroundColor: badgeStyle.bg,
             color: badgeStyle.color,
@@ -272,7 +272,7 @@ function TemplateCard({
         >
           {badgeStyle.label}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <Link
             href={`/coach/meal-plans/templates/${t.id}`}
             title="Edit"
@@ -327,7 +327,7 @@ function TemplateCard({
           </button>
         </div>
       </div>
-      <p className="coach-card-name text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+      <p className="coach-card-name text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
         {t.name}
       </p>
       <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-hint)' }}>

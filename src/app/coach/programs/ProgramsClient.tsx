@@ -3,8 +3,8 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Pencil, Trash2, Plus, LayoutList, Dumbbell } from 'lucide-react'
-import { deleteTemplate, deleteProgram, type Template, type Program } from './actions'
+import { Pencil, Trash2, Plus, LayoutList, Dumbbell, Copy } from 'lucide-react'
+import { deleteTemplate, deleteProgram, duplicateTemplate, type Template, type Program } from './actions'
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -18,6 +18,19 @@ export default function ProgramsClient({
   const [tab, setTab] = useState<'templates' | 'programs'>('templates')
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
+
+  const handleDuplicateTemplate = (id: string) => {
+    setDuplicatingId(id)
+    startTransition(async () => {
+      try {
+        await duplicateTemplate(id)
+        router.refresh()
+      } finally {
+        setDuplicatingId(null)
+      }
+    })
+  }
 
   const handleDeleteTemplate = (id: string, name: string) => {
     if (!confirm(`Delete template "${name}"? This cannot be undone.`)) return
@@ -110,7 +123,9 @@ export default function ProgramsClient({
         <TemplatesPanel
           templates={templates}
           onDelete={handleDeleteTemplate}
+          onDuplicate={handleDuplicateTemplate}
           deleting={pending}
+          duplicatingId={duplicatingId}
         />
       ) : (
         <ProgramsPanel
@@ -126,11 +141,15 @@ export default function ProgramsClient({
 function TemplatesPanel({
   templates,
   onDelete,
+  onDuplicate,
   deleting,
+  duplicatingId,
 }: {
   templates: Template[]
   onDelete: (id: string, name: string) => void
+  onDuplicate: (id: string) => void
   deleting: boolean
+  duplicatingId: string | null
 }) {
   return (
     <>
@@ -205,7 +224,26 @@ function TemplatesPanel({
                 </Link>
                 <button
                   type="button"
-                  disabled={deleting}
+                  disabled={duplicatingId === t.id || deleting}
+                  onClick={() => onDuplicate(t.id)}
+                  title="Duplicate template"
+                  className="inline-flex items-center justify-center"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    color: 'var(--color-text-muted)',
+                    backgroundColor: 'transparent',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: duplicatingId === t.id || deleting ? 'not-allowed' : 'pointer',
+                    opacity: duplicatingId === t.id ? 0.5 : 1,
+                  }}
+                >
+                  <Copy size={14} />
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting || duplicatingId === t.id}
                   onClick={() => onDelete(t.id, t.name)}
                   title="Delete template"
                   className="inline-flex items-center justify-center"

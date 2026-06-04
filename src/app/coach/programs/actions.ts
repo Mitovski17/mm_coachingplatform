@@ -439,6 +439,35 @@ export async function deleteTemplate(templateId: string): Promise<void> {
   revalidateTag('programs', 'max')
 }
 
+export async function duplicateTemplate(templateId: string): Promise<{ id: string }> {
+  const template = await getTemplate(templateId)
+  if (!template) throw new Error('Template not found')
+
+  return upsertTemplate({
+    workspaceId: template.workspaceId,
+    name: `Copy of ${template.name}`,
+    notes: template.notes ?? '',
+    days: template.days.map((d) => ({
+      label: d.label,
+      sortOrder: d.sortOrder,
+      notes: d.notes ?? '',
+      exercises: d.exercises.map((ex) => ({
+        exerciseId: ex.exerciseId,
+        sortOrder: ex.sortOrder,
+        restSeconds: ex.restSeconds,
+        notes: ex.notes ?? '',
+        sets: ex.sets.map((s) => ({
+          setNumber: s.setNumber,
+          targetReps: s.targetReps,
+          targetWeight: s.targetWeight ?? undefined,
+          rpe: s.rpe ?? undefined,
+          notes: s.notes ?? undefined,
+        })),
+      })),
+    })),
+  })
+}
+
 export async function getClients(workspaceId: string): Promise<Client[]> {
   const admin = adminClient()
   const { data, error } = await admin

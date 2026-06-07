@@ -407,9 +407,9 @@ function NumberInput({ value, onChange, t }: { value: string; onChange: (v: stri
       <input
         type="text"
         inputMode="decimal"
-        pattern="[0-9.]*"
+        pattern="[0-9]*[.,]?[0-9]*"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value.replace(',', '.'))}
         placeholder="0.0"
         style={{
           width: '100%',

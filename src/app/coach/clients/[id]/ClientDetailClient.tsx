@@ -172,23 +172,6 @@ export default function ClientDetailClient(props: Props) {
           >
             Message
           </Link>
-          <button
-            style={{
-              padding:         '8px 16px',
-              fontSize:        13,
-              fontWeight:      600,
-              color:           '#fff',
-              backgroundColor: 'var(--color-accent)',
-              border:          'none',
-              borderRadius:    8,
-              cursor:          'pointer',
-              display:         'flex',
-              alignItems:      'center',
-              gap:             6,
-            }}
-          >
-            Open as client <span style={{ fontSize: 15 }}>→</span>
-          </button>
         </div>
       </div>
 

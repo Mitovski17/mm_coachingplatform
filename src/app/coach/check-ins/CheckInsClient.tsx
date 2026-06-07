@@ -200,12 +200,19 @@ function CheckinCard({
           {(() => {
             const w = getNum(card.answers, 'current_weight')
             if (w === null) return null
+            const prevW = getNum(card.prevAnswers ?? {}, 'current_weight')
+            const { symbol, color } = trendArrow(w, prevW)
             return (
               <div className="flex flex-col gap-0.5">
                 <span className="text-xs" style={{ color: 'var(--color-text-hint)' }}>Weight</span>
-                <span className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                  {w} kg
-                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    {w} kg
+                  </span>
+                  <span className="text-sm font-bold" style={{ color }}>
+                    {symbol}
+                  </span>
+                </div>
               </div>
             )
           })()}

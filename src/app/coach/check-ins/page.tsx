@@ -113,7 +113,7 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
     const { data: signedData } = await svc.storage
       .from('progress-photos')
       .createSignedUrls(allPhotoPaths, 3600)
-    signedUrls = (signedData ?? []).map((item) => item.signedUrl ?? '')
+    signedUrls = (signedData ?? []).map((item: { signedUrl: string | null; path?: string; error?: string | null }) => item.signedUrl ?? '')
   }
 
   // Build path → signed URL map using the preserved index order

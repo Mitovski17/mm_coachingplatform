@@ -72,6 +72,9 @@ export default function NutritionClient({
   const [mealPlanTraining] = useState(initialMealPlanTraining)
   const [mealPlanRest] = useState(initialMealPlanRest)
   const mealPlan = planType === 'training' ? mealPlanTraining : mealPlanRest
+  // Hide the toggle when both slots resolve to the same plan (overall-only clients).
+  // Switching would show identical content, so the toggle is meaningless.
+  const showPlanTypeToggle = initialMealPlanTraining?.id !== initialMealPlanRest?.id
   const [dayLogs, setDayLogs] = useState<DayLog[]>(initialDayLogs)
   const [loading, setLoading] = useState(false)
   const [activeAddFoodMeal, setActiveAddFoodMeal] = useState<string | null>(null)
@@ -321,7 +324,9 @@ export default function NutritionClient({
               {t.nutrition.title}
             </h1>
           </div>
-          <PlanTypeToggle value={planType} onChange={handleSetPlanType} />
+          {showPlanTypeToggle && (
+            <PlanTypeToggle value={planType} onChange={handleSetPlanType} />
+          )}
         </div>
       </div>
 

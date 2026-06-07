@@ -109,6 +109,7 @@ export type Checkin = {
 }
 
 export type ProgressPhoto = {
+  path: string
   url: string
   submittedAt: string
   weekStartDate: string
@@ -507,16 +508,12 @@ export async function getProgressPhotos(
     .from('progress-photos')
     .createSignedUrls(toSign.map((t) => t.path), 3600)
 
-  const urlMap = new Map<string, string>()
-  for (const entry of signedData ?? []) {
-    if (entry.signedUrl && entry.path) urlMap.set(entry.path, entry.signedUrl)
-  }
-
+  // Match by index — entry.path can be null in some Supabase client versions
   return toSign
-    .map(({ path, submittedAt, weekStartDate }) => {
-      const signedUrl = urlMap.get(path)
+    .map(({ path, submittedAt, weekStartDate }, i) => {
+      const signedUrl = signedData?.[i]?.signedUrl
       if (!signedUrl) return null
-      return { url: signedUrl, submittedAt, weekStartDate } as ProgressPhoto
+      return { path, url: signedUrl, submittedAt, weekStartDate } as ProgressPhoto
     })
     .filter((p): p is ProgressPhoto => p !== null)
     .sort((a, b) => new Date(a.weekStartDate).getTime() - new Date(b.weekStartDate).getTime())

@@ -34,7 +34,6 @@ const ENERGY_LABELS: Record<string, string> = {
 }
 
 const TEXT_ANSWERS = [
-  { id: 'biggest_win', label: 'Biggest win' },
   { id: 'biggest_challenge', label: 'Biggest challenge' },
   { id: 'schedule_changes', label: 'Upcoming changes' },
   { id: 'anything_else', label: 'Anything else' },
@@ -63,15 +62,10 @@ function trendArrow(current: number | null, prev: number | null): { symbol: stri
   return { symbol: '—', color: 'var(--color-text-hint)' }
 }
 
-function photoUrl(path: string, supabaseUrl: string): string {
-  return `${supabaseUrl}/storage/v1/object/public/progress-photos/${path}`
-}
-
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 function CheckinCard({
   card,
-  supabaseUrl,
   notes,
   onNotesChange,
   onNotesBlur,
@@ -80,7 +74,6 @@ function CheckinCard({
   isReviewed,
 }: {
   card: CheckinCard
-  supabaseUrl: string
   notes: string
   onNotesChange: (v: string) => void
   onNotesBlur: () => void
@@ -91,9 +84,7 @@ function CheckinCard({
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const redFlag = hasRedFlag(card.answers)
 
-  const photos: string[] = Array.isArray(card.answers.progress_photo)
-    ? (card.answers.progress_photo as string[])
-    : []
+  const photos = card.signedPhotoUrls
 
   return (
     <>
@@ -204,6 +195,20 @@ function CheckinCard({
               </div>
             )
           })}
+
+          {/* Weight */}
+          {(() => {
+            const w = getNum(card.answers, 'current_weight')
+            if (w === null) return null
+            return (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs" style={{ color: 'var(--color-text-hint)' }}>Weight</span>
+                <span className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  {w} kg
+                </span>
+              </div>
+            )
+          })()}
         </div>
 
         {/* ── Text answers ── */}
@@ -235,8 +240,7 @@ function CheckinCard({
             className="flex flex-wrap gap-2 px-5 py-4"
             style={{ borderBottom: '1px solid var(--color-border)' }}
           >
-            {photos.map((path, i) => {
-              const src = photoUrl(path, supabaseUrl)
+            {photos.map((src, i) => {
               return (
                 <button
                   key={i}
@@ -325,10 +329,8 @@ function CheckinCard({
 
 export default function CheckInsClient({
   cards,
-  supabaseUrl,
 }: {
   cards: CheckinCard[]
-  supabaseUrl: string
 }) {
   const [tab, setTab] = useState<'pending' | 'reviewed'>('pending')
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set())
@@ -448,7 +450,6 @@ export default function CheckInsClient({
             <CheckinCard
               key={card.checkinId}
               card={card}
-              supabaseUrl={supabaseUrl}
               notes={notes[card.checkinId] ?? ''}
               onNotesChange={(v) => setNotes((prev) => ({ ...prev, [card.checkinId]: v }))}
               onNotesBlur={() => handleNotesBlur(card.checkinId)}

@@ -310,6 +310,14 @@ export const en = {
     last12Weeks: '12W',
     all: 'All',
     photoUploaded: 'Photo uploaded',
+    logWeight: 'Log weight',
+    logWeightTitle: 'Log past weight',
+    date: 'Date',
+    weight: 'Weight',
+    weightPlaceholder: 'e.g. 82.5',
+    saving: 'Saving…',
+    saveFailed: 'Failed to save',
+    weightSaved: 'Weight saved',
   },
 
   // ── Messages ──

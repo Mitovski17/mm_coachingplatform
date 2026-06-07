@@ -228,23 +228,50 @@ function CheckinCardItem({
 
         {/* Pills */}
         <div className="flex flex-wrap gap-2 mt-3">
-          <MetricPill
-            label="Perf"
-            value={checkin.performanceRating}
-            scale="ten"
-          />
+          <MetricPill label="Perf" value={checkin.performanceRating} scale="ten" />
           <MetricPill label="Sleep" value={checkin.sleepQuality} scale="ten" />
-          <MetricPill
-            label="Nutrition"
-            value={checkin.nutritionAdherence}
-            scale="pct"
-          />
-          <MetricPill
-            label="Training"
-            value={checkin.trainingAdherence}
-            scale="pct"
-          />
+          <MetricPill label="Nutrition" value={checkin.nutritionAdherence} scale="pct" />
+          <MetricPill label="Training" value={checkin.trainingAdherence} scale="pct" />
+          {checkin.weight !== null && (
+            <span
+              className="inline-flex items-center px-2 py-0.5 text-xs"
+              style={{
+                backgroundColor: 'var(--color-surface-3)',
+                color: 'var(--color-text-secondary)',
+                borderRadius: 'var(--radius-sm)',
+                fontWeight: 500,
+              }}
+            >
+              {checkin.weight} kg
+            </span>
+          )}
         </div>
+
+        {/* Progress photo thumbnails — always visible */}
+        {photoUrls.length > 0 && (
+          <div className="flex gap-2 mt-3 overflow-x-auto">
+            {photoUrls.map((url, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setLightbox(url)}
+                style={{
+                  width: 72, height: 72, flexShrink: 0,
+                  borderRadius: 8, overflow: 'hidden',
+                  border: '1px solid var(--color-border)',
+                  padding: 0, cursor: 'pointer', background: 'none',
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`Photo ${i + 1}`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+              </button>
+            ))}
+          </div>
+        )}
 
         {expanded && (
           <div className="mt-4 flex flex-col gap-3">
@@ -409,25 +436,13 @@ export default function CheckInsTab({
   checkins: Checkin[]
   photos: ProgressPhoto[]
 }) {
-  // Build a path → signed URL map from progress photo entries.
-  // The actions module returns an array of signed URLs without the original
-  // path; here we approximate via order: rebuild via week_start_date matching.
-  // Photos array is ordered by weekStartDate ascending, we don't have paths
-  // back from getProgressPhotos. So we'll just look up by URL substring.
   const photoMap = useMemo(() => {
     const m = new Map<string, string>()
-    // Match: in checkins (newest→oldest), iterate paths and pull URLs from
-    // photos array (oldest→newest) in lockstep order.
-    const flatPaths: string[] = []
-    const ordered = [...checkins].slice().reverse() // oldest first
-    for (const ci of ordered) {
-      for (const p of ci.photoPaths) flatPaths.push(p)
-    }
-    for (let i = 0; i < flatPaths.length && i < photos.length; i++) {
-      m.set(flatPaths[i], photos[i].url)
+    for (const p of photos) {
+      if (p.path && p.url) m.set(p.path, p.url)
     }
     return m
-  }, [checkins, photos])
+  }, [photos])
 
   // Build trend series from last 6 check-ins (oldest→newest)
   const last6 = checkins.slice(0, 6).reverse()

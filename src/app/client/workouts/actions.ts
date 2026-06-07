@@ -96,6 +96,45 @@ export async function getClientId(email: string): Promise<{ id: string; workspac
 
 export async function getTodayTemplate(clientId: string): Promise<TodayTemplate | null> {
   const admin = adminClient()
+
+  // Check for a date-specific override first
+  const todayDate = new Date()
+  const todayISO = `${todayDate.getUTCFullYear()}-${String(todayDate.getUTCMonth() + 1).padStart(2, '0')}-${String(todayDate.getUTCDate()).padStart(2, '0')}`
+  const { data: override } = await admin
+    .from('date_workout_overrides')
+    .select('template_day_id')
+    .eq('client_id', clientId)
+    .eq('assigned_date', todayISO)
+    .maybeSingle()
+
+  if (override !== undefined && override !== null) {
+    if (!override.template_day_id) return null // explicit rest day override
+    const { data: day } = await admin
+      .from('workout_template_days')
+      .select(`id, label, workout_templates(name), workout_template_exercises(exercises(name, muscle_group))`)
+      .eq('id', override.template_day_id)
+      .maybeSingle()
+    if (!day) return null
+    const tpl = day.workout_templates as unknown as { name: string } | null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const exRows = (day.workout_template_exercises as unknown as { exercises: any }[]) ?? []
+    const muscleSet = new Set<string>()
+    const names: string[] = []
+    for (const r of exRows) {
+      const ex = Array.isArray(r.exercises) ? r.exercises[0] : r.exercises
+      if (ex?.muscle_group) muscleSet.add(ex.muscle_group as string)
+      if (ex?.name) names.push(ex.name as string)
+    }
+    return {
+      templateDayId: day.id,
+      templateDayLabel: day.label,
+      templateName: tpl?.name ?? day.label,
+      exerciseCount: exRows.length,
+      muscleGroups: Array.from(muscleSet),
+      exerciseNames: names,
+    }
+  }
+
   const today = getTodayDayOfWeek()
 
   // Fetch active program with all program days (includes cyclic columns)

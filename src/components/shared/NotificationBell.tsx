@@ -17,6 +17,8 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
@@ -39,10 +41,6 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
     void loadNotifications()
 
     const supabase = createClient()
-    // Append a unique ID so each effect run creates a truly new channel entry.
-    // supabase/realtime-js ≥ 2.10 returns the *existing* channel when the name
-    // already exists (instead of creating a fresh one), which causes an error
-    // when .on('postgres_changes') is called on an already-subscribed channel.
     const channelName = `notifications-${recipientType}-${recipientId}-${crypto.randomUUID()}`
     const channel = supabase
       .channel(channelName)
@@ -72,19 +70,78 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [recipientType, recipientId, loadNotifications]) // router intentionally omitted - only used inside Realtime callback, not in setup/cleanup
+  }, [recipientType, recipientId, loadNotifications])
 
-  // Close dropdown on click-outside
+  // Close on click-outside
   useEffect(() => {
     if (!open) return
     function handleClick(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(e.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node)
+      ) {
         setOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
+
+  // Reposition on scroll / resize while open
+  useEffect(() => {
+    if (!open) return
+    function reposition() {
+      if (!buttonRef.current) return
+      const rect = buttonRef.current.getBoundingClientRect()
+      const panelWidth = 340
+      const margin = 8
+      const vw = window.innerWidth
+
+      if (vw <= 480) {
+        // mobile: handled purely by CSS
+        setPanelPos(null)
+        return
+      }
+
+      // Prefer aligning left edge of panel to left edge of button,
+      // but clamp so the panel never leaves the viewport.
+      let left = rect.left
+      if (left + panelWidth + margin > vw) {
+        left = vw - panelWidth - margin
+      }
+      if (left < margin) left = margin
+
+      setPanelPos({ top: rect.bottom + 8, left })
+    }
+    reposition()
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open])
+
+  function handleOpen() {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      const panelWidth = 340
+      const margin = 8
+      const vw = window.innerWidth
+
+      if (vw > 480) {
+        let left = rect.left
+        if (left + panelWidth + margin > vw) left = vw - panelWidth - margin
+        if (left < margin) left = margin
+        setPanelPos({ top: rect.bottom + 8, left })
+      } else {
+        setPanelPos(null)
+      }
+    }
+    setOpen((o) => !o)
+  }
 
   async function markRead(id: string) {
     const supabase = createClient()
@@ -107,210 +164,294 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
   }
 
   return (
-    <div style={{ position: 'relative', display: 'inline-flex' }} ref={panelRef}>
-      {/* Bell button */}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Notifications"
-        style={{
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 34,
-          height: 34,
-          borderRadius: 8,
-          border: 'none',
-          cursor: 'pointer',
-          backgroundColor: open ? 'var(--color-surface-3)' : 'transparent',
-          color: 'var(--color-text-muted)',
-          transition: 'background-color 0.15s',
-          flexShrink: 0,
-        }}
-        onMouseEnter={(e) => {
-          if (!open) e.currentTarget.style.backgroundColor = 'var(--color-surface-2)'
-        }}
-        onMouseLeave={(e) => {
-          if (!open) e.currentTarget.style.backgroundColor = 'transparent'
-        }}
-      >
-        <Bell size={17} />
-        {unreadCount > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 4,
-              right: 4,
-              minWidth: 16,
-              height: 16,
-              borderRadius: '9999px',
-              backgroundColor: '#ef4444',
-              color: '#fff',
-              fontSize: 10,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 3px',
-              lineHeight: 1,
-            }}
-          >
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
+    <>
+      <style>{`
+        .notif-bell-btn {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          border: 1px solid var(--color-border);
+          cursor: pointer;
+          background-color: var(--color-surface-2);
+          color: var(--color-text-primary);
+          transition: background-color 0.15s, border-color 0.15s;
+          flex-shrink: 0;
+        }
+        .notif-bell-btn:hover {
+          background-color: var(--color-surface-3);
+          border-color: var(--color-accent);
+        }
+        .notif-bell-btn.open {
+          background-color: var(--color-surface-3);
+          border-color: var(--color-accent);
+          color: var(--color-accent);
+        }
 
-      {/* Dropdown panel */}
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 8px)',
-            width: 320,
-            maxHeight: 420,
-            backgroundColor: 'var(--color-surface-1)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 12,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
-            zIndex: 1000,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
+        /* Desktop panel — positioned via inline style from JS */
+        .notif-panel {
+          position: fixed;
+          width: 340px;
+          max-height: 460px;
+          background-color: var(--color-surface-1);
+          border: 1px solid var(--color-border);
+          border-radius: 12px;
+          box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+          z-index: 9999;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        /* Mobile: fixed full-width from top */
+        @media (max-width: 480px) {
+          .notif-panel {
+            top: 60px !important;
+            left: 8px !important;
+            right: 8px;
+            width: auto;
+            max-height: calc(100dvh - 80px);
+            border-radius: 14px;
+          }
+        }
+
+        .notif-backdrop {
+          display: none;
+        }
+        @media (max-width: 480px) {
+          .notif-backdrop {
+            display: block;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 9998;
+          }
+        }
+
+        .notif-row {
+          width: 100%;
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 12px 16px;
+          background: none;
+          border: none;
+          border-bottom: 1px solid var(--color-border);
+          cursor: pointer;
+          text-align: left;
+          transition: background-color 0.1s;
+        }
+        .notif-row:hover {
+          background-color: var(--color-surface-2);
+        }
+        @media (max-width: 480px) {
+          .notif-row {
+            padding: 14px 16px;
+            min-height: 56px;
+          }
+        }
+      `}</style>
+
+      {/* Wrapper only needs relative for badge, not for panel positioning */}
+      <div style={{ position: 'relative', display: 'inline-flex' }}>
+        <button
+          ref={buttonRef}
+          suppressHydrationWarning
+          type="button"
+          onClick={handleOpen}
+          aria-label="Notifications"
+          className={`notif-bell-btn${open ? ' open' : ''}`}
         >
-          {/* Header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 16px',
-              borderBottom: '1px solid var(--color-border)',
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-              Notifications
+          <Bell size={18} />
+          {unreadCount > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: -5,
+                right: -5,
+                minWidth: 18,
+                height: 18,
+                borderRadius: '9999px',
+                backgroundColor: '#ef4444',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px',
+                lineHeight: 1,
+                boxShadow: '0 0 0 2px var(--color-surface-1)',
+              }}
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
             </span>
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={markAllRead}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  color: 'var(--color-accent)',
-                  fontWeight: 500,
-                  padding: 0,
-                }}
-              >
-                Mark all read
-              </button>
-            )}
-          </div>
+          )}
+        </button>
+      </div>
 
-          {/* List */}
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {loading ? (
-              <div
-                style={{
-                  padding: '32px 16px',
-                  textAlign: 'center',
-                  color: 'var(--color-text-hint)',
-                  fontSize: 13,
-                }}
-              >
-                Loading…
-              </div>
-            ) : notifications.length === 0 ? (
-              <div
-                style={{
-                  padding: '32px 16px',
-                  textAlign: 'center',
-                  color: 'var(--color-text-hint)',
-                  fontSize: 13,
-                }}
-              >
-                No notifications yet
-              </div>
-            ) : (
-              notifications.map((notif) => (
+      {/* Panel rendered outside overflow:hidden ancestors via fixed positioning */}
+      {open && (
+        <>
+          <div className="notif-backdrop" onClick={() => setOpen(false)} />
+          <div
+            ref={panelRef}
+            className="notif-panel"
+            style={panelPos ? { top: panelPos.top, left: panelPos.left } : {}}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                borderBottom: '1px solid var(--color-border)',
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                Notifications
+                {unreadCount > 0 && (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      backgroundColor: '#ef4444',
+                      color: '#fff',
+                      borderRadius: '9999px',
+                      padding: '1px 6px',
+                    }}
+                  >
+                    {unreadCount}
+                  </span>
+                )}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {unreadCount > 0 && (
+                  <button
+                    suppressHydrationWarning
+                    type="button"
+                    onClick={markAllRead}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      color: 'var(--color-accent)',
+                      fontWeight: 500,
+                      padding: 0,
+                    }}
+                  >
+                    Mark all read
+                  </button>
+                )}
                 <button
-                  key={notif.id}
+                  suppressHydrationWarning
                   type="button"
-                  onClick={() => handleRowClick(notif)}
+                  onClick={() => setOpen(false)}
+                  aria-label="Close notifications"
                   style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 10,
-                    padding: '12px 16px',
                     background: 'none',
                     border: 'none',
-                    borderBottom: '1px solid var(--color-border)',
                     cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'background-color 0.1s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--color-surface-2)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent'
+                    fontSize: 16,
+                    color: 'var(--color-text-muted)',
+                    padding: '0 2px',
+                    lineHeight: 1,
                   }}
                 >
-                  {/* Unread dot */}
-                  <div
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: '50%',
-                      backgroundColor: notif.read ? 'transparent' : 'var(--color-accent)',
-                      flexShrink: 0,
-                      marginTop: 5,
-                    }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* List */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {loading ? (
+                <div
+                  style={{
+                    padding: '32px 16px',
+                    textAlign: 'center',
+                    color: 'var(--color-text-hint)',
+                    fontSize: 13,
+                  }}
+                >
+                  Loading…
+                </div>
+              ) : notifications.length === 0 ? (
+                <div
+                  style={{
+                    padding: '40px 16px',
+                    textAlign: 'center',
+                    color: 'var(--color-text-hint)',
+                    fontSize: 13,
+                  }}
+                >
+                  No notifications yet
+                </div>
+              ) : (
+                notifications.map((notif) => (
+                  <button
+                    suppressHydrationWarning
+                    key={notif.id}
+                    type="button"
+                    onClick={() => handleRowClick(notif)}
+                    className="notif-row"
+                  >
                     <div
                       style={{
-                        fontSize: 13,
-                        fontWeight: notif.read ? 400 : 600,
-                        color: 'var(--color-text-primary)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: notif.read ? 'transparent' : 'var(--color-accent)',
+                        flexShrink: 0,
+                        marginTop: 5,
+                        border: notif.read ? '1.5px solid var(--color-border)' : 'none',
                       }}
-                    >
-                      {notif.title}
-                    </div>
-                    {notif.body && (
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
-                          fontSize: 12,
-                          color: 'var(--color-text-hint)',
-                          marginTop: 2,
+                          fontSize: 13,
+                          fontWeight: notif.read ? 400 : 600,
+                          color: 'var(--color-text-primary)',
+                          whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
                         }}
                       >
-                        {notif.body}
+                        {notif.title}
                       </div>
-                    )}
-                    <div style={{ fontSize: 11, color: 'var(--color-text-hint)', marginTop: 4 }}>
-                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true })}
+                      {notif.body && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: 'var(--color-text-hint)',
+                            marginTop: 2,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {notif.body}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, color: 'var(--color-text-hint)', marginTop: 4 }}>
+                        {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true })}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))
-            )}
+                  </button>
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
-    </div>
+    </>
   )
 }

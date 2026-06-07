@@ -2,9 +2,9 @@
 
 import { useState, useRef, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera } from 'lucide-react'
+import { Camera, Scale } from 'lucide-react'
 import type { ProgressData, WeightDataPoint } from './progress-actions'
-import { uploadStandalonePhoto } from './progress-actions'
+import { uploadStandalonePhoto, saveClientWeight } from './progress-actions'
 import { useLanguage, type Translations } from '@/lib/i18n'
 
 type FilterKey = '4W' | '8W' | '12W' | 'All'
@@ -165,6 +165,13 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
   const [uploadError, setUploadError]           = useState<string | null>(null)
   const uploadInputRef                          = useRef<HTMLInputElement>(null)
 
+  // Weight log modal state
+  const [showWeightModal, setShowWeightModal]   = useState(false)
+  const [weightDate, setWeightDate]             = useState(() => new Date().toISOString().split('T')[0])
+  const [weightValue, setWeightValue]           = useState('')
+  const [savingWeight, setSavingWeight]         = useState(false)
+  const [weightError, setWeightError]           = useState<string | null>(null)
+
   const { clientId, workspaceId, starting, current, unit, weekNum, goal, weightData, weekCards, photos } = data
 
   const change =
@@ -213,6 +220,30 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
       setUploadError(t.progress.uploadFailed)
     } finally {
       setUploading(false)
+    }
+  }
+
+  function closeWeightModal() {
+    if (savingWeight) return
+    setShowWeightModal(false)
+    setWeightValue('')
+    setWeightError(null)
+  }
+
+  async function handleSaveWeight() {
+    const w = parseFloat(weightValue)
+    if (!weightDate || isNaN(w) || w <= 0) return
+    setSavingWeight(true)
+    setWeightError(null)
+    try {
+      await saveClientWeight({ clientId, workspaceId, recordedDate: weightDate, weight: w })
+      setShowWeightModal(false)
+      setWeightValue('')
+      router.refresh()
+    } catch {
+      setWeightError(t.progress.saveFailed)
+    } finally {
+      setSavingWeight(false)
     }
   }
 
@@ -267,6 +298,27 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
                 {filter === 'All' ? t.progress.all : `${FILTER_COUNT[filter]} ${t.progress.week.toLowerCase()}`}
               </p>
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => { setWeightDate(new Date().toISOString().split('T')[0]); setShowWeightModal(true) }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-surface-2)',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Scale size={12} />
+                {t.progress.logWeight}
+              </button>
             <div style={{ display: 'flex', gap: 2, backgroundColor: 'var(--color-surface-3)', borderRadius: 999, padding: 3 }}>
               {FILTERS.map((f) => (
                 <button
@@ -288,6 +340,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
                   {f}
                 </button>
               ))}
+            </div>
             </div>
           </div>
           <WeightChart data={weightData} goal={goal} filter={filter} t={t} />
@@ -499,6 +552,117 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
                 }}
               >
                 {uploading ? t.progress.uploading : t.progress.uploadPhoto}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Log Weight modal */}
+      {showWeightModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.75)', padding: 24 }}
+          onClick={closeWeightModal}
+        >
+          <div
+            style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 360 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 20px' }}>
+              {t.progress.logWeightTitle}
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-hint)', display: 'block', marginBottom: 6 }}>
+                  {t.progress.date}
+                </label>
+                <input
+                  type="date"
+                  value={weightDate}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setWeightDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    fontSize: 14,
+                    borderRadius: 12,
+                    border: '1px solid var(--color-border)',
+                    backgroundColor: 'var(--color-surface-2)',
+                    color: 'var(--color-text-primary)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-hint)', display: 'block', marginBottom: 6 }}>
+                  {t.progress.weight} ({unit})
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  min="1"
+                  max="999"
+                  placeholder={t.progress.weightPlaceholder}
+                  value={weightValue}
+                  onChange={(e) => setWeightValue(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    fontSize: 14,
+                    borderRadius: 12,
+                    border: '1px solid var(--color-border)',
+                    backgroundColor: 'var(--color-surface-2)',
+                    color: 'var(--color-text-primary)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            {weightError && (
+              <p style={{ margin: '12px 0 0', fontSize: 13, color: '#ef4444' }}>{weightError}</p>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button
+                type="button"
+                onClick={closeWeightModal}
+                disabled={savingWeight}
+                style={{
+                  flex: 1,
+                  padding: '13px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  borderRadius: 12,
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-text-secondary)',
+                  cursor: savingWeight ? 'not-allowed' : 'pointer',
+                  opacity: savingWeight ? 0.5 : 1,
+                }}
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveWeight}
+                disabled={!weightValue || !weightDate || savingWeight}
+                style={{
+                  flex: 1,
+                  padding: '13px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  borderRadius: 12,
+                  border: 'none',
+                  backgroundColor: weightValue && weightDate && !savingWeight ? 'var(--color-accent)' : 'var(--color-surface-3)',
+                  color: weightValue && weightDate && !savingWeight ? '#fff' : 'var(--color-text-hint)',
+                  cursor: weightValue && weightDate && !savingWeight ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {savingWeight ? t.progress.saving : t.progress.logWeight}
               </button>
             </div>
           </div>

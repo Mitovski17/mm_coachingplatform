@@ -17,7 +17,7 @@ const ENERGY_SCORE: Record<string, number> = {
   high: 9,
 }
 
-export type WeightDataPoint = { week: number; w: number }
+export type WeightDataPoint = { week: number; w: number; date: string }
 
 export type WeekCard = {
   week: number
@@ -48,7 +48,7 @@ export type ProgressData = {
 export async function getProgressData(clientId: string): Promise<ProgressData> {
   const admin = adminClient()
 
-  const [clientResult, checkinsResult, standaloneResult] = await Promise.all([
+  const [clientResult, checkinsResult, standaloneResult, metricsResult] = await Promise.all([
     admin
       .from('clients')
       .select('workspace_id, desired_weight, desired_weight_unit, onboarding_completed_at')
@@ -63,19 +63,33 @@ export async function getProgressData(clientId: string): Promise<ProgressData> {
       .from('progress_photos')
       .select('storage_path, uploaded_at')
       .eq('client_id', clientId),
+    admin
+      .from('body_metrics')
+      .select('recorded_date, weight')
+      .eq('client_id', clientId)
+      .not('weight', 'is', null),
   ])
 
   const checkins = checkinsResult.data ?? []
   const client = clientResult.data
   const workspaceId = client?.workspace_id ?? ''
 
-  // Weight history
-  const weightCheckins = checkins.filter(
-    (c) => (c.answers as Record<string, unknown>)?.current_weight != null
-  )
-  const weightData: WeightDataPoint[] = weightCheckins.map((c, i) => ({
+  // Merge check-in weights and body_metrics — body_metrics wins on same date
+  const weightByDate = new Map<string, number>()
+  for (const c of checkins) {
+    const answers = c.answers as Record<string, unknown>
+    if (answers?.current_weight != null) {
+      weightByDate.set(c.week_start_date, Number(answers.current_weight))
+    }
+  }
+  for (const m of metricsResult.data ?? []) {
+    if (m.weight != null) weightByDate.set(m.recorded_date, Number(m.weight))
+  }
+  const sortedDates = Array.from(weightByDate.keys()).sort()
+  const weightData: WeightDataPoint[] = sortedDates.map((date, i) => ({
     week: i + 1,
-    w: Number((c.answers as Record<string, unknown>).current_weight),
+    w: weightByDate.get(date)!,
+    date,
   }))
 
   const starting = weightData.length > 0 ? weightData[0].w : null
@@ -178,4 +192,22 @@ export async function uploadStandalonePhoto(formData: FormData): Promise<void> {
     .insert({ workspace_id: workspaceId, client_id: clientId, storage_path: data.path })
 
   if (dbError) throw new Error(dbError.message)
+}
+
+export async function saveClientWeight(payload: {
+  clientId: string
+  workspaceId: string
+  recordedDate: string
+  weight: number
+}): Promise<void> {
+  const admin = adminClient()
+  const { error } = await admin
+    .from('body_metrics')
+    .insert({
+      client_id: payload.clientId,
+      workspace_id: payload.workspaceId,
+      recorded_date: payload.recordedDate,
+      weight: payload.weight,
+    })
+  if (error) throw new Error(error.message)
 }

@@ -145,6 +145,7 @@ export default function DashboardClient({
         <div className="coach-search-wrap" style={{ position: 'relative', flexShrink: 0 }}>
           <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-hint)', pointerEvents: 'none' }} />
           <input
+            suppressHydrationWarning
             type="text"
             placeholder="Search clients..."
             value={search}
@@ -200,6 +201,7 @@ export default function DashboardClient({
             Review
           </Link>
           <button
+            suppressHydrationWarning
             type="button"
             onClick={() => setAlertDismissed(true)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', padding: 2, flexShrink: 0 }}
@@ -228,6 +230,7 @@ export default function DashboardClient({
 
           return (
             <button
+              suppressHydrationWarning
               key={tab.key}
               type="button"
               onClick={() => setFilter(tab.key)}

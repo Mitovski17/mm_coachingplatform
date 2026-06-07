@@ -17,6 +17,7 @@ export type CheckinCard = {
   coachNotes: string | null
   answers: Record<string, unknown>
   prevAnswers: Record<string, unknown> | null
+  signedPhotoUrls: string[]
 }
 
 function weekBounds(): { currentWeek: string; prevWeek: string } {
@@ -99,11 +100,35 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
   const clientMap = new Map(clients.map((c) => [c.id, c.full_name]))
   const prevMap = new Map(prevCheckins.map((ci) => [ci.client_id, ci.answers]))
 
+  // Collect all photo paths to batch-generate signed URLs
+  const allPhotoPaths: string[] = []
+  for (const ci of currentCheckins) {
+    const photos = Array.isArray(ci.answers?.progress_photo) ? ci.answers.progress_photo as string[] : []
+    allPhotoPaths.push(...photos)
+  }
+
+  // Match signed URLs by index — entry.path can be null in some Supabase client versions
+  let signedUrls: string[] = []
+  if (allPhotoPaths.length > 0) {
+    const { data: signedData } = await svc.storage
+      .from('progress-photos')
+      .createSignedUrls(allPhotoPaths, 3600)
+    signedUrls = (signedData ?? []).map((item) => item.signedUrl ?? '')
+  }
+
+  // Build path → signed URL map using the preserved index order
+  const signedUrlMap = new Map<string, string>()
+  allPhotoPaths.forEach((path, i) => {
+    const url = signedUrls[i]
+    if (url) signedUrlMap.set(path, url)
+  })
+
   const cards: CheckinCard[] = []
   const seen = new Set<string>()
   for (const ci of currentCheckins) {
     if (seen.has(ci.client_id)) continue
     seen.add(ci.client_id)
+    const photoPaths = Array.isArray(ci.answers?.progress_photo) ? ci.answers.progress_photo as string[] : []
     cards.push({
       clientId: ci.client_id,
       clientName: clientMap.get(ci.client_id) ?? 'Unknown client',
@@ -114,6 +139,7 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
       coachNotes: ci.coach_notes,
       answers: ci.answers,
       prevAnswers: prevMap.get(ci.client_id) ?? null,
+      signedPhotoUrls: photoPaths.map(p => signedUrlMap.get(p) ?? '').filter(Boolean),
     })
   }
 
@@ -122,10 +148,5 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
 
 export default async function CheckInsPage() {
   const cards = await fetchData()
-  return (
-    <CheckInsClient
-      cards={cards}
-      supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
-    />
-  )
+  return <CheckInsClient cards={cards} />
 }

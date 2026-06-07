@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache'
-import { getCurrentClient, getActiveMealPlan, getDayLogs } from './actions'
+import { getCurrentClient, getActiveMealPlan, getDateMealOverride, getDayLogs } from './actions'
 import { getTodayTemplate } from '../workouts/actions'
 import NutritionClient from './NutritionClient'
 
@@ -32,21 +32,25 @@ export default async function ClientNutritionPage() {
     )
   }
 
-  const [mealPlanTraining, mealPlanRest, mealPlanOverall, todayLogs, todayTemplate] = await Promise.all([
+  const [mealPlanTraining, mealPlanRest, mealPlanOverall, todayLogs, todayTemplate, dateOverride] = await Promise.all([
     getCachedMealPlan(client.id, 'training'),
     getCachedMealPlan(client.id, 'rest'),
     getCachedMealPlan(client.id, 'overall'),
     getDayLogs(client.id, today),
     getTodayTemplate(client.id),
+    getDateMealOverride(client.id, today),
   ])
 
-  // Fall back to the overall plan when no day-specific plan is assigned
+  // Date override takes precedence over the regular training/rest plan assignment
+  const effectiveTraining = dateOverride ?? mealPlanTraining ?? mealPlanOverall
+  const effectiveRest = dateOverride ?? mealPlanRest ?? mealPlanOverall
+
   return (
     <NutritionClient
       initialClientId={client.id}
       initialWorkspaceId={client.workspaceId}
-      initialMealPlanTraining={mealPlanTraining ?? mealPlanOverall}
-      initialMealPlanRest={mealPlanRest ?? mealPlanOverall}
+      initialMealPlanTraining={effectiveTraining}
+      initialMealPlanRest={effectiveRest}
       initialDayLogs={todayLogs}
       initialPlanType={todayTemplate ? 'training' : 'rest'}
       initialDate={today}

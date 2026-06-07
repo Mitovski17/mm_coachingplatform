@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { House, Dumbbell, Apple, User } from 'lucide-react'
 import ClientNotificationBell from '@/components/client/ClientNotificationBell'
+import WorkoutFloatingWidget from '@/components/client/WorkoutFloatingWidget'
+import { WorkoutSessionProvider } from '@/lib/WorkoutSessionContext'
 import { useLanguage } from '@/lib/i18n'
 
-export default function ClientShell({ children }: { children: React.ReactNode }) {
+function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { t } = useLanguage()
 
@@ -19,6 +21,7 @@ export default function ClientShell({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-base)' }}>
+      <WorkoutFloatingWidget />
       <header
         className="fixed top-0 left-0 right-0 flex items-center justify-between"
         style={{
@@ -85,5 +88,13 @@ export default function ClientShell({ children }: { children: React.ReactNode })
         })}
       </nav>
     </div>
+  )
+}
+
+export default function ClientShell({ children }: { children: React.ReactNode }) {
+  return (
+    <WorkoutSessionProvider>
+      <Shell>{children}</Shell>
+    </WorkoutSessionProvider>
   )
 }

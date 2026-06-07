@@ -137,6 +137,24 @@ export default function ClientDetailClient(props: Props) {
         </h1>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <Link
+            href={`/coach/clients/${profile.id}/schedule`}
+            style={{
+              padding:         '8px 16px',
+              fontSize:        13,
+              fontWeight:      600,
+              color:           'var(--color-text-primary)',
+              backgroundColor: 'transparent',
+              border:          '1px solid var(--color-border)',
+              borderRadius:    8,
+              cursor:          'pointer',
+              textDecoration:  'none',
+              display:         'inline-flex',
+              alignItems:      'center',
+            }}
+          >
+            Date overrides
+          </Link>
+          <Link
             href={`/coach/messages/${profile.id}`}
             style={{
               padding:         '8px 16px',

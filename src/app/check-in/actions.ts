@@ -65,7 +65,6 @@ const DEFAULT_QUESTIONS: Question[] = [
       { value: 'high',      label: 'Energetic',      emoji: '🔋' },
     ],
   },
-  { id: 'biggest_win',       label: 'What was your biggest win this week?',   type: 'text' },
   { id: 'biggest_challenge', label: 'What was your biggest challenge?',        type: 'text' },
   { id: 'schedule_changes',  label: 'Any upcoming schedule changes?',          type: 'text',  optional: true },
   { id: 'anything_else',     label: 'Anything else for your coach?',           type: 'text',  optional: true },
@@ -100,7 +99,28 @@ export async function ensureDefaultTemplate(workspaceId: string): Promise<Checki
     .limit(1)
     .maybeSingle()
 
-  if (existing) return existing as CheckinTemplate
+  if (existing) {
+    const existingQ = existing.questions as Question[]
+    const existingIds = new Set(existingQ.map((q) => q.id))
+    const missingQuestions = DEFAULT_QUESTIONS.filter((q) => !existingIds.has(q.id))
+
+    if (missingQuestions.length > 0) {
+      // Insert missing questions before the photo question (always last)
+      const photoIdx = existingQ.findIndex((q) => q.id === 'progress_photo')
+      const merged = photoIdx >= 0
+        ? [...existingQ.slice(0, photoIdx), ...missingQuestions, ...existingQ.slice(photoIdx)]
+        : [...existingQ, ...missingQuestions]
+
+      await admin
+        .from('checkin_templates')
+        .update({ questions: merged })
+        .eq('id', existing.id)
+
+      return { ...existing, questions: merged } as CheckinTemplate
+    }
+
+    return existing as CheckinTemplate
+  }
 
   const { data: created, error } = await admin
     .from('checkin_templates')

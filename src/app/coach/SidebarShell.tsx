@@ -181,6 +181,7 @@ export default function SidebarShell({
           }}
         >
           <button
+            suppressHydrationWarning
             type="button"
             onClick={toggle}
             style={{
@@ -516,6 +517,7 @@ export default function SidebarShell({
 
         {/* ── "More" button ── */}
         <button
+          suppressHydrationWarning
           type="button"
           onClick={() => setMoreOpen((v) => !v)}
           style={{

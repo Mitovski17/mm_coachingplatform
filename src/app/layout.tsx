@@ -47,24 +47,8 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        {process.env.NODE_ENV === 'development' && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                    for (var i = 0; i < registrations.length; i++) {
-                      registrations[i].unregister();
-                    }
-                  });
-                }
-              `,
-            }}
-          />
-        )}
-      </head>
-      <body className="min-h-full flex flex-col">
+      <head />
+      <body suppressHydrationWarning className="min-h-full flex flex-col">
         <ThemeProvider>
           {children}
         </ThemeProvider>

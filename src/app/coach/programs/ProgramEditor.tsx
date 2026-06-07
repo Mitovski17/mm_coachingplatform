@@ -186,7 +186,7 @@ export default function ProgramEditor({
   }
 
   return (
-    <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-3xl pb-32">
+    <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-4xl pb-32">
       {/* Back link */}
       <Link
         href="/coach/programs"
@@ -198,8 +198,8 @@ export default function ProgramEditor({
       </Link>
 
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
+      <div className="mb-4">
+        <h1 className="text-xl" style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>
           {initialData ? initialData.name : 'New Program'}
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
@@ -209,117 +209,121 @@ export default function ProgramEditor({
         </p>
       </div>
 
-      {/* Program name */}
-      <div className="mb-4">
-        <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
-          Program name
-        </label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Hypertrophy Block 1"
-          className="w-full text-base"
-          style={inputStyle()}
-        />
-      </div>
-
-      {/* Client */}
-      <div className="mb-4">
-        <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
-          Client
-        </label>
-        <select
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          className="w-full text-sm"
-          style={inputStyle()}
-        >
-          <option value="">— Select client —</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} · {c.email}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Active toggle */}
-      <div className="mb-8 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setIsActive((v) => !v)}
-          aria-pressed={isActive}
-          className="relative"
-          style={{
-            width: 38,
-            height: 22,
-            borderRadius: 9999,
-            backgroundColor: isActive ? 'var(--color-accent)' : 'var(--color-surface-3)',
-            border: '1px solid var(--color-border)',
-            cursor: 'pointer',
-            transition: 'background-color 0.15s ease',
-          }}
-        >
-          <span
-            style={{
-              position: 'absolute',
-              top: 2,
-              left: isActive ? 18 : 2,
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              backgroundColor: '#fff',
-              transition: 'left 0.15s ease',
-              display: 'block',
-            }}
+      {/* Program name + Client in a 2-col row */}
+      <div className="mb-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <label className="block text-xs mb-1" style={{ color: 'var(--color-text-hint)' }}>
+            Program name
+          </label>
+          <input
+            suppressHydrationWarning
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Hypertrophy Block 1"
+            className="w-full text-sm"
+            style={inputStyle()}
           />
-        </button>
-        <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-          Program is active
-        </span>
+        </div>
+        <div>
+          <label className="block text-xs mb-1" style={{ color: 'var(--color-text-hint)' }}>
+            Client
+          </label>
+          <select
+            suppressHydrationWarning
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            className="w-full text-sm"
+            style={inputStyle()}
+          >
+            <option value="">— Select client —</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} · {c.email}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Schedule type toggle */}
-      <div className="mb-4">
-        <label className="block text-xs mb-1.5" style={{ color: 'var(--color-text-hint)' }}>
-          Schedule type
-        </label>
-        <div
-          className="inline-flex gap-1 p-1"
-          style={{
-            backgroundColor: 'var(--color-surface-2)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-          }}
-        >
-          {(['weekly', 'cyclic'] as const).map((type) => {
-            const active = scheduleType === type
-            return (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setScheduleType(type)}
-                className="px-3 py-1.5 text-sm font-medium transition-colors"
-                style={{
-                  backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
-                  color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                  borderRadius: 'calc(var(--radius-md) - 2px)',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                {type === 'weekly' ? 'Weekly' : 'Cyclic'}
-              </button>
-            )
-          })}
+      {/* Active toggle + Schedule type on the same row */}
+      <div className="mb-4 flex items-center gap-6 flex-wrap">
+        <div className="flex items-center gap-2.5">
+          <button
+            suppressHydrationWarning
+            type="button"
+            onClick={() => setIsActive((v) => !v)}
+            aria-pressed={isActive}
+            className="relative"
+            style={{
+              width: 34,
+              height: 20,
+              borderRadius: 9999,
+              backgroundColor: isActive ? 'var(--color-accent)' : 'var(--color-surface-3)',
+              border: '1px solid var(--color-border)',
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease',
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                position: 'absolute',
+                top: 2,
+                left: isActive ? 16 : 2,
+                width: 14,
+                height: 14,
+                borderRadius: '50%',
+                backgroundColor: '#fff',
+                transition: 'left 0.15s ease',
+                display: 'block',
+              }}
+            />
+          </button>
+          <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            Active
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs" style={{ color: 'var(--color-text-hint)' }}>Schedule:</span>
+          <div
+            className="inline-flex gap-1 p-0.5"
+            style={{
+              backgroundColor: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+            }}
+          >
+            {(['weekly', 'cyclic'] as const).map((type) => {
+              const active = scheduleType === type
+              return (
+                <button
+                  key={type}
+                  suppressHydrationWarning
+                  type="button"
+                  onClick={() => setScheduleType(type)}
+                  className="px-3 py-1 text-sm font-medium transition-colors"
+                  style={{
+                    backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    borderRadius: 'calc(var(--radius-md) - 2px)',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {type === 'weekly' ? 'Weekly' : 'Cyclic'}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
       {/* ── Weekly schedule ─────────────────────────────────────────────────── */}
       {scheduleType === 'weekly' && (
         <>
-          <h2 className="text-base mb-3" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
+          <h2 className="text-sm mb-2" style={{ color: 'var(--color-text-hint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Weekly Schedule
           </h2>
           <div
@@ -344,20 +348,21 @@ export default function ProgramEditor({
                   key={i}
                   style={{
                     borderBottom: i < DAY_NAMES.length - 1 ? '1px solid var(--color-border)' : 'none',
-                    padding: '12px 20px',
+                    padding: '7px 16px',
                     display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 16,
+                    alignItems: 'center',
+                    gap: 12,
                   }}
                 >
-                  <div style={{ width: 110, flexShrink: 0, paddingTop: 9 }}>
-                    <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                  <div style={{ width: 96, flexShrink: 0 }}>
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)', margin: 0 }}>
                       {label}
                     </p>
                   </div>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {/* Step 1: pick template */}
                     <select
+                      suppressHydrationWarning
                       value={resolvedTemplateId}
                       onChange={(e) => {
                         const tplId = e.target.value
@@ -398,6 +403,7 @@ export default function ProgramEditor({
                     {/* Step 2: pick specific day (only for multi-day templates) */}
                     {resolvedTemplate && resolvedTemplate.days.length > 1 && (
                       <select
+                        suppressHydrationWarning
                         value={assignedDayId ?? ''}
                         onChange={(e) => {
                           const dayId = e.target.value || null
@@ -446,6 +452,7 @@ export default function ProgramEditor({
               Cycle start date
             </label>
             <input
+              suppressHydrationWarning
               type="date"
               value={cycleStartDate}
               onChange={(e) => setCycleStartDate(e.target.value)}
@@ -481,20 +488,21 @@ export default function ProgramEditor({
                     key={position}
                     style={{
                       borderBottom: position < cycleDays.length - 1 ? '1px solid var(--color-border)' : 'none',
-                      padding: '12px 20px',
+                      padding: '7px 16px',
                       display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 16,
+                      alignItems: 'center',
+                      gap: 12,
                     }}
                   >
-                    <div style={{ width: 60, flexShrink: 0, paddingTop: 9 }}>
-                      <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                    <div style={{ width: 60, flexShrink: 0 }}>
+                      <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)', margin: 0 }}>
                         Day {position + 1}
                       </p>
                     </div>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {/* Step 1: pick template */}
                       <select
+                        suppressHydrationWarning
                         value={resolvedTemplateId}
                         onChange={(e) => {
                           const tplId = e.target.value
@@ -535,6 +543,7 @@ export default function ProgramEditor({
                       {/* Step 2: pick specific day (only for multi-day templates) */}
                       {resolvedTemplate && resolvedTemplate.days.length > 1 && (
                         <select
+                          suppressHydrationWarning
                           value={assignedDayId ?? ''}
                           onChange={(e) => {
                             const dayId = e.target.value || null
@@ -571,7 +580,6 @@ export default function ProgramEditor({
                       style={{
                         width: 30,
                         height: 30,
-                        marginTop: 6,
                         color: '#ef4444',
                         backgroundColor: 'transparent',
                         border: '1px solid var(--color-border)',

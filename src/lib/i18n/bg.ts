@@ -300,6 +300,14 @@ export const bg: Translations = {
     last12Weeks: '12 седм.',
     all: 'Всички',
     photoUploaded: 'Снимката е качена',
+    logWeight: 'Добави тегло',
+    logWeightTitle: 'Добави минало тегло',
+    date: 'Дата',
+    weight: 'Тегло',
+    weightPlaceholder: 'напр. 82.5',
+    saving: 'Запазване…',
+    saveFailed: 'Грешка при запазване',
+    weightSaved: 'Теглото е запазено',
   },
 
   messages: {

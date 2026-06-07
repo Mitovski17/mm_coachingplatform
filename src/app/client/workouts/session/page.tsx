@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -15,37 +15,8 @@ import {
   type LibraryExercise,
 } from '../actions'
 import { useLanguage, type Translations } from '@/lib/i18n'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type SetRow = {
-  setNumber: number
-  weightKg: string
-  reps: string
-  done: boolean
-}
-
-type ExerciseState = {
-  exerciseId: string
-  exerciseName: string
-  muscleGroup: string
-  targetSets: number
-  targetReps: string
-  restSeconds: number
-  notes: string | null
-  previousSets: Array<{ weightKg: number; reps: number }>
-  currentSets: SetRow[]
-  overloadIndicator: 'up' | 'down' | 'same' | null
-}
-
-type RestTimer = {
-  active: boolean
-  secondsLeft: number
-  totalSeconds: number
-  exerciseId: string | null
-}
-
-type ModalState = { title: string; body: string; onConfirm: () => void }
+import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
+import type { SetRow, ExerciseState, RestTimer } from '@/lib/workout-session-types'
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
@@ -59,10 +30,10 @@ function parseI(v: string): number | null { const n = parseInt(v, 10); return v.
 const MUSCLE_COLORS: Record<string, string> = {
   chest: '#ef4444', back: '#3b82f6', shoulders: '#f59e0b', core: '#06b6d4', cardio: '#ec4899',
   biceps: '#ef4444', triceps: '#f97316',
-  arms: '#f59e0b',      // fallback for un-migrated broad "arms" entries
+  arms: '#f59e0b',
   quads: '#14b8a6', hamstrings: '#10b981', glutes: '#ec4899', calves: '#84cc16',
   abductors: '#8b5cf6', adductors: '#d946ef',
-  legs: '#7c3aed',      // fallback for any remaining broad "legs" entries
+  legs: '#7c3aed',
 }
 
 const MUSCLE_GROUP_ORDER = [
@@ -72,6 +43,8 @@ const MUSCLE_GROUP_ORDER = [
 ]
 
 // ─── Confirm modal ────────────────────────────────────────────────────────────
+
+type ModalState = { title: string; body: string; onConfirm: () => void }
 
 function ConfirmModal({ modal, onClose, t }: { modal: ModalState; onClose: () => void; t: Translations }) {
   return (
@@ -172,7 +145,6 @@ function ExercisePicker({
           flexDirection: 'column',
         }}
       >
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0 }}>
           <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
             {t.workouts.addExercise}
@@ -186,7 +158,6 @@ function ExercisePicker({
           </button>
         </div>
 
-        {/* Search */}
         <input
           type="text"
           value={search}
@@ -203,7 +174,6 @@ function ExercisePicker({
           }}
         />
 
-        {/* Exercise list */}
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {grouped.length === 0 ? (
             <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 14, padding: '24px 0' }}>
@@ -279,35 +249,32 @@ function SessionInner() {
   const templateDayId = params.get('templateDayId') ?? ''
   const templateNameParam = params.get('templateName') ?? ''
 
-  const [loading,       setLoading]   = useState(true)
-  const [loadError,     setError]     = useState<string | null>(null)
-  const [clientInfo,    setClient]    = useState<{ id: string; workspace_id: string } | null>(null)
-  const [templateName,  setTName]     = useState(isCustom ? t.workouts.createCustom : templateNameParam)
-  const [exercises,     setExercises] = useState<ExerciseState[]>([])
-  const [sessionNotes,  setNotes]     = useState('')
-  const [saving,        setSaving]    = useState(false)
-  const [modal,         setModal]     = useState<ModalState | null>(null)
-  const [quitHover,     setQuitHover] = useState(false)
+  // Persistent session state via context
+  const { session, elapsed, startSession, setExercises, setNotes, setRest, endSession } = useWorkoutSession()
+
+  // Derived from context session
+  const exercises    = session?.exercises    ?? []
+  const sessionNotes = session?.sessionNotes ?? ''
+  const rest         = session?.rest ?? { active: false, secondsLeft: 0, totalSeconds: 0, exerciseId: null, startedAt: null }
+
+  const [loading,   setLoading] = useState(true)
+  const [loadError, setError]   = useState<string | null>(null)
+  const [saving,    setSaving]  = useState(false)
+  const [modal,     setModal]   = useState<ModalState | null>(null)
+  const [quitHover, setQuitHover] = useState(false)
 
   // Custom mode: exercise library + picker state
-  const [exerciseLibrary,   setExerciseLibrary]   = useState<LibraryExercise[]>([])
-  const [pickerOpen,        setPickerOpen]         = useState(false)
-
-  const startRef = useRef<Date>(new Date())
-  const [elapsed, setElapsed] = useState(0)
-
-  const [rest, setRest] = useState<RestTimer>({ active: false, secondsLeft: 0, totalSeconds: 0, exerciseId: null })
+  const [exerciseLibrary, setExerciseLibrary] = useState<LibraryExercise[]>([])
+  const [pickerOpen,      setPickerOpen]      = useState(false)
 
   // ── Load ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
-    // Reset to a clean loading state on every run so a stale error never
-    // blocks a valid re-run (e.g. when useSearchParams resolves late).
     setLoading(true)
     setError(null)
+
     async function init() {
       try {
-        // Get email from cookie (dev) or supabase auth
         let email: string | null = null
         const mc = document.cookie.split('; ').find((r) => r.startsWith('dev_mock_email='))?.split('=')[1]
         if (mc) email = decodeURIComponent(mc)
@@ -322,31 +289,60 @@ function SessionInner() {
         if (!client) { router.replace('/client'); return }
         if (cancelled) return
 
-        setClient(client)
+        // Check if we can restore an existing in-progress session
+        const existingSession = session  // snapshot from context
+        const isRestorable = existingSession && (
+          (isCustom && existingSession.isCustom) ||
+          (!isCustom && existingSession.templateDayId === templateDayId)
+        )
 
+        if (isRestorable) {
+          // Restore from context — still load library for custom mode
+          if (isCustom) {
+            const library = await getExerciseLibraryForClient(client.workspace_id)
+            if (!cancelled) setExerciseLibrary(library)
+          }
+          if (!cancelled) setLoading(false)
+          return
+        }
+
+        // No restorable session — load fresh from server
         if (isCustom) {
-          // Custom mode: load exercise library, start with empty exercises
-          setTName(t.workouts.createCustom)
           const library = await getExerciseLibraryForClient(client.workspace_id)
           if (!cancelled) {
             setExerciseLibrary(library)
-            setExercises([])
+            startSession({
+              templateDayId: '',
+              isCustom: true,
+              templateName: t.workouts.createCustom,
+              clientInfo: client,
+              exercises: [],
+              sessionNotes: '',
+              startTime: new Date().toISOString(),
+              rest: { active: false, secondsLeft: 0, totalSeconds: 0, exerciseId: null, startedAt: null },
+            })
             setLoading(false)
           }
           return
         }
 
-        // Template mode
         if (!templateDayId) throw new Error('Missing templateDayId')
-        const templatePromise = getTemplateDayWithExercises(templateDayId)
         const [template, last] = await Promise.all([
-          templatePromise,
+          getTemplateDayWithExercises(templateDayId),
           getLastSessionForTemplateDay(client.id, templateDayId),
         ])
         if (cancelled) return
 
-        setTName(template.name)
-        setExercises(buildStates(template.exercises, last))
+        startSession({
+          templateDayId,
+          isCustom: false,
+          templateName: template.name,
+          clientInfo: client,
+          exercises: buildStates(template.exercises, last),
+          sessionNotes: '',
+          startTime: new Date().toISOString(),
+          rest: { active: false, secondsLeft: 0, totalSeconds: 0, exerciseId: null, startedAt: null },
+        })
         setLoading(false)
       } catch (e) {
         if (!cancelled) { setError(e instanceof Error ? e.message : 'Failed to load'); setLoading(false) }
@@ -357,45 +353,25 @@ function SessionInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCustom, templateDayId])
 
-  // ── Elapsed timer ────────────────────────────────────────────────────────
-  useEffect(() => {
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current.getTime()) / 1000)), 1000)
-    return () => clearInterval(id)
-  }, [])
-
-  // ── Rest timer ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!rest.active) return
-    const id = setInterval(() => {
-      setRest((r) => {
-        if (!r.active) return r
-        if (r.secondsLeft <= 1) {
-          try { navigator.vibrate?.([300, 100, 300]) } catch { /* ok */ }
-          return { ...r, active: false, secondsLeft: 0 }
-        }
-        return { ...r, secondsLeft: r.secondsLeft - 1 }
-      })
-    }, 1000)
-    return () => clearInterval(id)
-  }, [rest.active])
-
   // ── Mutators ─────────────────────────────────────────────────────────────
   const updateSet = useCallback((exerciseId: string, setNumber: number, patch: Partial<SetRow>) => {
     setExercises((prev) => prev.map((ex) => {
       if (ex.exerciseId !== exerciseId) return ex
       return { ...ex, currentSets: ex.currentSets.map((s) => s.setNumber === setNumber ? { ...s, ...patch } : s) }
     }))
-  }, [])
+  }, [setExercises])
 
   const toggleSetDone = useCallback((exerciseId: string, setNumber: number) => {
     setExercises((prev) => prev.map((ex) => {
       if (ex.exerciseId !== exerciseId) return ex
       const wasDone = ex.currentSets.find((s) => s.setNumber === setNumber)?.done ?? false
       const newSets = ex.currentSets.map((s) => s.setNumber === setNumber ? { ...s, done: !s.done } : s)
-      if (!wasDone) setRest({ active: true, secondsLeft: ex.restSeconds, totalSeconds: ex.restSeconds, exerciseId })
+      if (!wasDone) {
+        setRest({ active: true, secondsLeft: ex.restSeconds, totalSeconds: ex.restSeconds, exerciseId, startedAt: new Date().toISOString() })
+      }
       return { ...ex, currentSets: newSets, overloadIndicator: computeOverload(newSets, ex.previousSets) }
     }))
-  }, [])
+  }, [setExercises, setRest])
 
   const addSet = useCallback((exerciseId: string) => {
     setExercises((prev) => prev.map((ex) => {
@@ -411,7 +387,7 @@ function SessionInner() {
         }],
       }
     }))
-  }, [])
+  }, [setExercises])
 
   const deleteSet = useCallback((exerciseId: string, setNumber: number) => {
     setExercises((prev) => prev.map((ex) => {
@@ -420,7 +396,7 @@ function SessionInner() {
       const renumbered = filtered.map((s, i) => ({ ...s, setNumber: i + 1 }))
       return { ...ex, currentSets: renumbered }
     }))
-  }, [])
+  }, [setExercises])
 
   // ── Add exercise from library (custom mode) ───────────────────────────────
   const addExerciseFromLibrary = useCallback((ex: LibraryExercise) => {
@@ -441,7 +417,7 @@ function SessionInner() {
       overloadIndicator: null,
     }
     setExercises((prev) => [...prev, newState])
-  }, [])
+  }, [setExercises])
 
   // ── Progress ─────────────────────────────────────────────────────────────
   const completedExercises = useMemo(() =>
@@ -451,16 +427,16 @@ function SessionInner() {
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const handleSaveSession = async () => {
-    if (!clientInfo) return
+    if (!session?.clientInfo) return
     setSaving(true)
     try {
       await saveWorkoutSession({
-        clientId: clientInfo.id,
-        workspaceId: clientInfo.workspace_id,
+        clientId: session.clientInfo.id,
+        workspaceId: session.clientInfo.workspace_id,
         templateDayId: isCustom ? null : (templateDayId || null),
-        templateName,
+        templateName: session.templateName,
         notes: sessionNotes,
-        durationMinutes: Math.max(1, Math.round((Date.now() - startRef.current.getTime()) / 60000)),
+        durationMinutes: Math.max(1, Math.round((Date.now() - new Date(session.startTime).getTime()) / 60000)),
         performedAt: new Date().toISOString(),
         exercises: exercises.map((ex) => ({
           exerciseId: ex.exerciseId,
@@ -469,6 +445,7 @@ function SessionInner() {
           })),
         })),
       })
+      endSession()
       router.push('/client/workouts')
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save')
@@ -478,7 +455,7 @@ function SessionInner() {
 
   // ── Finish click ──────────────────────────────────────────────────────────
   const handleFinishClick = () => {
-    if (!clientInfo) return
+    if (!session?.clientInfo) return
     const totalSets = exercises.reduce((a, ex) => a + ex.currentSets.length, 0)
     const completedSets = exercises.reduce((a, ex) => a + ex.currentSets.filter((s) => s.done).length, 0)
 
@@ -506,6 +483,7 @@ function SessionInner() {
   if (loading)   return <Spinner />
   if (loadError) return <div style={{ padding: 24, color: '#ef4444', fontSize: 14, textAlign: 'center' }}>{loadError}</div>
 
+  const templateName = session?.templateName ?? templateNameParam
   const progPct = exercises.length > 0 ? (completedExercises / exercises.length) * 100 : 0
 
   return (
@@ -522,7 +500,7 @@ function SessionInner() {
             onClick={() => setModal({
               title: t.workouts.discardConfirm,
               body: t.workouts.discardConfirmSub,
-              onConfirm: () => router.push('/client/workouts'),
+              onConfirm: () => { endSession(); router.push('/client/workouts') },
             })}
             style={{
               width: 36, height: 36, borderRadius: 10, flexShrink: 0,

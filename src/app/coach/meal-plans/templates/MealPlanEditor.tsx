@@ -406,10 +406,34 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   }
 
   return (
-    <div style={{ maxWidth: 920, padding: '0 24px 48px' }}>
+    <>
+    <style>{`
+      @media (max-width: 640px) {
+        .mpe-container { padding: 0 12px 48px !important; }
+        .mpe-header { flex-direction: column !important; gap: 12px !important; }
+        .mpe-header-actions { margin-top: 0 !important; width: 100% !important; justify-content: flex-end !important; }
+        .mpe-name-type { grid-template-columns: 1fr !important; }
+        .mpe-macro-cards { grid-template-columns: repeat(2, 1fr) !important; }
+        .mpe-notes { grid-template-columns: 1fr !important; }
+        .mpe-meal-header { flex-wrap: wrap !important; gap: 8px !important; padding: 10px 12px !important; }
+        .mpe-meal-header-left { gap: 8px !important; flex-wrap: wrap !important; }
+        .mpe-meal-macros { margin-left: 0 !important; }
+        .mpe-meal-controls { flex-shrink: 0; }
+        .mpe-food-header { grid-template-columns: 1fr 110px 28px !important; padding: 7px 12px !important; gap: 4px !important; }
+        .mpe-food-row { grid-template-columns: 1fr 110px 28px !important; padding: 8px 12px !important; gap: 4px !important; }
+        .mpe-food-col-hide { display: none !important; }
+        .mpe-food-search-row { padding: 10px 12px !important; }
+        .mpe-food-addbtn { padding: 11px 12px !important; }
+        .mpe-option-tabs { padding: 8px 12px !important; }
+        .mpe-search-results button { padding: 9px 12px !important; }
+        .mpe-manual-entry { padding: 14px 12px !important; }
+        .mpe-plan-toggle button { padding: 6px 10px !important; font-size: 12px !important; }
+      }
+    `}</style>
+    <div className="mpe-container" style={{ maxWidth: 920, padding: '0 24px 48px' }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingTop: 28, paddingBottom: 20, borderBottom: '1px solid #1e1e1e', marginBottom: 20 }}>
+      <div className="mpe-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingTop: 28, paddingBottom: 20, borderBottom: '1px solid #1e1e1e', marginBottom: 20 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <Link
@@ -431,7 +455,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           </h1>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 4, flexShrink: 0 }}>
+        <div className="mpe-header-actions" style={{ display: 'flex', gap: 8, marginTop: 4, flexShrink: 0 }}>
           <Link
             href="/coach/meal-plans"
             style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, border: '1px solid #2a2a2a', color: '#888', textDecoration: 'none' }}
@@ -546,7 +570,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
       )}
 
       {/* ── Template name + Plan type ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'end', marginBottom: 24 }}>
+      <div className="mpe-name-type" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'end', marginBottom: 24 }}>
         <div>
           <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#555', marginBottom: 6, fontWeight: 600 }}>
             Template name
@@ -569,7 +593,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
 
       {/* ── Macro stat cards ── */}
       {meals.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 28 }}>
+        <div className="mpe-macro-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 28 }}>
           <MacroStatCard label="CALORIES" value={planTotals.calories} unit="kcal" color="#fff" dot="#fff" />
           <MacroStatCard label="PROTEIN" value={planTotals.proteinG} unit="g" color={COLOR_PROTEIN} dot={COLOR_PROTEIN} />
           <MacroStatCard label="CARBS" value={planTotals.carbsG} unit="g" color={COLOR_CARBS} dot={COLOR_CARBS} />
@@ -616,7 +640,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
       </div>
 
       {/* ── Notes & Recommendations ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 28 }}>
+      <div className="mpe-notes" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 28 }}>
         <div>
           <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#555', marginBottom: 6, fontWeight: 600 }}>
             Notes for client
@@ -643,6 +667,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
 
       {error && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 14 }}>{error}</p>}
     </div>
+    </>
   )
 }
 
@@ -665,7 +690,7 @@ function MacroStatCard({ label, value, unit, color, dot }: { label: string; valu
 
 function PlanTypeToggle({ value, onChange }: { value: PlanType; onChange: (v: PlanType) => void }) {
   return (
-    <div style={{ display: 'inline-flex', background: '#0d0d0d', border: '1px solid #222', borderRadius: 9, padding: 3 }}>
+    <div className="mpe-plan-toggle" style={{ display: 'inline-flex', background: '#0d0d0d', border: '1px solid #222', borderRadius: 9, padding: 3 }}>
       {(['training', 'rest', 'overall'] as const).map((t) => {
         const active = value === t
         const label = t === 'training' ? 'Training Day' : t === 'rest' ? 'Rest Day' : 'Overall'
@@ -712,8 +737,8 @@ function MealCard({
     <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 12, overflow: 'hidden' }}>
 
       {/* Meal header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #1a1a1a' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+      <div className="mpe-meal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #1a1a1a' }}>
+        <div className="mpe-meal-header-left" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
           <select
             value={isPreset ? meal.name : 'Other'}
             onChange={(e) => {
@@ -731,10 +756,10 @@ function MealCard({
               value={meal.name}
               onChange={(e) => onChangeName(e.target.value)}
               placeholder="Custom meal name"
-              style={{ background: '#1a1a1a', border: '1px solid #272727', borderRadius: 6, color: '#fff', fontSize: 13, padding: '4px 8px', outline: 'none', minWidth: 140 }}
+              style={{ background: '#1a1a1a', border: '1px solid #272727', borderRadius: 6, color: '#fff', fontSize: 13, padding: '4px 8px', outline: 'none', minWidth: 120 }}
             />
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 4 }}>
+          <div className="mpe-meal-macros" style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 4 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
               {Math.round(totals.calories)} <span style={{ fontSize: 10, fontWeight: 500, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>kcal</span>
             </span>
@@ -744,7 +769,7 @@ function MealCard({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <div className="mpe-meal-controls" style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <button type="button" title="Move up" disabled={index === 0} onClick={() => onMove(-1)} style={iconBtn(index === 0)}><ChevronUp size={13} /></button>
           <button type="button" title="Move down" disabled={index === total - 1} onClick={() => onMove(1)} style={iconBtn(index === total - 1)}><ChevronDown size={13} /></button>
           {meal.options.length < 3 && (
@@ -762,7 +787,7 @@ function MealCard({
 
       {/* Option tabs */}
       {meal.options.length > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderBottom: '1px solid #1a1a1a', background: '#0d0d0d' }}>
+        <div className="mpe-option-tabs" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderBottom: '1px solid #1a1a1a', background: '#0d0d0d' }}>
           {meal.options.map((o) => {
             const active = o.tempId === meal.activeOptionTempId
             return (
@@ -839,13 +864,13 @@ function OptionContent({
   return (
     <div>
       {/* Column headers */}
-      <div style={{ display: 'grid', gridTemplateColumns: FOOD_COLS, padding: '7px 18px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a', gap: 4 }}>
+      <div className="mpe-food-header" style={{ display: 'grid', gridTemplateColumns: FOOD_COLS, padding: '7px 18px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a', gap: 4 }}>
         <span style={colHdr}>Food</span>
         <span style={colHdr}>Quantity</span>
-        <span style={{ ...colHdr, textAlign: 'center' }}>Cal</span>
-        <span style={{ ...colHdr, color: COLOR_PROTEIN, textAlign: 'center' }}>Protein</span>
-        <span style={{ ...colHdr, color: COLOR_CARBS, textAlign: 'center' }}>Carbs</span>
-        <span style={{ ...colHdr, color: COLOR_FAT, textAlign: 'center' }}>Fat</span>
+        <span className="mpe-food-col-hide" style={{ ...colHdr, textAlign: 'center' }}>Cal</span>
+        <span className="mpe-food-col-hide" style={{ ...colHdr, color: COLOR_PROTEIN, textAlign: 'center' }}>Protein</span>
+        <span className="mpe-food-col-hide" style={{ ...colHdr, color: COLOR_CARBS, textAlign: 'center' }}>Carbs</span>
+        <span className="mpe-food-col-hide" style={{ ...colHdr, color: COLOR_FAT, textAlign: 'center' }}>Fat</span>
         <span />
       </div>
 
@@ -853,6 +878,7 @@ function OptionContent({
       {option.foods.map((f) => (
         <div
           key={f.tempId}
+          className="mpe-food-row"
           style={{ display: 'grid', gridTemplateColumns: FOOD_COLS, padding: '9px 18px', borderBottom: '1px solid #161616', alignItems: 'center', gap: 4 }}
         >
           <span style={{ fontSize: 13, color: '#e0e0e0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.foodName}</span>
@@ -863,20 +889,20 @@ function OptionContent({
               step="any"
               value={f.quantity}
               onChange={(e) => onUpdateFoodQuantity(f.tempId, parseFloat(e.target.value))}
-              style={{ width: 60, padding: '4px 6px', fontSize: 13, background: '#1a1a1a', border: '1px solid #222', borderRadius: 6, color: '#fff', outline: 'none' }}
+              style={{ width: 52, padding: '4px 6px', fontSize: 13, background: '#1a1a1a', border: '1px solid #222', borderRadius: 6, color: '#fff', outline: 'none' }}
             />
             <select
               value={f.unit}
               onChange={(e) => onUpdateFoodUnit(f.tempId, e.target.value)}
-              style={{ padding: '4px 3px', fontSize: 11, background: '#1a1a1a', border: '1px solid #222', borderRadius: 6, color: '#888', outline: 'none' }}
+              style={{ maxWidth: 52, padding: '4px 3px', fontSize: 11, background: '#1a1a1a', border: '1px solid #222', borderRadius: 6, color: '#888', outline: 'none' }}
             >
               {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
-          <span style={{ fontSize: 13, color: '#aaa', textAlign: 'center' }}>{Math.round(f.calories)}</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: COLOR_PROTEIN, textAlign: 'center' }}>{round1(f.proteinG)}</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: COLOR_CARBS, textAlign: 'center' }}>{round1(f.carbsG)}</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: COLOR_FAT, textAlign: 'center' }}>{round1(f.fatG)}</span>
+          <span className="mpe-food-col-hide" style={{ fontSize: 13, color: '#aaa', textAlign: 'center' }}>{Math.round(f.calories)}</span>
+          <span className="mpe-food-col-hide" style={{ fontSize: 13, fontWeight: 600, color: COLOR_PROTEIN, textAlign: 'center' }}>{round1(f.proteinG)}</span>
+          <span className="mpe-food-col-hide" style={{ fontSize: 13, fontWeight: 600, color: COLOR_CARBS, textAlign: 'center' }}>{round1(f.carbsG)}</span>
+          <span className="mpe-food-col-hide" style={{ fontSize: 13, fontWeight: 600, color: COLOR_FAT, textAlign: 'center' }}>{round1(f.fatG)}</span>
           <button
             type="button"
             onClick={() => onRemoveFood(f.tempId)}
@@ -912,6 +938,7 @@ function FoodSearchBox({
       <button
         type="button"
         onClick={() => onChange({ open: true })}
+        className="mpe-food-addbtn"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 18px', background: 'transparent', border: 'none', borderTop: '1px dashed #222', color: '#444', fontSize: 13, cursor: 'pointer' }}
       >
         <Plus size={13} style={{ color: '#555' }} />
@@ -922,7 +949,7 @@ function FoodSearchBox({
 
   return (
     <div style={{ borderTop: '1px solid #1a1a1a', position: 'relative' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px' }}>
+      <div className="mpe-food-search-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px' }}>
         <Search size={13} style={{ color: '#555', flexShrink: 0 }} />
         <input
           type="text"
@@ -940,7 +967,7 @@ function FoodSearchBox({
       </div>
 
       {(s.results.length > 0 || (s.query.trim().length >= 2 && !s.loading) || s.manualOpen) && (
-        <div style={{ borderTop: '1px solid #1a1a1a' }}>
+        <div className="mpe-search-results" style={{ borderTop: '1px solid #1a1a1a' }}>
           {s.results.map((r, i) => (
             <button
               key={(r.externalId ?? r.name) + i}
@@ -1032,7 +1059,7 @@ function ManualEntry({ onAdd, onClose }: { onAdd: (p: { foodName: string; calori
   const lbl: React.CSSProperties = { display: 'block', fontSize: 10, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }
 
   return (
-    <div style={{ padding: '14px 18px', background: '#0d0d0d', borderTop: '1px solid #1a1a1a' }}>
+    <div className="mpe-manual-entry" style={{ padding: '14px 18px', background: '#0d0d0d', borderTop: '1px solid #1a1a1a' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
         <div style={{ gridColumn: 'span 2' }}>
           <label style={lbl}>Food name</label>

@@ -122,7 +122,7 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
     const { data: signedData } = await storageSvc.storage
       .from('progress-photos')
       .createSignedUrls(allPhotoPaths, 3600)
-    ;(signedData ?? []).forEach((item: { signedUrl: string | null; path?: string }) => {
+    ;(signedData ?? []).forEach((item) => {
       if (item.path && item.signedUrl) signedUrlMap.set(item.path, item.signedUrl)
     })
   }

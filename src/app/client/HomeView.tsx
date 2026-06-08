@@ -453,7 +453,7 @@ function WorkoutCard({ today, estimatedDuration }: { today: TodayTemplate | null
             {t.home.todaysWorkout}
           </p>
           <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 3px', lineHeight: 1.15 }}>
-            {today.templateName}
+            {today.templateDayLabel}
           </p>
           <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: 0 }}>
             {today.exerciseCount} {today.exerciseCount === 1 ? t.home.exercise : t.home.exercises}{estimatedDuration > 0 ? ` · ~${estimatedDuration} ${t.home.min}` : ''}

@@ -16,10 +16,13 @@ import ClientDetailClient from './ClientDetailClient'
 
 export default async function ClientDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | undefined>>
 }) {
   const { id: clientId } = await params
+  const { tab: initialTab } = await searchParams
 
   const [
     profile,
@@ -78,6 +81,7 @@ export default async function ClientDetailPage({
         redFlags={redFlags}
         initialDigest={initialDigest}
         bodyMetrics={bodyMetrics}
+        initialTab={initialTab === 'check-ins' ? 'checkins' : undefined}
       />
     </div>
   )

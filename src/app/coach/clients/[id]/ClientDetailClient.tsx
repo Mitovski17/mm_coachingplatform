@@ -70,10 +70,11 @@ type Props = {
   redFlags: RedFlag[]
   initialDigest: AiDigest | null
   bodyMetrics: BodyMetric[]
+  initialTab?: TabId
 }
 
 export default function ClientDetailClient(props: Props) {
-  const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [activeTab, setActiveTab] = useState<TabId>(props.initialTab ?? 'overview')
   const { profile, assignments, checkins } = props
 
   // Compute header stats from check-in history

@@ -46,7 +46,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <ClientNotificationBell />
       </header>
 
-      <main style={{ paddingTop: '52px', paddingBottom: '76px' }}>
+      <main style={{ paddingTop: '12px', paddingBottom: '76px' }}>
         {children}
       </main>
 

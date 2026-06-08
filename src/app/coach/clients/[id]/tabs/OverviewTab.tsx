@@ -59,7 +59,7 @@ function MetricCircle({
         <circle
           cx={32} cy={32} r={r}
           fill="none"
-          stroke="rgba(255,255,255,0.08)"
+          style={{ stroke: 'var(--color-border)' }}
           strokeWidth={5}
         />
         {/* Progress */}
@@ -78,7 +78,7 @@ function MetricCircle({
           textAnchor="middle"
           fontSize={maxValue === 100 ? 11 : 14}
           fontWeight={700}
-          fill={value !== null ? '#fff' : 'rgba(255,255,255,0.25)'}
+          style={{ fill: value !== null ? 'var(--color-text-primary)' : 'var(--color-text-hint)' }}
         >
           {value !== null ? value : '—'}
         </text>
@@ -86,7 +86,7 @@ function MetricCircle({
           x={32} y={41}
           textAnchor="middle"
           fontSize={8}
-          fill="rgba(255,255,255,0.35)"
+          style={{ fill: 'var(--color-text-hint)' }}
         >
           /{maxValue}
         </text>
@@ -245,7 +245,7 @@ export default function OverviewTab({
       {redFlags.length > 0 && (
         <div
           style={{
-            background: 'linear-gradient(135deg, #1a0a0a 0%, #1a1a1a 100%)',
+            backgroundColor: 'rgba(239,68,68,0.07)',
             border: '1px solid rgba(239,68,68,0.2)',
             borderLeft: '4px solid #ef4444',
             borderRadius: 10,

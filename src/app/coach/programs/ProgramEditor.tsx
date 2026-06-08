@@ -186,7 +186,7 @@ export default function ProgramEditor({
   }
 
   return (
-    <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-4xl pb-32">
+    <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-4xl" style={{ paddingBottom: 240 }}>
       {/* Back link */}
       <Link
         href="/coach/programs"

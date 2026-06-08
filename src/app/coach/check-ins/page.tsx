@@ -75,6 +75,12 @@ async function fetchData(): Promise<CheckinCard[]> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function buildCards(svc: any, workspaceId: string, currentWeek: string, prevWeek: string): Promise<CheckinCard[]> {
+  // Always use service role for storage signed-URL generation (private bucket)
+  const storageSvc = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
   const [clientsRes, currentRes, prevRes] = await Promise.all([
     svc.from('clients').select('id, full_name').eq('workspace_id', workspaceId),
     svc
@@ -103,32 +109,33 @@ async function buildCards(svc: any, workspaceId: string, currentWeek: string, pr
   // Collect all photo paths to batch-generate signed URLs
   const allPhotoPaths: string[] = []
   for (const ci of currentCheckins) {
-    const photos = Array.isArray(ci.answers?.progress_photo) ? ci.answers.progress_photo as string[] : []
+    const photo = ci.answers?.progress_photo
+    const photos: string[] = Array.isArray(photo)
+      ? photo.filter((p): p is string => typeof p === 'string' && p.length > 0)
+      : typeof photo === 'string' && photo ? [photo] : []
     allPhotoPaths.push(...photos)
   }
 
-  // Match signed URLs by index — entry.path can be null in some Supabase client versions
-  let signedUrls: string[] = []
+  // Use service client so the private bucket allows signed URL creation
+  const signedUrlMap = new Map<string, string>()
   if (allPhotoPaths.length > 0) {
-    const { data: signedData } = await svc.storage
+    const { data: signedData } = await storageSvc.storage
       .from('progress-photos')
       .createSignedUrls(allPhotoPaths, 3600)
-    signedUrls = (signedData ?? []).map((item: { signedUrl: string | null; path?: string; error?: string | null }) => item.signedUrl ?? '')
+    ;(signedData ?? []).forEach((item: { signedUrl: string | null; path?: string }) => {
+      if (item.path && item.signedUrl) signedUrlMap.set(item.path, item.signedUrl)
+    })
   }
-
-  // Build path → signed URL map using the preserved index order
-  const signedUrlMap = new Map<string, string>()
-  allPhotoPaths.forEach((path, i) => {
-    const url = signedUrls[i]
-    if (url) signedUrlMap.set(path, url)
-  })
 
   const cards: CheckinCard[] = []
   const seen = new Set<string>()
   for (const ci of currentCheckins) {
     if (seen.has(ci.client_id)) continue
     seen.add(ci.client_id)
-    const photoPaths = Array.isArray(ci.answers?.progress_photo) ? ci.answers.progress_photo as string[] : []
+    const photo = ci.answers?.progress_photo
+    const photoPaths: string[] = Array.isArray(photo)
+      ? photo.filter((p): p is string => typeof p === 'string' && p.length > 0)
+      : typeof photo === 'string' && photo ? [photo] : []
     cards.push({
       clientId: ci.client_id,
       clientName: clientMap.get(ci.client_id) ?? 'Unknown client',

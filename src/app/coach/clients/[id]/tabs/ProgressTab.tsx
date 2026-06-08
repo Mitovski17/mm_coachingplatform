@@ -67,19 +67,19 @@ function WeightChart({ points }: { points: WeightPoint[] }) {
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none">
         <defs>
           <linearGradient id="weight-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.2)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="0%" stopColor="rgba(234,88,12,0.22)" />
+            <stop offset="100%" stopColor="rgba(234,88,12,0)" />
           </linearGradient>
         </defs>
         <polygon points={polygon} fill="url(#weight-grad)" />
-        <polyline points={polyline} fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points={polyline} fill="none" style={{ stroke: 'var(--color-accent)' }} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
         {pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={3} fill={p.source === 'metric' ? '#22c55e' : '#fff'} />
+          <circle key={i} cx={p.x} cy={p.y} r={4} style={{ fill: p.source === 'metric' ? '#22c55e' : 'var(--color-accent)', stroke: 'var(--color-surface-1)' }} strokeWidth={2} />
         ))}
-        <text x={4} y={padY + 4} fontSize={10} fill="#6B6B6B">{max.toFixed(1)}</text>
-        <text x={4} y={H - padY + 4} fontSize={10} fill="#6B6B6B">{min.toFixed(1)}</text>
+        <text x={4} y={padY + 4} fontSize={10} style={{ fill: 'var(--color-text-hint)' }}>{max.toFixed(1)}</text>
+        <text x={4} y={H - padY + 4} fontSize={10} style={{ fill: 'var(--color-text-hint)' }}>{min.toFixed(1)}</text>
         {xLabels.map((l, i) => (
-          <text key={i} x={l.x} y={H - 6} fontSize={10} fill="#B0B0B0" textAnchor="middle">
+          <text key={i} x={l.x} y={H - 6} fontSize={10} style={{ fill: 'var(--color-text-hint)' }} textAnchor="middle">
             {l.label}
           </text>
         ))}

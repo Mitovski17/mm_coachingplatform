@@ -54,6 +54,8 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginValues) => {
     setServerError(null)
     const supabase = createClient()
+    // Clear any stale session before signing in — prevents refresh_token_not_found loops
+    await supabase.auth.signOut({ scope: 'local' })
     const { data: authData, error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,

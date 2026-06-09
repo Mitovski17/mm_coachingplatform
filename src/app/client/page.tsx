@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic'
 
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getClientId, getTodayTemplate } from './workouts/actions'
@@ -40,9 +39,9 @@ async function resolveData() {
   let email: string | null = null
   let avatarUrl: string | null = null
 
-  const cs = await cookies()
-
   if (process.env.NODE_ENV === 'development') {
+    const { cookies } = await import('next/headers')
+    const cs = await cookies()
     const raw = cs.get('dev_mock_email')?.value
     if (raw) email = decodeURIComponent(raw)
   }
@@ -63,17 +62,12 @@ async function resolveData() {
   }
 
   const isoToday = new Date().toISOString().slice(0, 10)
-  const onboardingSkipped = cs.get('onboarding_skipped')?.value === '1'
 
   const [today, logs, stats] = await Promise.all([
     getTodayTemplate(client.id),
     getDayLogs(client.id, isoToday),
     getHomeStats(email, client.id),
   ])
-
-  if (!stats.onboardingComplete && !onboardingSkipped) {
-    redirect('/onboarding')
-  }
 
   const planType = today ? 'training' : 'rest'
   const mealPlan = await getActiveMealPlan(client.id, planType)

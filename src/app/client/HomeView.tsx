@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Check, Bell, ChevronRight, Dumbbell, MessageCircle, ClipboardList } from 'lucide-react'
 import type { TodayTemplate } from './workouts/actions'
 import type { DayLog } from './nutrition/actions'
@@ -32,7 +34,15 @@ type Props = {
 }
 
 export default function HomeView({ today, logs, stats, avatarUrl, onboardingComplete, targets }: Props) {
+  const router = useRouter()
   const { t, lang } = useLanguage()
+
+  useEffect(() => {
+    if (!onboardingComplete) {
+      const skipped = localStorage.getItem('onboarding_skipped') === '1'
+      if (!skipped) router.replace('/onboarding')
+    }
+  }, [onboardingComplete, router])
 
   const clientName = stats?.clientName ?? 'there'
   const initials   = stats?.clientName ? getInitials(stats.clientName) : '?'

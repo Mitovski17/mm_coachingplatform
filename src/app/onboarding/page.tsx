@@ -384,9 +384,9 @@ export default function OnboardingPage() {
     init()
   }, [router])
 
-  // ── "Do this later" — saves skipped cookie and exits
+  // ── "Do this later" — saves skipped flag to localStorage and exits
   const handleSkipForNow = () => {
-    document.cookie = 'onboarding_skipped=1; path=/; max-age=2592000'
+    localStorage.setItem('onboarding_skipped', '1')
     router.push('/client')
   }
 
@@ -481,8 +481,8 @@ export default function OnboardingPage() {
       )
     }
 
-    // Clear skip cookie now that onboarding is done
-    document.cookie = 'onboarding_skipped=; path=/; max-age=0'
+    // Clear skip flag now that onboarding is done
+    localStorage.removeItem('onboarding_skipped')
 
     router.push('/client')
   }

@@ -22,8 +22,10 @@ import NutritionTab from './tabs/NutritionTab'
 import CheckInsTab from './tabs/CheckInsTab'
 import ProgressTab from './tabs/ProgressTab'
 import DigestTab from './tabs/DigestTab'
+import AssistantTab from './tabs/AssistantTab'
+import AssignmentsTab from './tabs/AssignmentsTab'
 
-export type TabId = 'overview' | 'workouts' | 'nutrition' | 'checkins' | 'progress' | 'digest'
+export type TabId = 'overview' | 'workouts' | 'nutrition' | 'checkins' | 'progress' | 'digest' | 'assistant' | 'assignments'
 
 const AVATAR_COLORS = [
   '#3b82f6', // blue
@@ -55,7 +57,9 @@ const TABS: { id: TabId; label: string; dotColor: string }[] = [
   { id: 'nutrition', label: 'Nutrition', dotColor: '#f97316' },
   { id: 'checkins',  label: 'Check-ins', dotColor: '#a855f7' },
   { id: 'progress',  label: 'Progress',  dotColor: '#22c55e' },
-  { id: 'digest',    label: 'Digest',    dotColor: '#14b8a6' },
+  { id: 'digest',      label: 'Digest',      dotColor: '#14b8a6' },
+  { id: 'assignments', label: 'Assignments', dotColor: '#f59e0b' },
+  { id: 'assistant',   label: 'AI Assistant', dotColor: '#6366f1' },
 ]
 
 type Props = {
@@ -342,6 +346,19 @@ export default function ClientDetailClient(props: Props) {
         <DigestTab
           clientId={props.profile.id}
           initialDigest={props.initialDigest}
+        />
+      )}
+      {activeTab === 'assignments' && (
+        <AssignmentsTab
+          assignments={props.assignments}
+          clientId={props.profile.id}
+        />
+      )}
+      {activeTab === 'assistant' && (
+        <AssistantTab
+          clientId={props.profile.id}
+          workspaceId={props.profile.workspaceId}
+          clientName={props.profile.name}
         />
       )}
     </div>

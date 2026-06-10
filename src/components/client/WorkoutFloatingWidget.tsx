@@ -4,8 +4,12 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Dumbbell } from 'lucide-react'
 import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 
-function fmt(s: number) {
-  return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
+function fmt(s: number): string {
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
+  return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
 }
 
 export default function WorkoutFloatingWidget() {

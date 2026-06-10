@@ -1,8 +1,8 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, Plus, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Pencil, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
   getClientId,
@@ -22,16 +22,20 @@ import type { SetRow, ExerciseState, RestTimer } from '@/lib/workout-session-typ
 
 function firstNum(s: string): string { return s.match(/\d+/)?.[0] ?? '' }
 function fmt(s: number): string {
-  return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
+  return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
 }
 function parseF(v: string): number | null { const n = parseFloat(v); return v.trim() && !isNaN(n) ? n : null }
 function parseI(v: string): number | null { const n = parseInt(v, 10); return v.trim() && !isNaN(n) ? n : null }
 
 const MUSCLE_COLORS: Record<string, string> = {
   chest: '#ef4444', back: '#3b82f6', shoulders: '#f59e0b', core: '#06b6d4', cardio: '#ec4899',
-  biceps: '#ef4444', triceps: '#f97316',
+  biceps: '#0ea5e9', triceps: '#f97316',
   arms: '#f59e0b',
-  quads: '#14b8a6', hamstrings: '#10b981', glutes: '#ec4899', calves: '#84cc16',
+  quads: '#14b8a6', hamstrings: '#10b981', glutes: '#f43f5e', calves: '#84cc16',
   abductors: '#8b5cf6', adductors: '#d946ef',
   legs: '#7c3aed',
 }
@@ -250,7 +254,7 @@ function SessionInner() {
   const templateNameParam = params.get('templateName') ?? ''
 
   // Persistent session state via context
-  const { session, elapsed, startSession, setExercises, setNotes, setRest, endSession } = useWorkoutSession()
+  const { session, elapsed, startSession, setExercises, setNotes, setTemplateName, setRest, endSession } = useWorkoutSession()
 
   // Derived from context session
   const exercises    = session?.exercises    ?? []
@@ -262,6 +266,10 @@ function SessionInner() {
   const [saving,    setSaving]  = useState(false)
   const [modal,     setModal]   = useState<ModalState | null>(null)
   const [quitHover, setQuitHover] = useState(false)
+
+  // Editable title (custom workouts only)
+  const [titleEditing, setTitleEditing] = useState(false)
+  const titleInputRef = useRef<HTMLInputElement>(null)
 
   // Custom mode: exercise library + picker state
   const [exerciseLibrary, setExerciseLibrary] = useState<LibraryExercise[]>([])
@@ -398,6 +406,16 @@ function SessionInner() {
     }))
   }, [setExercises])
 
+  const moveExercise = useCallback((index: number, dir: 'up' | 'down') => {
+    setExercises((prev) => {
+      const arr = [...prev]
+      const target = dir === 'up' ? index - 1 : index + 1
+      if (target < 0 || target >= arr.length) return prev
+      ;[arr[index], arr[target]] = [arr[target], arr[index]]
+      return arr
+    })
+  }, [setExercises])
+
   // ── Add exercise from library (custom mode) ───────────────────────────────
   const addExerciseFromLibrary = useCallback((ex: LibraryExercise) => {
     const newState: ExerciseState = {
@@ -430,13 +448,14 @@ function SessionInner() {
     if (!session?.clientInfo) return
     setSaving(true)
     try {
-      await saveWorkoutSession({
+      const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(session.startTime).getTime()) / 60000))
+      const { sessionId } = await saveWorkoutSession({
         clientId: session.clientInfo.id,
         workspaceId: session.clientInfo.workspace_id,
         templateDayId: isCustom ? null : (templateDayId || null),
         templateName: session.templateName,
         notes: sessionNotes,
-        durationMinutes: Math.max(1, Math.round((Date.now() - new Date(session.startTime).getTime()) / 60000)),
+        durationMinutes,
         performedAt: new Date().toISOString(),
         exercises: exercises.map((ex) => ({
           exerciseId: ex.exerciseId,
@@ -446,7 +465,7 @@ function SessionInner() {
         })),
       })
       endSession()
-      router.push('/client/workouts')
+      router.push(`/client/workouts/history/${sessionId}`)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save')
       setSaving(false)
@@ -529,10 +548,44 @@ function SessionInner() {
           </button>
         </div>
 
-        {/* Workout name */}
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 6px', lineHeight: 1.1 }}>
-          {templateName}
-        </h1>
+        {/* Workout name — editable for custom workouts */}
+        {isCustom && titleEditing ? (
+          <input
+            ref={titleInputRef}
+            type="text"
+            value={session?.templateName ?? ''}
+            onChange={(e) => setTemplateName(e.target.value)}
+            onBlur={() => setTitleEditing(false)}
+            onKeyDown={(e) => { if (e.key === 'Enter') setTitleEditing(false) }}
+            style={{
+              fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)',
+              background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+              borderRadius: 10, padding: '4px 10px', margin: '0 0 6px',
+              lineHeight: 1.1, width: '100%', outline: 'none', fontFamily: 'inherit',
+              boxSizing: 'border-box',
+            }}
+            autoFocus
+          />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.1, flex: 1 }}>
+              {templateName}
+            </h1>
+            {isCustom && (
+              <button
+                type="button"
+                onClick={() => { setTitleEditing(true); setTimeout(() => titleInputRef.current?.select(), 0) }}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 4, flexShrink: 0,
+                  color: 'var(--color-text-hint)', display: 'flex', alignItems: 'center',
+                }}
+                aria-label="Edit workout title"
+              >
+                <Pencil size={16} />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Elapsed + exercise count */}
         <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: '0 0 10px', fontVariantNumeric: 'tabular-nums' }}>
@@ -561,7 +614,7 @@ function SessionInner() {
           </div>
         )}
 
-        {exercises.map((ex) => (
+        {exercises.map((ex, idx) => (
           <ExerciseCard
             key={ex.exerciseId}
             exercise={ex}
@@ -571,6 +624,10 @@ function SessionInner() {
             onAddSet={addSet}
             onDeleteSet={deleteSet}
             onSkipRest={() => setRest((r) => ({ ...r, active: false, secondsLeft: 0 }))}
+            canMoveUp={idx > 0}
+            canMoveDown={idx < exercises.length - 1}
+            onMoveUp={() => moveExercise(idx, 'up')}
+            onMoveDown={() => moveExercise(idx, 'down')}
             t={t}
           />
         ))}
@@ -635,7 +692,8 @@ function SessionInner() {
 // ─── Exercise card ────────────────────────────────────────────────────────────
 
 function ExerciseCard({
-  exercise, restTimer, onUpdateSet, onToggleDone, onAddSet, onDeleteSet, onSkipRest, t,
+  exercise, restTimer, onUpdateSet, onToggleDone, onAddSet, onDeleteSet, onSkipRest,
+  canMoveUp, canMoveDown, onMoveUp, onMoveDown, t,
 }: {
   exercise: ExerciseState
   restTimer: RestTimer
@@ -644,6 +702,10 @@ function ExerciseCard({
   onAddSet: (id: string) => void
   onDeleteSet: (id: string, num: number) => void
   onSkipRest: () => void
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
   t: Translations
 }) {
   const muscleColor = MUSCLE_COLORS[exercise.muscleGroup.toLowerCase()] ?? '#6b7280'
@@ -670,6 +732,17 @@ function ExerciseCard({
             {exercise.muscleGroup}
           </span>
           <OverloadBadge indicator={exercise.overloadIndicator} />
+          {/* Move up / down */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
+            <button type="button" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move up"
+              style={{ background: 'none', border: 'none', padding: '1px 3px', cursor: canMoveUp ? 'pointer' : 'default', color: canMoveUp ? 'var(--color-text-muted)' : 'var(--color-surface-3)', lineHeight: 1 }}>
+              <ChevronUp size={14} />
+            </button>
+            <button type="button" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Move down"
+              style={{ background: 'none', border: 'none', padding: '1px 3px', cursor: canMoveDown ? 'pointer' : 'default', color: canMoveDown ? 'var(--color-text-muted)' : 'var(--color-surface-3)', lineHeight: 1 }}>
+              <ChevronDown size={14} />
+            </button>
+          </div>
         </div>
 
         {/* Notes under title */}

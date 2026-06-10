@@ -10,9 +10,11 @@ type Updater<T> = T | ((prev: T) => T)
 type WorkoutSessionCtx = {
   session: ActiveWorkoutSession | null
   elapsed: number
+  hydrated: boolean
   startSession: (s: ActiveWorkoutSession) => void
   setExercises: (updater: Updater<ExerciseState[]>) => void
   setNotes: (notes: string) => void
+  setTemplateName: (name: string) => void
   setRest: (updater: Updater<RestTimer>) => void
   endSession: () => void
 }
@@ -29,12 +31,13 @@ function restoreSecondsleft(rest: RestTimer): RestTimer {
 export function WorkoutSessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<ActiveWorkoutSession | null>(null)
   const [elapsed, setElapsed] = useState(0)
-  const hydrated = useRef(false)
+  const [hydrated, setHydrated] = useState(false)
+  const hydratedRef = useRef(false)
 
   // Hydrate from localStorage once on mount
   useEffect(() => {
-    if (hydrated.current) return
-    hydrated.current = true
+    if (hydratedRef.current) return
+    hydratedRef.current = true
     try {
       const raw = localStorage.getItem(LS_KEY)
       if (raw) {
@@ -46,6 +49,7 @@ export function WorkoutSessionProvider({ children }: { children: React.ReactNode
     } catch {
       localStorage.removeItem(LS_KEY)
     }
+    setHydrated(true)
   }, [])
 
   // Elapsed timer — runs continuously as long as a session exists
@@ -106,6 +110,15 @@ export function WorkoutSessionProvider({ children }: { children: React.ReactNode
     })
   }, [save])
 
+  const setTemplateName = useCallback((templateName: string) => {
+    setSession((prev) => {
+      if (!prev) return prev
+      const updated = { ...prev, templateName }
+      save(updated)
+      return updated
+    })
+  }, [save])
+
   const setRest = useCallback((updater: Updater<RestTimer>) => {
     setSession((prev) => {
       if (!prev) return prev
@@ -123,7 +136,7 @@ export function WorkoutSessionProvider({ children }: { children: React.ReactNode
   }, [])
 
   return (
-    <WorkoutSessionContext.Provider value={{ session, elapsed, startSession, setExercises, setNotes, setRest, endSession }}>
+    <WorkoutSessionContext.Provider value={{ session, elapsed, hydrated, startSession, setExercises, setNotes, setTemplateName, setRest, endSession }}>
       {children}
     </WorkoutSessionContext.Provider>
   )

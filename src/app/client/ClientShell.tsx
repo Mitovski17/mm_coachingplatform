@@ -1,16 +1,29 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { House, Dumbbell, Apple, User } from 'lucide-react'
 import ClientNotificationBell from '@/components/client/ClientNotificationBell'
 import WorkoutFloatingWidget from '@/components/client/WorkoutFloatingWidget'
 import { WorkoutSessionProvider } from '@/lib/WorkoutSessionContext'
 import { useLanguage } from '@/lib/i18n'
+import { createClient } from '@/lib/supabase/client'
 
 function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const { t } = useLanguage()
+
+  useEffect(() => {
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        router.replace('/login')
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [router])
 
   const NAV = [
     { label: t.nav.home,    href: '/client',           Icon: House },
@@ -20,7 +33,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   ] as const
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: 'var(--color-base)' }}>
+    <div style={{ minHeight: '100dvh', backgroundColor: 'var(--color-base)' }}>
       <WorkoutFloatingWidget />
       <header
         className="fixed top-0 left-0 right-0 flex items-center justify-between"

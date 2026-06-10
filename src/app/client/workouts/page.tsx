@@ -7,6 +7,7 @@ import {
   getClientId,
   getTodayTemplate,
   getWorkoutHistory,
+  hasActivePlan,
 } from './actions'
 import WorkoutsClient from './WorkoutsClient'
 
@@ -34,10 +35,11 @@ async function resolveClient(): Promise<{ id: string; workspace_id: string }> {
 export default async function WorkoutsPage() {
   const client = await resolveClient()
 
-  const [todayTemplate, history] = await Promise.all([
+  const [todayTemplate, history, hasPlan] = await Promise.all([
     getTodayTemplate(client.id),
     getWorkoutHistory(client.id),
+    hasActivePlan(client.id),
   ])
 
-  return <WorkoutsClient todayTemplate={todayTemplate} history={history} clientId={client.id} />
+  return <WorkoutsClient todayTemplate={todayTemplate} history={history} clientId={client.id} hasPlan={hasPlan} />
 }

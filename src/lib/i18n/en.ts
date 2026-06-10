@@ -197,6 +197,9 @@ export const en = {
     restDay: 'Rest Day',
     restSub: 'Recovery is part of the program.',
     trainAnyway: 'Train anyway →',
+    noPlanHeadline: 'Ready to train?',
+    noPlanSub: 'No excuses. Just work.',
+    noPlanCta: 'Start your workout',
     todaysWorkout: "Today's Workout",
     startWorkout: 'Start Workout',
     switchWorkout: 'Switch workout',
@@ -276,6 +279,17 @@ export const en = {
     addGlass: 'Add a glass',
     macros: 'Macros',
     summary: 'Summary',
+    scanMeal: 'Scan Meal',
+    scanMealSub: 'Take a photo of your meal and AI will detect foods and estimate calories automatically.',
+    takePhoto: 'Take Photo',
+    choosePhoto: 'Choose from Gallery',
+    analyzePhoto: 'Analyze Photo',
+    analyzingMeal: 'Analyzing your meal…',
+    detectedFoods: 'Detected Foods',
+    noFoodsDetected: 'No foods could be detected. Try a clearer photo.',
+    logSelected: 'Log Selected',
+    analyzeFailed: 'Could not analyze the image. Please try again.',
+    tryAgain: 'Try Again',
   },
 
   // ── Progress ──
@@ -436,6 +450,7 @@ export const en = {
     },
   },
 }
+
 
 // Map readonly literal types to mutable widened types so locales like bg can
 // supply different strings while keeping the same structural shape.

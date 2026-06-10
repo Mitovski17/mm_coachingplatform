@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ChevronRight, Dumbbell } from 'lucide-react'
 import type { TodayTemplate, HistorySession, ProgramWorkoutDay } from './actions'
 import { getProgramWorkoutDays } from './actions'
 import { useLanguage, type Translations } from '@/lib/i18n'
+import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 
 const MUSCLE_COLORS: Record<string, string> = {
   chest: '#ef4444',
@@ -14,29 +16,44 @@ const MUSCLE_COLORS: Record<string, string> = {
   shoulders: '#f59e0b',
   core: '#06b6d4',
   cardio: '#ec4899',
-  biceps: '#ef4444',
+  biceps: '#0ea5e9',
   triceps: '#f97316',
-  arms: '#f59e0b',      // fallback for un-migrated broad "arms" entries
+  arms: '#f59e0b',
   quads: '#14b8a6',
   hamstrings: '#10b981',
-  glutes: '#ec4899',
+  glutes: '#f43f5e',
   calves: '#84cc16',
   abductors: '#8b5cf6',
   adductors: '#d946ef',
-  legs: '#7c3aed',      // fallback for any remaining broad "legs" entries
+  legs: '#7c3aed',
 }
 
 export default function WorkoutsClient({
   todayTemplate,
   history,
   clientId,
+  hasPlan,
 }: {
   todayTemplate: TodayTemplate | null
   history: HistorySession[]
   clientId: string
+  hasPlan: boolean
 }) {
   const { t } = useLanguage()
+  const router = useRouter()
+  const { session, hydrated } = useWorkoutSession()
   const [activeTab, setActiveTab] = useState<'today' | 'history'>('today')
+
+  // If a workout session is already in progress, go straight to it.
+  // Wait for hydration so we never flash the default screen before knowing session state.
+  useEffect(() => {
+    if (!hydrated) return
+    if (!session) return
+    const url = session.isCustom
+      ? '/client/workouts/session?custom=true'
+      : `/client/workouts/session?templateDayId=${session.templateDayId}&templateName=${encodeURIComponent(session.templateName)}`
+    router.replace(url)
+  }, [hydrated, session, router])
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerDays, setPickerDays] = useState<ProgramWorkoutDay[]>([])
@@ -51,6 +68,9 @@ export default function WorkoutsClient({
       setPickerLoading(false)
     }
   }
+
+  // Don't render anything until localStorage is read — prevents flash of default screen
+  if (!hydrated || session) return null
 
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
@@ -111,7 +131,7 @@ export default function WorkoutsClient({
 
       {activeTab === 'today' && (
         <div style={{ padding: '16px 16px 16px' }}>
-          <TodayWorkoutCard today={todayTemplate} onSwitch={openPicker} t={t} />
+          <TodayWorkoutCard today={todayTemplate} hasPlan={hasPlan} onSwitch={openPicker} t={t} />
         </div>
       )}
 
@@ -306,7 +326,57 @@ export default function WorkoutsClient({
   )
 }
 
-function TodayWorkoutCard({ today, onSwitch, t }: { today: TodayTemplate | null; onSwitch: () => void; t: Translations }) {
+function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplate | null; hasPlan: boolean; onSwitch: () => void; t: Translations }) {
+  if (!today && !hasPlan) {
+    return (
+      <div
+        style={{
+          backgroundColor: 'var(--color-surface-1)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '20px',
+          padding: '20px',
+        }}
+      >
+        <p
+          style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--color-text-muted)',
+            margin: '0 0 6px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+          }}
+        >
+          {t.workouts.today}
+        </p>
+        <p style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 6px' }}>
+          {t.workouts.noPlanHeadline}
+        </p>
+        <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
+          {t.workouts.noPlanSub}
+        </p>
+        <button
+          type="button"
+          onClick={onSwitch}
+          style={{
+            marginTop: 14,
+            width: '100%',
+            padding: '13px',
+            backgroundColor: '#ffffff',
+            border: 'none',
+            borderRadius: 12,
+            color: '#000000',
+            fontSize: 15,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          {t.workouts.noPlanCta}
+        </button>
+      </div>
+    )
+  }
+
   if (!today) {
     return (
       <div

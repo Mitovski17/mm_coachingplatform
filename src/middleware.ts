@@ -76,14 +76,14 @@ export async function middleware(request: NextRequest) {
   )
 
   // Refresh session — do not add logic between createServerClient and getUser
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  // If the refresh token is invalid/expired, Supabase will return null for user
-  // but leave stale sb-* cookies in place, causing an infinite redirect loop.
-  // Wipe those cookies now so the next request starts clean.
-  if (!user) {
-    const staleAuthCookies = request.cookies.getAll().filter(c => c.name.startsWith('sb-'))
-    staleAuthCookies.forEach(c => supabaseResponse.cookies.delete(c.name))
+  // If the refresh token is invalid/expired, Supabase returns null for user.
+  // Wipe stale sb-* cookies so the next request starts clean and avoids loops.
+  if (!user || authError) {
+    request.cookies.getAll()
+      .filter(c => c.name.startsWith('sb-'))
+      .forEach(c => supabaseResponse.cookies.delete(c.name))
   }
 
   const { pathname } = request.nextUrl

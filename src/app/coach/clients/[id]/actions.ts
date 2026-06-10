@@ -119,6 +119,7 @@ export type ClientAssignments = {
   workoutProgram: { id: string; name: string } | null
   trainingMealPlan: { id: string; name: string } | null
   restMealPlan: { id: string; name: string } | null
+  overallMealPlan: { id: string; name: string } | null
 }
 
 export type RedFlag = {
@@ -649,6 +650,7 @@ export async function getClientAssignments(
 
   let trainingMealPlan: ClientAssignments['trainingMealPlan'] = null
   let restMealPlan: ClientAssignments['restMealPlan'] = null
+  let overallMealPlan: ClientAssignments['overallMealPlan'] = null
   for (const a of mealRes.data ?? []) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tpl = Array.isArray((a as any).meal_plan_templates)
@@ -660,6 +662,7 @@ export async function getClientAssignments(
     const entry = { id: tpl.id as string, name: tpl.name as string }
     if (a.plan_type === 'training') trainingMealPlan = entry
     else if (a.plan_type === 'rest') restMealPlan = entry
+    else if (a.plan_type === 'overall') overallMealPlan = entry
   }
 
   return {
@@ -668,6 +671,6 @@ export async function getClientAssignments(
       : null,
     trainingMealPlan,
     restMealPlan,
+    overallMealPlan,
   }
 }
-

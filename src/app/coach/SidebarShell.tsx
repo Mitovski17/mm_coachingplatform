@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import {
   Users, ListChecks, LayoutList, Settings, UtensilsCrossed,
   MessageSquare, MessageCircle, ShieldCheck, MoreHorizontal, X,
@@ -70,6 +71,18 @@ export default function SidebarShell({
   const [collapsed,  setCollapsed]  = useState(false)
   const [moreOpen,   setMoreOpen]   = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
+
+  // Redirect to login on session loss (covers stale/invalid refresh tokens)
+  useEffect(() => {
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        router.replace('/login')
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [router])
 
   // Restore sidebar collapse preference
   useEffect(() => {

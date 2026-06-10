@@ -9,13 +9,19 @@ const ThemeContext = createContext<{
 }>({ theme: 'dark', setTheme: () => {} })
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark')
+  // Read initial theme from the DOM. The inline <head> script applies the
+  // correct class before first paint, so we just mirror it here instead of
+  // reading localStorage in useEffect (which causes a state flip/flash).
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof document !== 'undefined') {
+      return document.documentElement.classList.contains('light') ? 'light' : 'dark'
+    }
+    return 'dark'
+  })
 
   useEffect(() => {
-    const stored = localStorage.getItem('theme') as Theme | null
-    const resolved: Theme = stored === 'light' ? 'light' : 'dark'
+    const resolved: Theme = document.documentElement.classList.contains('light') ? 'light' : 'dark'
     setThemeState(resolved)
-    document.documentElement.classList.toggle('light', resolved === 'light')
   }, [])
 
   function setTheme(t: Theme) {

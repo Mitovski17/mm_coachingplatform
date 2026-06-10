@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Search, Loader2, Check, X, Plus, Pencil, Scan } from 'lucide-react'
+import { Search, Loader2, Check, X, Plus, Pencil, Scan, Camera } from 'lucide-react'
 import {
   getDayLogs,
   logMealOption,
@@ -18,6 +18,7 @@ import {
 } from './actions'
 import type { FoodSearchResult } from '@/lib/food-search'
 import BarcodeScannerModal from './BarcodeScannerModal'
+import FoodScannerModal from './FoodScannerModal'
 import { useLanguage } from '@/lib/i18n'
 
 const COLOR_PROTEIN = '#3b82f6'
@@ -42,6 +43,63 @@ function startOfWeek(d: Date): Date {
 
 function round1(n: number) {
   return Math.round(n * 10) / 10
+}
+
+// ── Nutritional insight badges ────────────────────────────────────────────────
+
+type InsightTier = 'green' | 'orange' | 'red'
+
+type NutritionInsight = {
+  tier: InsightTier
+  label: string
+}
+
+function getNutritionInsights(
+  food: FoodSearchResult,
+  quantity: number,
+  dailyGoal: { calories: number; fatG: number; proteinG: number } | null
+): NutritionInsight[] {
+  if (quantity <= 0) return []
+  const cal  = (food.caloriesPer100g * quantity) / 100
+  const prot = (food.proteinPer100g  * quantity) / 100
+  const fat  = (food.fatPer100g      * quantity) / 100
+
+  const insights: NutritionInsight[] = []
+
+  // Green — protein
+  if (prot >= 15) {
+    insights.push({ tier: 'green', label: `High in protein (${Math.round(prot)}g)` })
+  } else if (prot >= 8) {
+    insights.push({ tier: 'green', label: `Good protein source (${Math.round(prot)}g)` })
+  }
+
+  // Calories vs goal
+  if (dailyGoal && dailyGoal.calories > 0) {
+    const pct = cal / dailyGoal.calories
+    if (pct >= 0.5) {
+      insights.push({ tier: 'red', label: `Very high calorie — ${Math.round(pct * 100)}% of daily goal` })
+    } else if (pct >= 0.25) {
+      insights.push({ tier: 'orange', label: `Covers ${Math.round(pct * 100)}% of your daily calories` })
+    }
+  } else {
+    if (cal >= 600)      insights.push({ tier: 'red',    label: `Very high calorie (${Math.round(cal)} kcal)` })
+    else if (cal >= 350) insights.push({ tier: 'orange', label: `High calorie (${Math.round(cal)} kcal)` })
+  }
+
+  // Fat vs goal
+  if (dailyGoal && dailyGoal.fatG > 0) {
+    const pct = fat / dailyGoal.fatG
+    if (pct >= 0.5) {
+      insights.push({ tier: 'red',    label: `Very high in fat — ${Math.round(pct * 100)}% of daily fat goal` })
+    } else if (pct >= 0.25) {
+      insights.push({ tier: 'orange', label: `High in fat — ${Math.round(pct * 100)}% of daily fat goal` })
+    }
+  } else {
+    if (fat >= 25)      insights.push({ tier: 'red',    label: `Very high in fat (${Math.round(fat)}g)` })
+    else if (fat >= 15) insights.push({ tier: 'orange', label: `High in fat (${Math.round(fat)}g)` })
+  }
+
+  return insights
 }
 
 type Props = {
@@ -403,6 +461,7 @@ export default function NutritionClient({
                   workspaceId={workspaceId}
                   logDate={selectedDate}
                   onLogged={reloadDayLogs}
+                  dailyGoal={goal}
                 />
               )
             })}
@@ -424,6 +483,7 @@ export default function NutritionClient({
                 workspaceId={workspaceId}
                 logDate={selectedDate}
                 onLogged={reloadDayLogs}
+                dailyGoal={goal}
               />
             ))}
             <button
@@ -790,6 +850,7 @@ function CustomMealCard({
   workspaceId,
   logDate,
   onLogged,
+  dailyGoal,
 }: {
   mealName: string
   logs: DayLog[]
@@ -820,6 +881,7 @@ function CustomMealCard({
   workspaceId?: string | null
   logDate?: string
   onLogged?: () => void
+  dailyGoal?: { calories: number; fatG: number; proteinG: number } | null
 }) {
   const { t } = useLanguage()
   const cancelLabel = t.common.cancel
@@ -1040,6 +1102,7 @@ function CustomMealCard({
             workspaceId={workspaceId}
             logDate={logDate}
             onLogged={onLogged}
+            dailyGoal={dailyGoal}
           />
         )}
       </div>
@@ -1070,6 +1133,7 @@ function MealCard({
   workspaceId,
   logDate,
   onLogged,
+  dailyGoal,
 }: {
   meal: Meal
   activeOption: Option | undefined
@@ -1109,6 +1173,7 @@ function MealCard({
   workspaceId?: string | null
   logDate?: string
   onLogged?: () => void
+  dailyGoal?: { calories: number; fatG: number; proteinG: number } | null
 }) {
   const { t } = useLanguage()
   const cancelLabel = t.common.cancel
@@ -1473,6 +1538,7 @@ function MealCard({
             workspaceId={workspaceId}
             logDate={logDate}
             onLogged={onLogged}
+            dailyGoal={dailyGoal}
           />
         )}
       </div>
@@ -1720,6 +1786,34 @@ function Pill({ value, color, bg }: { value: number; color: string; bg: string }
   )
 }
 
+function InsightBadge({ tier, label }: { tier: InsightTier; label: string }) {
+  const colors = {
+    green:  { bg: 'rgba(34,197,94,0.12)',  border: 'rgba(34,197,94,0.35)',  text: '#16a34a' },
+    orange: { bg: 'rgba(249,115,22,0.12)', border: 'rgba(249,115,22,0.4)',  text: '#ea580c' },
+    red:    { bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.35)',  text: '#dc2626' },
+  }
+  const c = colors[tier]
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        fontSize: 11,
+        fontWeight: 600,
+        color: c.text,
+        backgroundColor: c.bg,
+        border: `1px solid ${c.border}`,
+        borderRadius: 999,
+        padding: '3px 9px',
+        lineHeight: 1.3,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
 function AddCustomFood({
   mealName,
   onAdd,
@@ -1727,6 +1821,7 @@ function AddCustomFood({
   workspaceId,
   logDate,
   onLogged,
+  dailyGoal,
 }: {
   mealName: string
   onAdd: (p: {
@@ -1742,6 +1837,7 @@ function AddCustomFood({
   workspaceId?: string | null
   logDate?: string
   onLogged?: () => void
+  dailyGoal?: { calories: number; fatG: number; proteinG: number } | null
 }) {
   const { t } = useLanguage()
   const [query, setQuery] = useState('')
@@ -1751,6 +1847,7 @@ function AddCustomFood({
   const [quantity, setQuantity] = useState('100')
   const [manualOpen, setManualOpen] = useState(false)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
+  const [showFoodScanner, setShowFoodScanner] = useState(false)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -1792,6 +1889,10 @@ function AddCustomFood({
     setQuantity('100')
   }
 
+  const selectedInsights: NutritionInsight[] = selected
+    ? getNutritionInsights(selected, parseFloat(quantity) || 0, dailyGoal ?? null)
+    : []
+
   return (
     <div
       className="mt-2"
@@ -1828,25 +1929,46 @@ function AddCustomFood({
             />
             {searching && <Loader2 size={12} className="animate-spin" style={{ color: 'var(--color-text-hint)' }} />}
             {clientId && workspaceId && logDate && (
-              <button
-                type="button"
-                onClick={() => setShowBarcodeScanner(true)}
-                title={t.nutrition.scanBarcode}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--color-text-hint)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                  marginLeft: 2,
-                  flexShrink: 0,
-                }}
-              >
-                <Scan size={14} />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowBarcodeScanner(true)}
+                  title={t.nutrition.scanBarcode}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text-hint)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                    marginLeft: 2,
+                    flexShrink: 0,
+                  }}
+                >
+                  <Scan size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowFoodScanner(true)}
+                  title={t.nutrition.scanMeal}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-accent)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                    marginLeft: 2,
+                    flexShrink: 0,
+                  }}
+                >
+                  <Camera size={14} />
+                </button>
+              </>
             )}
           </div>
 
@@ -1904,8 +2026,13 @@ function AddCustomFood({
         <div>
           <p style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 600, margin: '0 0 6px' }}>
             {selected.name}
+            {selected.brand && (
+              <span style={{ fontSize: 11, color: 'var(--color-text-hint)', fontWeight: 400, marginLeft: 5 }}>
+                {selected.brand}
+              </span>
+            )}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <input
               type="number"
               value={quantity}
@@ -1949,6 +2076,20 @@ function AddCustomFood({
               {t.common.cancel}
             </button>
           </div>
+          {selectedInsights.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 5,
+                marginTop: 2,
+              }}
+            >
+              {selectedInsights.map((ins, i) => (
+                <InsightBadge key={i} tier={ins.tier} label={ins.label} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1969,6 +2110,20 @@ function AddCustomFood({
           onClose={() => setShowBarcodeScanner(false)}
           onLogged={() => {
             setShowBarcodeScanner(false)
+            onLogged?.()
+          }}
+        />
+      )}
+
+      {showFoodScanner && clientId && workspaceId && logDate && (
+        <FoodScannerModal
+          clientId={clientId}
+          workspaceId={workspaceId}
+          mealName={mealName}
+          logDate={logDate}
+          onClose={() => setShowFoodScanner(false)}
+          onLogged={() => {
+            setShowFoodScanner(false)
             onLogged?.()
           }}
         />
@@ -2073,7 +2228,6 @@ function ManualEntryForm({
     </div>
   )
 }
-
 function NotesCard({ plan }: { plan: FullMealPlan | null }) {
   const { t } = useLanguage()
   if (!plan) {

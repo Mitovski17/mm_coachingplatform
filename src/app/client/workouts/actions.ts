@@ -75,6 +75,7 @@ export type SessionDetail = {
   performedAt: string
   durationMinutes: number | null
   notes: string | null
+  workspaceId: string
   exercises: SessionDetailExercise[]
 }
 
@@ -93,6 +94,19 @@ export async function getClientId(email: string): Promise<{ id: string; workspac
     .maybeSingle()
   return data ?? null
 }
+
+export async function hasActivePlan(clientId: string): Promise<boolean> {
+  const admin = adminClient()
+  const { data } = await admin
+    .from('workout_programs')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle()
+  return !!data
+}
+
 
 export async function getTodayTemplate(clientId: string): Promise<TodayTemplate | null> {
   const admin = adminClient()
@@ -472,7 +486,7 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
   const admin = adminClient()
   const { data: session, error } = await admin
     .from('workout_sessions')
-    .select('id, name, performed_at, duration_minutes, notes')
+    .select('id, name, performed_at, duration_minutes, notes, workspace_id')
     .eq('id', sessionId)
     .single()
   if (error || !session) throw new Error(error?.message ?? 'Session not found')
@@ -516,6 +530,57 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
     performedAt: session.performed_at,
     durationMinutes: session.duration_minutes,
     notes: session.notes,
+    workspaceId: (session as any).workspace_id ?? '',
     exercises: Array.from(byExercise.values()),
+  }
+}
+
+export async function updateWorkoutSession(
+  sessionId: string,
+  payload: {
+    name: string
+    notes: string | null
+    durationMinutes: number | null
+    exercises: Array<{
+      exerciseId: string
+      sets: Array<{ setNumber: number; weightKg: number | null; reps: number | null }>
+    }>
+  }
+): Promise<void> {
+  const admin = adminClient()
+
+  // Update the session row
+  const { error: sessErr } = await admin
+    .from('workout_sessions')
+    .update({
+      name: payload.name,
+      notes: payload.notes,
+      duration_minutes: payload.durationMinutes,
+    })
+    .eq('id', sessionId)
+  if (sessErr) throw new Error(sessErr.message)
+
+  // Delete existing sets and reinsert
+  const { error: delErr } = await admin
+    .from('workout_sets')
+    .delete()
+    .eq('session_id', sessionId)
+  if (delErr) throw new Error(delErr.message)
+
+  const setRows: object[] = []
+  for (const ex of payload.exercises) {
+    for (const s of ex.sets) {
+      setRows.push({
+        session_id: sessionId,
+        exercise_id: ex.exerciseId,
+        set_number: s.setNumber,
+        weight_kg: s.weightKg,
+        reps: s.reps,
+      })
+    }
+  }
+  if (setRows.length > 0) {
+    const { error: insErr } = await admin.from('workout_sets').insert(setRows)
+    if (insErr) throw new Error(insErr.message)
   }
 }

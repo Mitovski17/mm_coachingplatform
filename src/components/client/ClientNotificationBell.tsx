@@ -9,8 +9,8 @@ export default function ClientNotificationBell() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user?.email) return
+    supabase.auth.getUser().then(({ data: { user }, error }) => {
+      if (error || !user?.email) return
       supabase
         .from('clients')
         .select('id')

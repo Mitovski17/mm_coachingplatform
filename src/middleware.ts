@@ -37,14 +37,20 @@ function handleMockAuth(request: NextRequest): NextResponse | null {
 
 // Copy all cookies from a supabaseResponse onto any redirect response so that
 // refreshed session tokens are never lost when we redirect.
+// Cookies deleted on the source (empty value) are properly deleted on the target too.
 function copySupabaseCookies(from: NextResponse, to: NextResponse): void {
   from.cookies.getAll().forEach((cookie) => {
-    to.cookies.set(cookie.name, cookie.value, {
-      sameSite: 'lax',
-      path: '/',
-      httpOnly: cookie.name.startsWith('sb-'),
-      secure: process.env.NODE_ENV === 'production',
-    })
+    if (!cookie.value) {
+      // Cookie was cleared — propagate the deletion so the browser actually removes it
+      to.cookies.delete(cookie.name)
+    } else {
+      to.cookies.set(cookie.name, cookie.value, {
+        sameSite: 'lax',
+        path: '/',
+        httpOnly: cookie.name.startsWith('sb-'),
+        secure: process.env.NODE_ENV === 'production',
+      })
+    }
   })
 }
 

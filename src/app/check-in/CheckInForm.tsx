@@ -402,6 +402,8 @@ function ContributorChips({
 // ─── Answer inputs ─────────────────────────────────────────────────────────────
 
 function NumberInput({ value, onChange, t }: { value: string; onChange: (v: string) => void; t: Translations }) {
+  // Normalise decimal separator: accept both . and , (iOS keyboards vary by locale)
+  const normalise = (v: string) => v.replace(',', '.')
   return (
     <div style={{ position: 'relative' }}>
       <input
@@ -409,7 +411,8 @@ function NumberInput({ value, onChange, t }: { value: string; onChange: (v: stri
         inputMode="decimal"
         pattern="[0-9]*[.,]?[0-9]*"
         value={value}
-        onChange={(e) => onChange(e.target.value.replace(',', '.'))}
+        onChange={(e) => onChange(normalise(e.target.value))}
+        onBlur={(e)  => { onChange(normalise(e.target.value)); e.currentTarget.style.borderColor = 'var(--color-border)' }}
         placeholder="0.0"
         style={{
           width: '100%',
@@ -423,7 +426,6 @@ function NumberInput({ value, onChange, t }: { value: string; onChange: (v: stri
           outline: 'none',
         }}
         onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)' }}
-        onBlur={(e)  => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
       />
       <span
         style={{
@@ -1022,6 +1024,10 @@ export default function CheckInForm() {
     }
 
     const finalAnswers: Record<string, string | number | string[] | null> = { ...answers }
+    // Sanitise numeric string fields — replace any comma with dot before persisting
+    if (typeof finalAnswers.current_weight === 'string') {
+      finalAnswers.current_weight = finalAnswers.current_weight.replace(',', '.')
+    }
     if (photoPaths.length > 0) finalAnswers.progress_photo = photoPaths
     // Attach contributors as a separate key per question
     for (const [qId, chips] of Object.entries(contributors)) {

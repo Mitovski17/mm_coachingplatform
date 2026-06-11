@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronUp, ChevronDown, Trash2, Plus, Search, Loader2, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, ChevronUp, ChevronDown, Trash2, Plus, Search, Loader2, Sparkles, X, RotateCcw } from 'lucide-react'
 import {
   upsertMealPlanTemplate,
   searchFoods,
@@ -168,10 +168,15 @@ function fromInitial(initial: FullTemplate): MealEntry[] {
     const options: OptionEntry[] = m.options.map((o) => ({
       tempId: newId(), label: o.label, sortOrder: o.sortOrder,
       foods: o.foods.map((f) => {
-        const cal100 = f.quantity > 0 ? (f.calories / f.quantity) * 100 : 0
-        const p100   = f.quantity > 0 ? (f.proteinG / f.quantity) * 100 : 0
-        const c100   = f.quantity > 0 ? (f.carbsG / f.quantity) * 100 : 0
-        const ft100  = f.quantity > 0 ? (f.fatG / f.quantity) * 100 : 0
+        // Must convert quantity → grams using the stored unit before deriving per-100g values.
+        // Without this, changing a unit (e.g. tbsp → tsp) after loading uses a wildly wrong
+        // per-100g base and produces incorrect calories.
+        const gramEquiv = GRAM_EQUIVALENT[f.unit] ?? 1
+        const grams = f.quantity * gramEquiv
+        const cal100 = grams > 0 ? (f.calories / grams) * 100 : 0
+        const p100   = grams > 0 ? (f.proteinG / grams) * 100 : 0
+        const c100   = grams > 0 ? (f.carbsG / grams) * 100 : 0
+        const ft100  = grams > 0 ? (f.fatG / grams) * 100 : 0
         return {
           tempId: newId(), foodId: f.foodId, foodName: f.foodName,
           quantity: f.quantity, unit: f.unit,
@@ -225,6 +230,31 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   const [aiGenerated, setAiGenerated] = useState(!!initialData)
   const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
 
+  // ── Undo stack ────────────────────────────────────────────────────────────────
+  type MealSnapshot = { meals: MealEntry[]; name: string; planType: PlanType; notes: string; recommendations: string }
+  const undoStack = useRef<MealSnapshot[]>([])
+  const [canUndo, setCanUndo] = useState(false)
+
+  const pushUndo = () => {
+    undoStack.current = [
+      ...undoStack.current.slice(-19),
+      { meals: JSON.parse(JSON.stringify(meals)), name, planType, notes, recommendations },
+    ]
+    setCanUndo(true)
+  }
+
+  const handleUndo = () => {
+    if (undoStack.current.length === 0) return
+    const snap = undoStack.current[undoStack.current.length - 1]
+    undoStack.current = undoStack.current.slice(0, -1)
+    setMeals(snap.meals)
+    setName(snap.name)
+    setPlanType(snap.planType)
+    setNotes(snap.notes)
+    setRecommendations(snap.recommendations)
+    setCanUndo(undoStack.current.length > 0)
+  }
+
   const handleAiGenerate = async () => {
     if (!aiPrompt.trim() || aiGenerating) return
     setAiGenerating(true)
@@ -237,6 +267,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      pushUndo()
       const { meals: aiMeals, name: aiName, planType: aiPlanType, notes: aiNotes, recommendations: aiRecs } = fromAiPlan(data as AiPlan)
       setMeals(aiMeals)
       if (aiName) setName(aiName)
@@ -268,13 +299,18 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
     updateMeal(mealTempId, (m) => ({ ...m, options: m.options.map((o) => (o.tempId === optionTempId ? fn(o) : o)) }))
   }
 
-  const addMeal = () => setMeals((prev) => [...prev, emptyMeal(prev.length)])
+  const addMeal = () => {
+    pushUndo()
+    setMeals((prev) => [...prev, emptyMeal(prev.length)])
+  }
 
   const removeMeal = (mealTempId: string) => {
+    pushUndo()
     setMeals((prev) => prev.filter((m) => m.tempId !== mealTempId).map((m, i) => ({ ...m, sortOrder: i })))
   }
 
   const moveMeal = (mealTempId: string, dir: -1 | 1) => {
+    pushUndo()
     setMeals((prev) => {
       const idx = prev.findIndex((m) => m.tempId === mealTempId)
       const target = idx + dir
@@ -286,6 +322,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   }
 
   const addOption = (mealTempId: string) => {
+    pushUndo()
     updateMeal(mealTempId, (m) => {
       if (m.options.length >= 3) return m
       const labels = ['A', 'B', 'C']
@@ -297,6 +334,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   }
 
   const removeOption = (mealTempId: string, optionTempId: string) => {
+    pushUndo()
     updateMeal(mealTempId, (m) => {
       if (m.options.length <= 1) return m
       const remaining = m.options.filter((o) => o.tempId !== optionTempId).map((o, i) => ({ ...o, sortOrder: i }))
@@ -305,6 +343,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   }
 
   const addFoodFromResult = async (mealTempId: string, optionTempId: string, result: FoodSearchResult) => {
+    pushUndo()
     let foodId: string | null = null
     if (result.source === 'usda') {
       try { foodId = await upsertFood(result) } catch { foodId = null }
@@ -322,6 +361,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   }
 
   const addManualFood = async (mealTempId: string, optionTempId: string, payload: { foodName: string; caloriesPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; quantity: number; unit: string }) => {
+    pushUndo()
     let foodId: string | null = null
     try {
       foodId = await upsertFood({
@@ -361,6 +401,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   }
 
   const removeFood = (mealTempId: string, optionTempId: string, foodTempId: string) => {
+    pushUndo()
     updateOption(mealTempId, optionTempId, (o) => ({
       ...o,
       foods: o.foods.filter((f) => f.tempId !== foodTempId).map((f, i) => ({ ...f, sortOrder: i })),
@@ -462,6 +503,17 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           >
             Cancel
           </Link>
+          {canUndo && (
+            <button
+              type="button"
+              onClick={handleUndo}
+              title="Undo last change"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, backgroundColor: '#1a1a1a', color: '#ccc', border: '1px solid #2a2a2a', cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              <RotateCcw size={13} />
+              Undo
+            </button>
+          )}
           <button
             type="button"
             onClick={handleSave}

@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Sparkles, Loader2, BarChart2 } from 'lucide-react'
+import { ArrowLeft, ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Sparkles, Loader2, BarChart2, RotateCcw } from 'lucide-react'
 import {
   upsertTemplate,
   createCustomExercise,
@@ -196,6 +196,29 @@ export default function TemplateEditor({
   const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
   const [customModalForTempId, setCustomModalForTempId] = useState<string | null>(null)
 
+  // ── Undo stack ────────────────────────────────────────────────────────────────
+  type TemplateSnapshot = { days: DayState[]; name: string; notes: string }
+  const undoStack = useRef<TemplateSnapshot[]>([])
+  const [canUndo, setCanUndo] = useState(false)
+
+  const pushUndo = () => {
+    undoStack.current = [
+      ...undoStack.current.slice(-19),
+      { days: JSON.parse(JSON.stringify(days)), name, notes },
+    ]
+    setCanUndo(true)
+  }
+
+  const handleUndo = () => {
+    if (undoStack.current.length === 0) return
+    const snap = undoStack.current[undoStack.current.length - 1]
+    undoStack.current = undoStack.current.slice(0, -1)
+    setDays(snap.days)
+    setName(snap.name)
+    setNotes(snap.notes)
+    setCanUndo(undoStack.current.length > 0)
+  }
+
   const activeDay = days[activeDayIndex] ?? days[0]
   const exercises = activeDay?.exercises ?? []
 
@@ -247,6 +270,7 @@ export default function TemplateEditor({
   // ── Day mutations ────────────────────────────────────────────────────────────
 
   const addDay = () => {
+    pushUndo()
     const newDay = makeDefaultDay(days.length)
     setDays((prev) => [...prev, newDay])
     setActiveDayIndex(days.length)
@@ -254,6 +278,7 @@ export default function TemplateEditor({
 
   const removeDay = (idx: number) => {
     if (days.length <= 1) return
+    pushUndo()
     setDays((prev) => prev.filter((_, i) => i !== idx))
     setActiveDayIndex((prev) => (prev >= idx && prev > 0 ? prev - 1 : prev))
   }
@@ -277,6 +302,7 @@ export default function TemplateEditor({
   }
 
   const addExercise = () => {
+    pushUndo()
     setActiveDayExercises((prev) => [
       ...prev,
       {
@@ -307,10 +333,12 @@ export default function TemplateEditor({
   }
 
   const removeExercise = (tempId: string) => {
+    pushUndo()
     setActiveDayExercises((prev) => prev.filter((ex) => ex.tempId !== tempId))
   }
 
   const moveExercise = (tempId: string, dir: -1 | 1) => {
+    pushUndo()
     setActiveDayExercises((prev) => {
       const idx = prev.findIndex((ex) => ex.tempId === tempId)
       if (idx === -1) return prev
@@ -337,6 +365,7 @@ export default function TemplateEditor({
   }
 
   const addSet = (exTempId: string) => {
+    pushUndo()
     setActiveDayExercises((prev) =>
       prev.map((ex) => {
         if (ex.tempId !== exTempId) return ex
@@ -354,6 +383,7 @@ export default function TemplateEditor({
   }
 
   const removeSet = (exTempId: string, setTempId: string) => {
+    pushUndo()
     setActiveDayExercises((prev) =>
       prev.map((ex) => {
         if (ex.tempId !== exTempId) return ex
@@ -446,6 +476,7 @@ export default function TemplateEditor({
 
       // API always returns { name, notes, days: [...] }
       if (Array.isArray(data.days) && data.days.length > 0) {
+        pushUndo()
         // Replace the entire template with the AI-generated days
         const newDays: DayState[] = (data.days as ResolvedDay[]).map((d) => ({
           tempId: crypto.randomUUID(),
@@ -623,6 +654,30 @@ export default function TemplateEditor({
           >
             Cancel
           </Link>
+          {canUndo && (
+            <button
+              type="button"
+              onClick={handleUndo}
+              title="Undo last change"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                fontSize: '0.8rem',
+                fontWeight: 500,
+                backgroundColor: 'var(--color-surface-2)',
+                color: 'var(--color-text-secondary)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              <RotateCcw size={13} />
+              Undo
+            </button>
+          )}
           <button
             type="button"
             onClick={handleSave}

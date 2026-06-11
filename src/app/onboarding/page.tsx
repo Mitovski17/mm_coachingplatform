@@ -542,10 +542,10 @@ export default function OnboardingPage() {
             <Field label="Current weight" error={errors.current_weight}>
               <UnitToggle value={currentWeightUnit} onChange={setCurrentWeightUnit} />
               <div className="mt-3">
-                <InputField type="number" inputMode="decimal"
+                <InputField type="text" inputMode="decimal"
                   placeholder={currentWeightUnit === 'kg' ? 'e.g. 80' : 'e.g. 176'}
-                  value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)}
-                  min={0} step="any"
+                  value={currentWeight}
+                  onChange={(e) => setCurrentWeight(e.target.value.replace(',', '.'))}
                 />
               </div>
             </Field>
@@ -573,10 +573,10 @@ export default function OnboardingPage() {
             <Field label="Target weight" error={errors.desired_weight}>
               <UnitToggle value={desiredWeightUnit} onChange={setDesiredWeightUnit} />
               <div className="mt-3">
-                <InputField type="number" inputMode="decimal"
+                <InputField type="text" inputMode="decimal"
                   placeholder={desiredWeightUnit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
-                  value={desiredWeight} onChange={(e) => setDesiredWeight(e.target.value)}
-                  min={0} step="any"
+                  value={desiredWeight}
+                  onChange={(e) => setDesiredWeight(e.target.value.replace(',', '.'))}
                 />
               </div>
             </Field>

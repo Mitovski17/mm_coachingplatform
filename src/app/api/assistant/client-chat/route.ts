@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+
+export const maxDuration = 60
 import { createClient } from '@supabase/supabase-js'
 function adminClient() {
   return createClient(

@@ -72,6 +72,9 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
     })
   )
 
+  const todayKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}`
+  const todayWorkoutDone = completedSet.has(todayKey)
+
   const DAY_LETTERS = lang === 'bg'
     ? ['П', 'В', 'С', 'Ч', 'П', 'С', 'Н']
     : ['M', 'T', 'W', 'T', 'F', 'S', 'S']
@@ -307,7 +310,7 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
       </div>
 
       <div style={{ margin: '0 16px 16px' }}>
-        <WorkoutCard today={today} estimatedDuration={estimatedDuration} />
+        <WorkoutCard today={today} estimatedDuration={estimatedDuration} todayDone={todayWorkoutDone} />
       </div>
 
       <div style={{ padding: '0 16px' }}>
@@ -430,8 +433,38 @@ function StatCard({ label, value, valueColor, trend, trendColor }: {
   )
 }
 
-function WorkoutCard({ today, estimatedDuration }: { today: TodayTemplate | null; estimatedDuration: number }) {
+function WorkoutCard({ today, estimatedDuration, todayDone }: { today: TodayTemplate | null; estimatedDuration: number; todayDone: boolean }) {
   const { t } = useLanguage()
+
+  if (todayDone) {
+    return (
+      <div style={{
+        backgroundColor: 'var(--color-surface-1)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 16, padding: '18px',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            {t.home.todaysWorkout}
+          </p>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%',
+            backgroundColor: '#22c55e',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <Check size={14} color="#fff" strokeWidth={3} />
+          </div>
+        </div>
+        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 6px', lineHeight: 1.2 }}>
+          {t.home.workoutDoneTitle}
+        </p>
+        <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: 0, lineHeight: 1.5 }}>
+          {t.home.workoutDoneBody}
+        </p>
+      </div>
+    )
+  }
+
   if (!today) {
     return (
       <div style={{

@@ -879,6 +879,26 @@ function MealCard({
   )
 }
 
+function QuantityInput({ value, onChange, style }: { value: number; onChange: (v: number) => void; style: React.CSSProperties }) {
+  const [display, setDisplay] = useState(String(value))
+  useEffect(() => { setDisplay(String(value)) }, [value])
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={display}
+      onChange={(e) => setDisplay(e.target.value.replace(/[^0-9.]/g, ''))}
+      onBlur={() => {
+        const parsed = parseFloat(display)
+        const num = isFinite(parsed) ? parsed : 0
+        setDisplay(String(num))
+        onChange(num)
+      }}
+      style={style}
+    />
+  )
+}
+
 function OptionContent({
   option, search, onSearchChange, onAddFromResult, onAddManual,
   onUpdateFoodQuantity, onUpdateFoodUnit, onRemoveFood,
@@ -935,12 +955,9 @@ function OptionContent({
         >
           <span style={{ fontSize: 13, color: '#e0e0e0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.foodName}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <input
-              type="number"
-              min={0}
-              step="any"
+            <QuantityInput
               value={f.quantity}
-              onChange={(e) => onUpdateFoodQuantity(f.tempId, parseFloat(e.target.value))}
+              onChange={(q) => onUpdateFoodQuantity(f.tempId, q)}
               style={{ width: 52, padding: '4px 6px', fontSize: 13, background: '#1a1a1a', border: '1px solid #222', borderRadius: 6, color: '#fff', outline: 'none' }}
             />
             <select
@@ -1125,12 +1142,12 @@ function ManualEntry({ onAdd, onClose }: { onAdd: (p: { foodName: string; calori
         </div>
         <div>
           <label style={lbl}>Quantity ({unit})</label>
-          <input type="number" min={0} step="any" value={q} onChange={(e) => setQ(e.target.value)} style={inp} />
+          <input type="text" inputMode="decimal" value={q} onChange={(e) => setQ(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} />
         </div>
-        <div><label style={lbl}>kcal {suffix}</label><input type="number" min={0} step="any" value={cal} onChange={(e) => setCal(e.target.value)} style={inp} /></div>
-        <div><label style={lbl}>Protein {suffix}</label><input type="number" min={0} step="any" value={p} onChange={(e) => setP(e.target.value)} style={inp} /></div>
-        <div><label style={lbl}>Carbs {suffix}</label><input type="number" min={0} step="any" value={c} onChange={(e) => setC(e.target.value)} style={inp} /></div>
-        <div><label style={lbl}>Fat {suffix}</label><input type="number" min={0} step="any" value={f} onChange={(e) => setF(e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>kcal {suffix}</label><input type="text" inputMode="decimal" value={cal} onChange={(e) => setCal(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} /></div>
+        <div><label style={lbl}>Protein {suffix}</label><input type="text" inputMode="decimal" value={p} onChange={(e) => setP(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} /></div>
+        <div><label style={lbl}>Carbs {suffix}</label><input type="text" inputMode="decimal" value={c} onChange={(e) => setC(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} /></div>
+        <div><label style={lbl}>Fat {suffix}</label><input type="text" inputMode="decimal" value={f} onChange={(e) => setF(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} /></div>
       </div>
       <button
         type="button"

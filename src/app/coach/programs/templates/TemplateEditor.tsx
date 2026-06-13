@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Sparkles, Loader2, BarChart2, RotateCcw } from 'lucide-react'
@@ -14,7 +14,7 @@ import {
 type SetRow = {
   tempId: string
   setNumber: number
-  targetReps: number
+  targetReps: string
   targetWeight: string
   rpe: string
   notes: string
@@ -42,7 +42,7 @@ function makeDefaultSets(count = 3): SetRow[] {
   return Array.from({ length: count }, (_, i) => ({
     tempId: crypto.randomUUID(),
     setNumber: i + 1,
-    targetReps: 10,
+    targetReps: '10',
     targetWeight: '',
     rpe: '',
     notes: '',
@@ -123,7 +123,7 @@ function snapshotInitialTemplate(initialData?: TemplateWithDays): string | null 
         notes: (ex.notes ?? '').trim(),
         sets: ex.sets.map((s) => ({
           setNumber: s.setNumber,
-          targetReps: s.targetReps,
+          targetReps: String(s.targetReps ?? 0),
           targetWeight: (s.targetWeight ?? '').trim(),
           rpe: (s.rpe ?? '').trim(),
           notes: (s.notes ?? '').trim(),
@@ -131,6 +131,102 @@ function snapshotInitialTemplate(initialData?: TemplateWithDays): string | null 
       })),
     })),
   })
+}
+
+function ExerciseCombobox({
+  value,
+  onChange,
+  exercises,
+}: {
+  value: string
+  onChange: (id: string) => void
+  exercises: Exercise[]
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const selected = exercises.find((e) => e.id === value) ?? null
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return exercises
+    return exercises.filter(
+      (e) => e.name.toLowerCase().includes(q) || e.muscleGroup.toLowerCase().includes(q)
+    )
+  }, [exercises, query])
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={open ? query : (selected?.name ?? '')}
+        placeholder="Search exercise…"
+        onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => { setOpen(true); setQuery('') }}
+        style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem', boxSizing: 'border-box' }}
+      />
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          right: 0,
+          zIndex: 200,
+          background: 'var(--color-surface-3)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-md)',
+          maxHeight: 240,
+          overflowY: 'auto',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
+              No exercises found
+            </div>
+          ) : (
+            filtered.map((e) => (
+              <div
+                key={e.id}
+                onMouseDown={(ev) => {
+                  ev.preventDefault()
+                  onChange(e.id)
+                  setOpen(false)
+                  setQuery('')
+                }}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  color: e.id === value ? 'var(--color-accent)' : 'var(--color-text-primary)',
+                  background: e.id === value ? 'rgba(255,255,255,0.04)' : 'transparent',
+                }}
+              >
+                <span>{e.name}</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', flexShrink: 0, marginLeft: 8 }}>
+                  {muscleGroupLabel(e.muscleGroup)}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function TemplateEditor({
@@ -165,7 +261,7 @@ export default function TemplateEditor({
             ? ex.sets.map((s) => ({
                 tempId: crypto.randomUUID(),
                 setNumber: s.setNumber,
-                targetReps: s.targetReps,
+                targetReps: String(s.targetReps ?? 0),
                 targetWeight: s.targetWeight ?? '',
                 rpe: s.rpe ?? '',
                 notes: s.notes ?? '',
@@ -372,7 +468,7 @@ export default function TemplateEditor({
         const newSet: SetRow = {
           tempId: crypto.randomUUID(),
           setNumber: ex.sets.length + 1,
-          targetReps: 10,
+          targetReps: '10',
           targetWeight: '',
           rpe: '',
           notes: '',
@@ -467,7 +563,7 @@ export default function TemplateEditor({
         sets: ex.sets.map((s) => ({
           tempId: crypto.randomUUID(),
           setNumber: s.setNumber,
-          targetReps: s.targetReps,
+          targetReps: String(s.targetReps ?? 0),
           targetWeight: s.targetWeight ?? '',
           rpe: s.rpe ?? '',
           notes: s.notes ?? '',
@@ -548,7 +644,7 @@ export default function TemplateEditor({
             notes: ex.notes.trim() ? ex.notes.trim() : undefined,
             sets: ex.sets.map((s) => ({
               setNumber: s.setNumber,
-              targetReps: s.targetReps,
+              targetReps: Number(s.targetReps) || 0,
               targetWeight: s.targetWeight.trim() || undefined,
               rpe: s.rpe.trim() || undefined,
               notes: s.notes.trim() || undefined,
@@ -1190,22 +1286,11 @@ export default function TemplateEditor({
                           <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 4 }}>
                             Exercise
                           </label>
-                          <select
+                          <ExerciseCombobox
                             value={ex.exerciseId}
-                            onChange={(e) => setExerciseSelection(ex.tempId, e.target.value)}
-                            style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
-                          >
-                            <option value="">— Select exercise —</option>
-                            {exercisesByGroup.map(([group, list]) => (
-                              <optgroup key={group} label={muscleGroupLabel(group)}>
-                                {list.map((opt) => (
-                                  <option key={opt.id} value={opt.id}>
-                                    {opt.name}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            ))}
-                          </select>
+                            onChange={(id) => setExerciseSelection(ex.tempId, id)}
+                            exercises={exerciseList}
+                          />
                           <button
                             type="button"
                             onClick={() => setCustomModalForTempId(ex.tempId)}
@@ -1298,12 +1383,12 @@ export default function TemplateEditor({
                                 {s.setNumber}
                               </span>
                               <input
-                                type="number"
-                                min={1}
+                                type="text"
+                                inputMode="numeric"
                                 value={s.targetReps}
                                 onChange={(e) =>
                                   updateSet(ex.tempId, s.tempId, {
-                                    targetReps: Math.max(1, Number(e.target.value) || 1),
+                                    targetReps: e.target.value.replace(/[^0-9]/g, ''),
                                   })
                                 }
                                 style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}

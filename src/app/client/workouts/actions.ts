@@ -417,16 +417,18 @@ export async function saveWorkoutSession(payload: {
   const setRows: Array<{
     session_id: string
     exercise_id: string
+    exercise_order: number
     set_number: number
     weight_kg: number | null
     reps: number | null
   }> = []
-  for (const ex of payload.exercises) {
+  for (const [index, ex] of payload.exercises.entries()) {
     for (const s of ex.sets) {
       if (s.reps === null) continue
       setRows.push({
         session_id: session.id,
         exercise_id: ex.exerciseId,
+        exercise_order: index,
         set_number: s.setNumber,
         weight_kg: s.weightKg,
         reps: s.reps,
@@ -493,15 +495,19 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
 
   const { data: sets, error: e2 } = await admin
     .from('workout_sets')
-    .select('exercise_id, set_number, weight_kg, reps, exercises(name, muscle_group)')
+    .select('exercise_id, exercise_order, set_number, weight_kg, reps, exercises(name, muscle_group)')
     .eq('session_id', sessionId)
+    .order('exercise_order', { ascending: true })
     .order('set_number', { ascending: true })
   if (e2) throw new Error(e2.message)
 
-  const byExercise = new Map<string, SessionDetailExercise>()
+  // Key by compound (exercise_id + exercise_order) so the same exercise appearing
+  // at two different positions stays as separate entries, and ordering is preserved.
+  const byPosition = new Map<string, SessionDetailExercise>()
   for (const s of sets ?? []) {
     const ex = s.exercises as unknown as { name: string; muscle_group: string } | null
-    const existing = byExercise.get(s.exercise_id)
+    const key = `${s.exercise_id}|${s.exercise_order}`
+    const existing = byPosition.get(key)
     if (existing) {
       existing.sets.push({
         setNumber: s.set_number,
@@ -509,7 +515,7 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
         reps: s.reps !== null ? Number(s.reps) : null,
       })
     } else {
-      byExercise.set(s.exercise_id, {
+      byPosition.set(key, {
         exerciseId: s.exercise_id,
         exerciseName: ex?.name ?? 'Unknown',
         muscleGroup: ex?.muscle_group ?? '',
@@ -531,7 +537,7 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
     durationMinutes: session.duration_minutes,
     notes: session.notes,
     workspaceId: (session as any).workspace_id ?? '',
-    exercises: Array.from(byExercise.values()),
+    exercises: Array.from(byPosition.values()),
   }
 }
 
@@ -568,11 +574,12 @@ export async function updateWorkoutSession(
   if (delErr) throw new Error(delErr.message)
 
   const setRows: object[] = []
-  for (const ex of payload.exercises) {
+  for (const [index, ex] of payload.exercises.entries()) {
     for (const s of ex.sets) {
       setRows.push({
         session_id: sessionId,
         exercise_id: ex.exerciseId,
+        exercise_order: index,
         set_number: s.setNumber,
         weight_kg: s.weightKg,
         reps: s.reps,
@@ -582,5 +589,26 @@ export async function updateWorkoutSession(
   if (setRows.length > 0) {
     const { error: insErr } = await admin.from('workout_sets').insert(setRows)
     if (insErr) throw new Error(insErr.message)
+  }
+}
+
+export async function createExerciseForWorkspace(
+  workspaceId: string,
+  name: string,
+  muscleGroup: string,
+  equipment: string,
+): Promise<LibraryExercise> {
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('exercises')
+    .insert({ name, muscle_group: muscleGroup, equipment, workspace_id: workspaceId })
+    .select('id, name, muscle_group, equipment')
+    .single()
+  if (error || !data) throw new Error(error?.message ?? 'Failed to create exercise')
+  return {
+    id: data.id,
+    name: data.name,
+    muscleGroup: data.muscle_group,
+    equipment: data.equipment,
   }
 }

@@ -10,6 +10,7 @@ import {
   getLastSessionForTemplateDay,
   getExerciseLibraryForClient,
   saveWorkoutSession,
+  createExerciseForWorkspace,
   type TemplateExercise,
   type LastSession,
   type LibraryExercise,
@@ -229,6 +230,142 @@ function ExercisePicker({
   )
 }
 
+// ─── Custom exercise creator ──────────────────────────────────────────────────
+
+const EQUIPMENT_OPTIONS = ['barbell', 'dumbbell', 'machine', 'bodyweight', 'cable', 'other']
+
+function CustomExerciseCreator({
+  workspaceId,
+  onCreated,
+  onClose,
+  t,
+}: {
+  workspaceId: string
+  onCreated: (ex: LibraryExercise) => void
+  onClose: () => void
+  t: Translations
+}) {
+  const [name, setName] = useState('')
+  const [muscleGroup, setMuscleGroup] = useState(MUSCLE_GROUP_ORDER[0])
+  const [equipment, setEquipment] = useState('dumbbell')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const handleCreate = async () => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setSaving(true)
+    setErr(null)
+    try {
+      const ex = await createExerciseForWorkspace(workspaceId, trimmed, muscleGroup, equipment)
+      onCreated(ex)
+      onClose()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to create exercise')
+      setSaving(false)
+    }
+  }
+
+  const selectStyle = {
+    width: '100%', padding: '10px 14px', marginBottom: 12,
+    backgroundColor: 'var(--color-surface-2)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 12, color: 'var(--color-text-primary)',
+    fontSize: 14, outline: 'none', fontFamily: 'inherit',
+    appearance: 'none' as const, boxSizing: 'border-box' as const,
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 60,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: 'var(--color-surface-1)',
+          borderRadius: '20px 20px 0 0',
+          padding: '20px 20px 40px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+            {t.workouts.addCustomExercise}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: 'var(--color-text-hint)', cursor: 'pointer', fontSize: 20, padding: 4 }}
+          >
+            ×
+          </button>
+        </div>
+
+        <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          {t.workouts.customExerciseName}
+        </p>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t.workouts.customExerciseName}
+          autoFocus
+          style={{
+            width: '100%', padding: '10px 14px', marginBottom: 14,
+            backgroundColor: 'var(--color-surface-2)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 12, color: 'var(--color-text-primary)',
+            fontSize: 14, outline: 'none', fontFamily: 'inherit',
+            boxSizing: 'border-box',
+          }}
+        />
+
+        <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          {t.workouts.muscleGroupLabel}
+        </p>
+        <select value={muscleGroup} onChange={(e) => setMuscleGroup(e.target.value)} style={selectStyle}>
+          {MUSCLE_GROUP_ORDER.map((g) => (
+            <option key={g} value={g} style={{ textTransform: 'capitalize' }}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>
+          ))}
+        </select>
+
+        <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          {t.workouts.equipmentLabel}
+        </p>
+        <select value={equipment} onChange={(e) => setEquipment(e.target.value)} style={{ ...selectStyle, marginBottom: 20 }}>
+          {EQUIPMENT_OPTIONS.map((eq) => (
+            <option key={eq} value={eq} style={{ textTransform: 'capitalize' }}>{eq.charAt(0).toUpperCase() + eq.slice(1)}</option>
+          ))}
+        </select>
+
+        {err && (
+          <p style={{ fontSize: 13, color: '#ef4444', margin: '0 0 12px' }}>{err}</p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={!name.trim() || saving}
+          style={{
+            width: '100%', padding: '14px 0',
+            backgroundColor: name.trim() && !saving ? 'var(--color-accent)' : 'var(--color-surface-3)',
+            color: name.trim() && !saving ? '#fff' : 'var(--color-text-hint)',
+            border: 'none', borderRadius: 14,
+            fontSize: 15, fontWeight: 700, cursor: name.trim() && !saving ? 'pointer' : 'default',
+            transition: 'background-color 0.15s',
+          }}
+        >
+          {saving ? t.common.saving : t.workouts.createExercise}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
 export default function SessionPage() {
@@ -272,8 +409,9 @@ function SessionInner() {
   const titleInputRef = useRef<HTMLInputElement>(null)
 
   // Custom mode: exercise library + picker state
-  const [exerciseLibrary, setExerciseLibrary] = useState<LibraryExercise[]>([])
-  const [pickerOpen,      setPickerOpen]      = useState(false)
+  const [exerciseLibrary,    setExerciseLibrary]    = useState<LibraryExercise[]>([])
+  const [pickerOpen,         setPickerOpen]         = useState(false)
+  const [customPickerOpen,   setCustomPickerOpen]   = useState(false)
 
   // ── Load ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -632,24 +770,42 @@ function SessionInner() {
           />
         ))}
 
-        {/* Add Exercise button (custom mode) */}
+        {/* Add Exercise buttons (custom mode) */}
         {isCustom && (
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            style={{
-              width: '100%', padding: '13px 0', marginBottom: 12,
-              backgroundColor: 'transparent',
-              border: '1px dashed var(--color-accent)',
-              borderRadius: 14,
-              color: 'var(--color-accent)',
-              fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}
-          >
-            <Plus size={16} />
-            {t.workouts.addExercise}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              style={{
+                width: '100%', padding: '13px 0', marginBottom: 8,
+                backgroundColor: 'transparent',
+                border: '1px dashed var(--color-accent)',
+                borderRadius: 14,
+                color: 'var(--color-accent)',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              <Plus size={16} />
+              {t.workouts.addExercise}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCustomPickerOpen(true)}
+              style={{
+                width: '100%', padding: '9px 0', marginBottom: 12,
+                backgroundColor: 'transparent',
+                border: '1px dashed var(--color-border)',
+                borderRadius: 14,
+                color: 'var(--color-text-muted)',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              <Plus size={14} />
+              {t.workouts.addCustomExercise}
+            </button>
+          </>
         )}
 
         {/* Session notes */}
@@ -682,6 +838,19 @@ function SessionInner() {
           library={exerciseLibrary}
           onSelect={addExerciseFromLibrary}
           onClose={() => setPickerOpen(false)}
+          t={t}
+        />
+      )}
+
+      {/* ── Custom exercise creator (custom mode) ── */}
+      {customPickerOpen && session?.clientInfo && (
+        <CustomExerciseCreator
+          workspaceId={session.clientInfo.workspace_id}
+          onCreated={(ex) => {
+            setExerciseLibrary((prev) => [...prev, ex])
+            addExerciseFromLibrary(ex)
+          }}
+          onClose={() => setCustomPickerOpen(false)}
           t={t}
         />
       )}

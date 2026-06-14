@@ -58,7 +58,9 @@ async function resolveData() {
   if (!email) return null
   const client = await getClientId(email)
   if (!client) {
-    redirect('/onboarding')
+    // Email authenticated but no matching client record - send to login rather than
+    // onboarding, since this is almost always a stale/mismatched session, not a new user
+    redirect('/login')
   }
 
   const isoToday = new Date().toISOString().slice(0, 10)

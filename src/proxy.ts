@@ -54,7 +54,7 @@ function copySupabaseCookies(from: NextResponse, to: NextResponse): void {
   })
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const mockResponse = handleMockAuth(request)
   if (mockResponse) return mockResponse
 

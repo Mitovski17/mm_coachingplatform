@@ -901,9 +901,49 @@ function CheckinDoneScreen({ justSubmitted, t }: { justSubmitted: boolean; t: Tr
   )
 }
 
+function ErrorScreen({ message }: { message: string | null }) {
+  return (
+    <div style={{ display: 'flex', minHeight: '100dvh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px', backgroundColor: 'var(--color-base)' }}>
+      <div style={{ width: '100%', maxWidth: 360, textAlign: 'center' }}>
+        <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>Mitovski</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>Coaching</span>
+        </div>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 8 }}>Something went wrong</h2>
+        <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 28 }}>
+          {message ?? 'Could not load your check-in. Please try again.'}
+        </p>
+        <Link
+          href="/client"
+          style={{
+            display: 'block',
+            textAlign: 'center',
+            backgroundColor: 'var(--color-accent)',
+            color: '#fff',
+            borderRadius: 12,
+            padding: '14px',
+            fontSize: 15,
+            fontWeight: 600,
+            textDecoration: 'none',
+          }}
+        >
+          Back to Home
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
-type PageStatus = 'loading' | 'ready' | 'already_submitted' | 'success'
+type PageStatus = 'loading' | 'ready' | 'error' | 'already_submitted' | 'success'
 
 export default function CheckInForm() {
   const router = useRouter()
@@ -940,7 +980,11 @@ export default function CheckInForm() {
       }
 
       const client = await getClientByEmail(email)
-      if (!client) { router.replace('/client'); return }
+      if (!client) {
+        setError('Your account was not found. Please contact your coach.')
+        setPageStatus('error')
+        return
+      }
 
       setClientId(client.id)
       setWorkspaceId(client.workspace_id)
@@ -958,7 +1002,7 @@ export default function CheckInForm() {
     init().catch((err) => {
       console.error('[check-in] init failed:', err)
       setError(t.checkin.loadFailed)
-      setPageStatus('ready')
+      setPageStatus('error')
     })
   }, [router, t])
 
@@ -1053,6 +1097,7 @@ export default function CheckInForm() {
 
   // ── Screen routing
   if (pageStatus === 'loading')           return <LoadingScreen />
+  if (pageStatus === 'error')             return <ErrorScreen message={error} />
   if (pageStatus === 'already_submitted') return <CheckinDoneScreen justSubmitted={false} t={t} />
   if (pageStatus === 'success')           return <CheckinDoneScreen justSubmitted={true} t={t} />
   if (!currentQ)                          return <LoadingScreen />

@@ -81,11 +81,12 @@ function adminClient() {
 
 export async function getClientByEmail(email: string): Promise<{ id: string; workspace_id: string } | null> {
   const admin = adminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('clients')
     .select('id, workspace_id')
     .eq('email', email)
     .maybeSingle()
+  if (error) throw new Error(error.message)
   return data ?? null
 }
 
@@ -197,8 +198,8 @@ export async function uploadProgressPhoto(formData: FormData): Promise<string> {
   const admin = adminClient()
   const { data, error } = await admin.storage
     .from('progress-photos')
-    .upload(path, file)
+    .upload(path, file, { contentType: file.type || 'image/jpeg' })
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(`Photo upload failed: ${error.message}`)
   return data.path
 }

@@ -288,10 +288,47 @@ export default function NutritionClient({
     await reloadDayLogs()
   }
 
-  const handleDeleteFood = async (foodId: string, loggedFoodId?: string | null) => {
-    setDeletedFoodIds((prev) => ({ ...prev, [foodId]: true }))
+  const handleDeleteFood = async (
+    foodId: string,
+    loggedFoodId?: string | null,
+    autoLogContext?: { meal: Meal; activeOption: Option; portionOverrides: Record<string, number> }
+  ) => {
+    const newDeletedIds = { ...deletedFoodIds, [foodId]: true }
+    setDeletedFoodIds(newDeletedIds)
+
     if (loggedFoodId) {
+      // Meal is already logged — delete only this specific log entry
       await deleteNutritionLog(loggedFoodId)
+      await reloadDayLogs()
+    } else if (autoLogContext && clientId && workspaceId) {
+      // Meal is not yet logged — auto-log remaining foods so the deletion persists in DB
+      const { meal, activeOption, portionOverrides: overrides } = autoLogContext
+      const remainingFoods = activeOption.foods.filter(
+        (f) => f.id !== foodId && !newDeletedIds[f.id]
+      )
+      if (remainingFoods.length > 0) {
+        await logMealOption({
+          clientId,
+          workspaceId,
+          loggedDate: selectedDate,
+          mealType: meal.name,
+          mealOptionId: activeOption.id,
+          foods: remainingFoods.map((f) => {
+            const qty = overrides[f.id] ?? f.quantity
+            const ratio = qty / f.quantity
+            return {
+              templateFoodId: f.id,
+              foodName: f.foodName,
+              quantity: qty,
+              unit: f.unit,
+              calories: round1(f.calories * ratio),
+              proteinG: round1(f.proteinG * ratio),
+              carbsG: round1(f.carbsG * ratio),
+              fatG: round1(f.fatG * ratio),
+            }
+          }),
+        })
+      }
       await reloadDayLogs()
     }
   }
@@ -1157,7 +1194,7 @@ function MealCard({
     origF: number
   ) => Promise<void>
   onPortionOverride: (foodId: string, qty: number) => void
-  onDeleteFood: (foodId: string, loggedFoodId?: string | null) => Promise<void>
+  onDeleteFood: (foodId: string, loggedFoodId?: string | null, autoLogContext?: { meal: Meal; activeOption: Option; portionOverrides: Record<string, number> }) => Promise<void>
   addFoodOpen: boolean
   onToggleAddFood: () => void
   onAddCustomFood: (p: {
@@ -1356,7 +1393,11 @@ function MealCard({
                   fat={f.fatG}
                   portionOverride={portionOverrides[f.id]}
                   onPortionOverride={(qty) => onPortionOverride(f.id, qty)}
-                  onDelete={() => onDeleteFood(f.id, matchingLog?.id)}
+                  onDelete={() => onDeleteFood(
+                    f.id,
+                    matchingLog?.id,
+                    !isLogged && activeOption ? { meal, activeOption, portionOverrides } : undefined
+                  )}
                 />
               )
             })}

@@ -63,14 +63,19 @@ async function resolveData() {
 
   const isoToday = new Date().toISOString().slice(0, 10)
 
-  const [today, logs, stats] = await Promise.all([
+  const [today, logs, stats, mealPlanTraining, mealPlanRest, mealPlanOverall] = await Promise.all([
     getTodayTemplate(client.id),
     getDayLogs(client.id, isoToday),
     getHomeStats(email, client.id),
+    getActiveMealPlan(client.id, 'training'),
+    getActiveMealPlan(client.id, 'rest'),
+    getActiveMealPlan(client.id, 'overall'),
   ])
 
   const planType = today ? 'training' : 'rest'
-  const mealPlan = await getActiveMealPlan(client.id, planType)
+  const mealPlan = planType === 'training'
+    ? (mealPlanTraining ?? mealPlanOverall)
+    : (mealPlanRest ?? mealPlanOverall)
   const targets = computeTargets(mealPlan)
 
   return { today, logs, stats, avatarUrl, onboardingComplete: stats.onboardingComplete, targets }

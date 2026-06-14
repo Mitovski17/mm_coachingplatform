@@ -8,7 +8,7 @@ import type { TodayTemplate } from './workouts/actions'
 import type { DayLog } from './nutrition/actions'
 import type { HomeStats } from './home-actions'
 import type { NutritionTargets } from './page'
-import { useLanguage } from '@/lib/i18n'
+import { useLanguage, tx } from '@/lib/i18n'
 
 function getInitials(name: string): string {
   const p = name.trim().split(/\s+/)
@@ -518,7 +518,7 @@ function WorkoutCard({ today, estimatedDuration, todayDone }: { today: TodayTemp
               fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)',
               backgroundColor: 'var(--color-surface-3)', borderRadius: 20, padding: '5px 12px',
             }}>
-              {name}
+              {tx(t.exercises as Record<string, string>, name)}
             </span>
           ))}
           {extra > 0 && (

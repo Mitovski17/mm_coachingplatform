@@ -1060,8 +1060,10 @@ export default function CheckInForm() {
           fd.append('clientId', clientId)
           photoPaths.push(await uploadProgressPhoto(fd))
         }
-      } catch {
-        setError(t.checkin.photoFailed)
+      } catch (err) {
+        console.error('[check-in] photo upload failed:', err)
+        const msg = err instanceof Error ? err.message : String(err)
+        setError(msg || t.checkin.photoFailed)
         setIsSubmitting(false)
         return
       }

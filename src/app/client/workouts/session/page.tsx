@@ -15,7 +15,7 @@ import {
   type LastSession,
   type LibraryExercise,
 } from '../actions'
-import { useLanguage, type Translations } from '@/lib/i18n'
+import { useLanguage, tx, type Translations } from '@/lib/i18n'
 import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 import type { SetRow, ExerciseState, RestTimer } from '@/lib/workout-session-types'
 
@@ -192,7 +192,7 @@ function ExercisePicker({
                   color: MUSCLE_COLORS[group] ?? 'var(--color-text-hint)',
                   margin: '0 0 6px', padding: '0 2px',
                 }}>
-                  {group}
+                  {tx(t.muscleGroups as Record<string, string>, group)}
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {exList.map((ex) => (
@@ -211,10 +211,10 @@ function ExercisePicker({
                     >
                       <div>
                         <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
-                          {ex.name}
+                          {tx(t.exercises as Record<string, string>, ex.name)}
                         </p>
                         <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>
-                          {ex.equipment}
+                          {tx(t.equipment as Record<string, string>, ex.equipment)}
                         </p>
                       </div>
                       <Plus size={16} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
@@ -329,7 +329,7 @@ function CustomExerciseCreator({
         </p>
         <select value={muscleGroup} onChange={(e) => setMuscleGroup(e.target.value)} style={selectStyle}>
           {MUSCLE_GROUP_ORDER.map((g) => (
-            <option key={g} value={g} style={{ textTransform: 'capitalize' }}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>
+            <option key={g} value={g}>{tx(t.muscleGroups as Record<string, string>, g)}</option>
           ))}
         </select>
 
@@ -338,7 +338,7 @@ function CustomExerciseCreator({
         </p>
         <select value={equipment} onChange={(e) => setEquipment(e.target.value)} style={{ ...selectStyle, marginBottom: 20 }}>
           {EQUIPMENT_OPTIONS.map((eq) => (
-            <option key={eq} value={eq} style={{ textTransform: 'capitalize' }}>{eq.charAt(0).toUpperCase() + eq.slice(1)}</option>
+            <option key={eq} value={eq}>{tx(t.equipment as Record<string, string>, eq)}</option>
           ))}
         </select>
 
@@ -890,15 +890,15 @@ function ExerciseCard({
         {/* Title row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, flex: 1 }}>
-            {exercise.exerciseName}
+            {tx(t.exercises as Record<string, string>, exercise.exerciseName)}
           </p>
           <span style={{
             fontSize: 10, fontWeight: 600, padding: '2px 8px',
             borderRadius: 999, color: muscleColor,
             backgroundColor: `${muscleColor}18`,
-            textTransform: 'capitalize', flexShrink: 0,
+            flexShrink: 0,
           }}>
-            {exercise.muscleGroup}
+            {tx(t.muscleGroups as Record<string, string>, exercise.muscleGroup)}
           </span>
           <OverloadBadge indicator={exercise.overloadIndicator} />
           {/* Move up / down */}

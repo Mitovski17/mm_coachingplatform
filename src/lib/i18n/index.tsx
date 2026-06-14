@@ -1,11 +1,12 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
-import { en, type Translations } from './en'
+import { en, tx, type Translations } from './en'
 import { bg } from './bg'
 import { updateLanguage, type Lang } from './actions'
 
 export type { Lang, Translations }
+export { tx }
 
 const DICTS: Record<Lang, Translations> = { en, bg }
 

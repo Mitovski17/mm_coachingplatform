@@ -7,7 +7,7 @@ import { format } from 'date-fns'
 import { ChevronRight, Dumbbell } from 'lucide-react'
 import type { TodayTemplate, HistorySession, ProgramWorkoutDay } from './actions'
 import { getProgramWorkoutDays } from './actions'
-import { useLanguage, type Translations } from '@/lib/i18n'
+import { useLanguage, tx, type Translations } from '@/lib/i18n'
 import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 
 const MUSCLE_COLORS: Record<string, string> = {
@@ -256,11 +256,11 @@ export default function WorkoutsClient({
                               {day.muscleGroups.map((g) => (
                                 <span key={g} style={{
                                   fontSize: 10, fontWeight: 600, padding: '2px 7px',
-                                  borderRadius: 999, textTransform: 'capitalize',
+                                  borderRadius: 999,
                                   backgroundColor: `${MUSCLE_COLORS[g] ?? '#6b7280'}22`,
                                   color: MUSCLE_COLORS[g] ?? '#9ca3af',
                                 }}>
-                                  {g}
+                                  {tx(t.muscleGroups as Record<string, string>, g)}
                                 </span>
                               ))}
                             </div>
@@ -474,10 +474,9 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
                 borderRadius: '999px',
                 backgroundColor: `${MUSCLE_COLORS[g] ?? '#6b7280'}20`,
                 color: MUSCLE_COLORS[g] ?? '#9ca3af',
-                textTransform: 'capitalize',
               }}
             >
-              {g}
+              {tx(t.muscleGroups as Record<string, string>, g)}
             </span>
           ))}
         </div>

@@ -205,6 +205,10 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
 
   async function handleUpload() {
     if (!uploadFile) return
+    if (uploadFile.size > 25 * 1024 * 1024) {
+      setUploadError('Photo is too large. Please choose a photo under 25MB.')
+      return
+    }
     setUploading(true)
     setUploadError(null)
     try {
@@ -216,8 +220,10 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
       setShowUploadModal(false)
       setUploadFile(null)
       router.refresh()
-    } catch {
-      setUploadError(t.progress.uploadFailed)
+    } catch (err) {
+      console.error('[progress] photo upload failed:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      setUploadError(msg || t.progress.uploadFailed)
     } finally {
       setUploading(false)
     }

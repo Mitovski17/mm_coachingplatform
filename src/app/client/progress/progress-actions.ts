@@ -183,9 +183,9 @@ export async function uploadStandalonePhoto(formData: FormData): Promise<void> {
   const admin = adminClient()
   const { data, error } = await admin.storage
     .from('progress-photos')
-    .upload(path, file)
+    .upload(path, file, { contentType: file.type || 'image/jpeg' })
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(`Storage upload failed: ${error.message}`)
 
   const { error: dbError } = await admin
     .from('progress_photos')

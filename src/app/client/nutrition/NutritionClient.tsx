@@ -19,7 +19,7 @@ import {
 import type { FoodSearchResult } from '@/lib/food-search'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import FoodScannerModal from './FoodScannerModal'
-import { useLanguage } from '@/lib/i18n'
+import { useLanguage, tx } from '@/lib/i18n'
 
 const COLOR_PROTEIN = '#3b82f6'
 const COLOR_CARBS = '#f97316'
@@ -140,6 +140,7 @@ export default function NutritionClient({
   const [tab, setTab] = useState<'diary' | 'notes'>('diary')
   const [portionOverrides, setPortionOverrides] = useState<Record<string, number>>({})
   const [deletedFoodIds, setDeletedFoodIds] = useState<Record<string, boolean>>({})
+  const [deletionHistory, setDeletionHistory] = useState<string[]>([])
 
   const [customMealNames, setCustomMealNames] = useState<string[]>([])
 
@@ -178,9 +179,30 @@ export default function NutritionClient({
     setLoading(true)
     setCustomMealNames([])
     setPortionOverrides({})
-    setDeletedFoodIds({})
+    // Load persisted food exclusions for this client+date from localStorage
+    try {
+      const stored = localStorage.getItem(`excl_${clientId}_${selectedDate}`)
+      const ids: string[] = stored ? JSON.parse(stored) : []
+      setDeletedFoodIds(Object.fromEntries(ids.map(id => [id, true as const])))
+      setDeletionHistory(ids)
+    } catch {
+      setDeletedFoodIds({})
+      setDeletionHistory([])
+    }
     reloadDayLogs()
   }, [clientId, selectedDate, reloadDayLogs])
+
+  // Persist food exclusions to localStorage whenever they change
+  useEffect(() => {
+    if (!clientId) return
+    const ids = Object.keys(deletedFoodIds).filter(id => deletedFoodIds[id])
+    const key = `excl_${clientId}_${selectedDate}`
+    if (ids.length > 0) {
+      localStorage.setItem(key, JSON.stringify(ids))
+    } else {
+      localStorage.removeItem(key)
+    }
+  }, [deletedFoodIds, clientId, selectedDate])
 
   useEffect(() => {
     const overrides: Record<string, number> = {}
@@ -270,66 +292,29 @@ export default function NutritionClient({
   const handleRemoveMeal = async (mealName: string) => {
     if (!clientId) return
     await removeOptionLog(clientId, selectedDate, mealName)
-    const meal = mealPlan?.meals.find((m) => m.name === mealName)
-    if (meal) {
-      const optKey = meal.id
-      const userSelectedOption = selectedOption[optKey] ?? meal.options[0]?.id
-      const activeOption = meal.options.find((o) => o.id === userSelectedOption) ?? meal.options[0]
-      if (activeOption) {
-        setDeletedFoodIds((prev) => {
-          const next = { ...prev }
-          for (const f of activeOption.foods) {
-            delete next[f.id]
-          }
-          return next
-        })
-      }
-    }
     await reloadDayLogs()
   }
 
-  const handleDeleteFood = async (
-    foodId: string,
-    loggedFoodId?: string | null,
-    autoLogContext?: { meal: Meal; activeOption: Option; portionOverrides: Record<string, number> }
-  ) => {
-    const newDeletedIds = { ...deletedFoodIds, [foodId]: true }
-    setDeletedFoodIds(newDeletedIds)
-
+  const handleDeleteFood = async (foodId: string, loggedFoodId?: string | null) => {
+    setDeletedFoodIds(prev => ({ ...prev, [foodId]: true }))
+    setDeletionHistory(prev => [...prev, foodId])
     if (loggedFoodId) {
-      // Meal is already logged — delete only this specific log entry
       await deleteNutritionLog(loggedFoodId)
       await reloadDayLogs()
-    } else if (autoLogContext && clientId && workspaceId) {
-      // Meal is not yet logged — auto-log remaining foods so the deletion persists in DB
-      const { meal, activeOption, portionOverrides: overrides } = autoLogContext
-      const remainingFoods = activeOption.foods.filter(
-        (f) => f.id !== foodId && !newDeletedIds[f.id]
-      )
-      if (remainingFoods.length > 0) {
-        await logMealOption({
-          clientId,
-          workspaceId,
-          loggedDate: selectedDate,
-          mealType: meal.name,
-          mealOptionId: activeOption.id,
-          foods: remainingFoods.map((f) => {
-            const qty = overrides[f.id] ?? f.quantity
-            const ratio = qty / f.quantity
-            return {
-              templateFoodId: f.id,
-              foodName: f.foodName,
-              quantity: qty,
-              unit: f.unit,
-              calories: round1(f.calories * ratio),
-              proteinG: round1(f.proteinG * ratio),
-              carbsG: round1(f.carbsG * ratio),
-              fatG: round1(f.fatG * ratio),
-            }
-          }),
-        })
+    }
+  }
+
+  const handleUndoDelete = (mealFoodIds: Set<string>) => {
+    // Walk history newest-first and restore the last deleted food from this meal
+    for (let i = deletionHistory.length - 1; i >= 0; i--) {
+      const foodId = deletionHistory[i]
+      if (mealFoodIds.has(foodId) && deletedFoodIds[foodId]) {
+        const newDeleted = { ...deletedFoodIds }
+        delete newDeleted[foodId]
+        setDeletedFoodIds(newDeleted)
+        setDeletionHistory(prev => [...prev.slice(0, i), ...prev.slice(i + 1)])
+        return
       }
-      await reloadDayLogs()
     }
   }
 
@@ -489,6 +474,7 @@ export default function NutritionClient({
                     setPortionOverrides((prev) => ({ ...prev, [foodId]: qty }))
                   }
                   onDeleteFood={handleDeleteFood}
+                  onUndoDelete={handleUndoDelete}
                   addFoodOpen={activeAddFoodMeal === meal.name}
                   onToggleAddFood={() =>
                     setActiveAddFoodMeal(activeAddFoodMeal === meal.name ? null : meal.name)
@@ -563,6 +549,7 @@ function PlanTypeToggle({
   value: 'training' | 'rest'
   onChange: (v: 'training' | 'rest') => void
 }) {
+  const { t } = useLanguage()
   return (
     <div
       className="flex p-0.5"
@@ -573,14 +560,14 @@ function PlanTypeToggle({
         display: 'inline-flex',
       }}
     >
-      {(['training', 'rest'] as const).map((t) => {
-        const active = value === t
-        const accent = t === 'training' ? '#3b82f6' : '#22c55e'
+      {(['training', 'rest'] as const).map((planKey) => {
+        const active = value === planKey
+        const accent = planKey === 'training' ? '#3b82f6' : '#22c55e'
         return (
           <button
-            key={t}
+            key={planKey}
             type="button"
-            onClick={() => onChange(t)}
+            onClick={() => onChange(planKey)}
             className="px-2.5 py-1 text-xs font-semibold"
             style={{
               backgroundColor: active ? accent : 'transparent',
@@ -590,7 +577,7 @@ function PlanTypeToggle({
               cursor: 'pointer',
             }}
           >
-            {t === 'training' ? 'Training' : 'Rest'}
+            {planKey === 'training' ? t.nutrition.planTraining : t.nutrition.planRest}
           </button>
         )
       })}
@@ -683,6 +670,7 @@ function CaloriesCard({
   current: number
   goal: number | null
 }) {
+  const { t } = useLanguage()
   const remaining = goal ? Math.max(0, goal - current) : null
   const pct = goal ? Math.min(1, current / goal) : 0
   return (
@@ -697,7 +685,7 @@ function CaloriesCard({
       <div className="flex items-center justify-between mb-3">
         <div>
           <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Calories
+            {t.nutrition.calories}
           </p>
           <div className="flex items-baseline gap-1.5">
             <span style={{ fontSize: 36, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
@@ -713,7 +701,7 @@ function CaloriesCard({
         {remaining !== null && (
           <div style={{ textAlign: 'right' }}>
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Remaining
+              {t.nutrition.remaining}
             </p>
             <span style={{ fontSize: 25, fontWeight: 700, color: 'var(--color-accent)', lineHeight: 1 }}>
               {Math.round(remaining)}
@@ -1163,6 +1151,7 @@ function MealCard({
   onUpdateCustomQty,
   onPortionOverride,
   onDeleteFood,
+  onUndoDelete,
   addFoodOpen,
   onToggleAddFood,
   onAddCustomFood,
@@ -1194,7 +1183,8 @@ function MealCard({
     origF: number
   ) => Promise<void>
   onPortionOverride: (foodId: string, qty: number) => void
-  onDeleteFood: (foodId: string, loggedFoodId?: string | null, autoLogContext?: { meal: Meal; activeOption: Option; portionOverrides: Record<string, number> }) => Promise<void>
+  onDeleteFood: (foodId: string, loggedFoodId?: string | null) => Promise<void>
+  onUndoDelete: (mealFoodIds: Set<string>) => void
   addFoodOpen: boolean
   onToggleAddFood: () => void
   onAddCustomFood: (p: {
@@ -1222,6 +1212,12 @@ function MealCard({
   const [customEditQty, setCustomEditQty] = useState('')
 
   const effectiveLogged = optimisticLogged !== null ? optimisticLogged : isLogged
+
+  const mealFoodIds = useMemo(
+    () => new Set((activeOption?.foods ?? []).map(f => f.id)),
+    [activeOption]
+  )
+  const hasDeletions = (activeOption?.foods ?? []).some(f => deletedFoodIds[f.id])
 
   const handleCircleTap = async () => {
     if (circleLoading) return
@@ -1301,7 +1297,18 @@ function MealCard({
       <div className="flex items-center gap-2 mb-2">
         <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 19, fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>
-            {meal.name}
+            {tx(
+              {
+                Breakfast: t.nutrition.breakfast,
+                Lunch: t.nutrition.lunch,
+                Dinner: t.nutrition.dinner,
+                Snack: t.nutrition.snacks,
+                Snacks: t.nutrition.snacks,
+                'Pre-workout': t.nutrition.preWorkout,
+                'Post-workout': t.nutrition.postWorkout,
+              },
+              meal.name
+            )}
           </span>
           <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
             <Pill value={Math.round(totals.calories)} color="var(--color-text-primary)" bg="var(--color-surface-3)" />
@@ -1310,6 +1317,32 @@ function MealCard({
             <Pill value={Math.round(totals.fatG)} color={COLOR_FAT} bg="rgba(239,68,68,0.12)" />
           </div>
         </div>
+        {hasDeletions && (
+          <button
+            type="button"
+            onClick={() => onUndoDelete(mealFoodIds)}
+            title="Undo last removal"
+            className="flex items-center justify-center"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              backgroundColor: 'transparent',
+              border: '2px solid var(--color-text-hint)',
+              color: 'var(--color-text-hint)',
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            {/* Undo / rotate-back arrows */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           onClick={handleCircleTap}
@@ -1359,7 +1392,7 @@ function MealCard({
                   gap: 4,
                 }}
               >
-                Option {o.label}
+                {t.nutrition.option} {o.label}
                 {wasLogged && (
                   <Check size={10} strokeWidth={3} color={active ? '#22c55e' : '#22c55e'} />
                 )}
@@ -1384,7 +1417,7 @@ function MealCard({
                 <FoodRow
                   key={f.id}
                   foodId={f.id}
-                  name={f.foodName}
+                  name={tx(t.foods as Record<string, string>, f.foodName)}
                   quantity={f.quantity}
                   unit={f.unit}
                   calories={f.calories}
@@ -1393,11 +1426,7 @@ function MealCard({
                   fat={f.fatG}
                   portionOverride={portionOverrides[f.id]}
                   onPortionOverride={(qty) => onPortionOverride(f.id, qty)}
-                  onDelete={() => onDeleteFood(
-                    f.id,
-                    matchingLog?.id,
-                    !isLogged && activeOption ? { meal, activeOption, portionOverrides } : undefined
-                  )}
+                  onDelete={() => onDeleteFood(f.id, matchingLog?.id)}
                 />
               )
             })}
@@ -2363,7 +2392,7 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
             textTransform: 'uppercase',
           }}
         >
-          {t.workouts.notes}
+          {t.nutrition.recommendations}
         </p>
         {plan.recommendations ? (
           <p style={{ fontSize: 14, color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap', margin: 0 }}>
@@ -2376,8 +2405,8 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
         )}
       </div>
 
-      <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: '8px 0 0' }}>
-        {updatedStr}
+      <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>
+        {t.nutrition.lastUpdated} {updatedStr}
       </p>
     </div>
   )

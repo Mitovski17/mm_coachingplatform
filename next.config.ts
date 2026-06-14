@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
 
   experimental: {
     serverActions: {
-      bodySizeLimit: '10mb',
+      bodySizeLimit: '25mb',
     },
     // Optimise packages that are imported in both server and client bundles
     optimizePackageImports: ['lucide-react', 'date-fns', 'sonner'],

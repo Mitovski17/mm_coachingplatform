@@ -4,7 +4,7 @@ import { type CSSProperties, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ArrowLeft, Check, ChevronDown, ChevronUp, Plus, Trash2, X } from 'lucide-react'
-import { useLanguage } from '@/lib/i18n'
+import { useLanguage, tx } from '@/lib/i18n'
 import type { SessionDetail, LibraryExercise } from '../../actions'
 import { updateWorkoutSession, getExerciseLibraryForClient } from '../../actions'
 
@@ -114,17 +114,19 @@ function ExercisePicker({
         />
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {grouped.length === 0 ? (
-            <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 14, padding: '24px 0' }}>No exercises found</p>
+            <p style={{ textAlign: 'center', color: 'var(--color-text-hint)', fontSize: 14, padding: '24px 0' }}>{t.nutrition.noFoodsFound}</p>
           ) : grouped.map(([group, exList]) => (
             <div key={group} style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: MUSCLE_COLORS[group] ?? 'var(--color-text-hint)', margin: '0 0 6px' }}>{group}</p>
+              <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: MUSCLE_COLORS[group] ?? 'var(--color-text-hint)', margin: '0 0 6px' }}>
+                {tx(t.muscleGroups as Record<string, string>, group)}
+              </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {exList.map((ex) => (
                   <button key={ex.id} type="button" onClick={() => { onSelect(ex); onClose() }}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', backgroundColor: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
                     <div>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{ex.name}</p>
-                      <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>{ex.equipment}</p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{tx(t.exercises as Record<string, string>, ex.name)}</p>
+                      <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>{tx(t.equipment as Record<string, string>, ex.equipment)}</p>
                     </div>
                     <Plus size={16} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
                   </button>
@@ -175,9 +177,9 @@ function EditExerciseCard({
     <div style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 16, marginBottom: 12, overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}>
-        <p style={{ flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{exercise.exerciseName}</p>
-        <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, backgroundColor: `${muscleColor}18`, color: muscleColor, textTransform: 'capitalize', flexShrink: 0 }}>
-          {exercise.muscleGroup}
+        <p style={{ flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{tx(t.exercises as Record<string, string>, exercise.exerciseName)}</p>
+        <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, backgroundColor: `${muscleColor}18`, color: muscleColor, flexShrink: 0 }}>
+          {tx(t.muscleGroups as Record<string, string>, exercise.muscleGroup)}
         </span>
         {/* Move up / down */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
@@ -467,8 +469,8 @@ export default function HistoryDetailView({ session: initial }: { session: Sessi
             return (
               <div key={ex.exerciseId} style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 16, marginBottom: 12, overflow: 'hidden' }}>
                 <div className="flex items-center gap-2" style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, flex: 1 }}>{ex.exerciseName}</p>
-                  <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, backgroundColor: 'var(--color-surface-2)', color: muscleColor, textTransform: 'capitalize' }}>{ex.muscleGroup}</span>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, flex: 1 }}>{tx(t.exercises as Record<string, string>, ex.exerciseName)}</p>
+                  <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, backgroundColor: 'var(--color-surface-2)', color: muscleColor }}>{tx(t.muscleGroups as Record<string, string>, ex.muscleGroup)}</span>
                 </div>
                 <div>
                   <div className="grid" style={{ gridTemplateColumns: '60px 1fr 1fr', fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 16px', borderBottom: '1px solid var(--color-border)' }}>

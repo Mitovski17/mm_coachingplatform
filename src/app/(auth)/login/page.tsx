@@ -190,6 +190,16 @@ export default function LoginPage() {
               )}
             </div>
 
+            <div className="flex justify-end" style={{ marginTop: -8 }}>
+              <a
+                href="/forgot-password"
+                className="text-xs"
+                style={{ color: 'var(--color-text-hint)', textDecoration: 'none' }}
+              >
+                Forgot password?
+              </a>
+            </div>
+
             <button
               suppressHydrationWarning
               type="submit"

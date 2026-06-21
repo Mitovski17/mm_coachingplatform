@@ -185,21 +185,21 @@ export async function submitCheckin(payload: {
   }
 }
 
-export async function uploadProgressPhoto(formData: FormData): Promise<string> {
-  const file        = formData.get('file')        as File
-  const workspaceId = formData.get('workspaceId') as string
-  const clientId    = formData.get('clientId')    as string
+export async function getPhotoUploadUrl(
+  workspaceId: string,
+  clientId: string,
+  filename: string
+): Promise<{ signedUrl: string; token: string; path: string }> {
+  if (!workspaceId || !clientId || !filename) throw new Error('Missing required fields')
 
-  if (!file || !workspaceId || !clientId) throw new Error('Missing required fields')
-
-  const ext  = file.name.split('.').pop() ?? 'jpg'
+  const ext  = filename.split('.').pop() ?? 'jpg'
   const path = `${workspaceId}/${clientId}/${Date.now()}.${ext}`
 
   const admin = adminClient()
   const { data, error } = await admin.storage
     .from('progress-photos')
-    .upload(path, file, { contentType: file.type || 'image/jpeg' })
+    .createSignedUploadUrl(path)
 
-  if (error) throw new Error(`Photo upload failed: ${error.message}`)
-  return data.path
+  if (error || !data) throw new Error(`Failed to create upload URL: ${error?.message}`)
+  return { signedUrl: data.signedUrl, token: data.token, path: data.path }
 }

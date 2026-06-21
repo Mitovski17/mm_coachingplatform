@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ensureDefaultTemplate, getClientByEmail, uploadProgressPhoto, submitCheckin, getExistingCheckin } from './actions'
+import { ensureDefaultTemplate, getClientByEmail, getPhotoUploadUrl, submitCheckin, getExistingCheckin } from './actions'
 import type { Question, ChoiceOption } from './actions'
 import { getSundayStart, getNextSundayMidnight, formatCountdown } from '@/lib/checkin-window'
 import { useLanguage, type Translations } from '@/lib/i18n'
@@ -901,6 +901,47 @@ function CheckinDoneScreen({ justSubmitted, t }: { justSubmitted: boolean; t: Tr
   )
 }
 
+function SessionExpiredScreen() {
+  return (
+    <div style={{ display: 'flex', minHeight: '100dvh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px', backgroundColor: 'var(--color-base)' }}>
+      <div style={{ width: '100%', maxWidth: 360, textAlign: 'center' }}>
+        <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>Mitovski</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>Coaching</span>
+        </div>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-secondary)' }}>
+            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 8 }}>
+          Session Expired
+        </h2>
+        <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 28 }}>
+          For your security, you've been signed out. Tap below to log back in.
+        </p>
+        <Link
+          href="/login"
+          style={{
+            display: 'block',
+            textAlign: 'center',
+            backgroundColor: 'var(--color-accent)',
+            color: '#fff',
+            borderRadius: 12,
+            padding: '14px',
+            fontSize: 15,
+            fontWeight: 600,
+            textDecoration: 'none',
+          }}
+        >
+          Log back in
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function ErrorScreen({ message }: { message: string | null }) {
   return (
     <div style={{ display: 'flex', minHeight: '100dvh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px', backgroundColor: 'var(--color-base)' }}>
@@ -943,7 +984,7 @@ function ErrorScreen({ message }: { message: string | null }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
-type PageStatus = 'loading' | 'ready' | 'error' | 'already_submitted' | 'success'
+type PageStatus = 'loading' | 'ready' | 'error' | 'already_submitted' | 'success' | 'session_expired'
 
 export default function CheckInForm() {
   const router = useRouter()
@@ -975,7 +1016,11 @@ export default function CheckInForm() {
       } else {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user?.email) { router.replace('/login'); return }
+        if (!user?.email) {
+          await supabase.auth.signOut()
+          setPageStatus('session_expired')
+          return
+        }
         email = user.email
       }
 
@@ -1053,12 +1098,14 @@ export default function CheckInForm() {
     const photoPaths: string[] = []
     if (photoFiles.length > 0) {
       try {
+        const supabase = createClient()
         for (const file of photoFiles) {
-          const fd = new FormData()
-          fd.append('file', file)
-          fd.append('workspaceId', workspaceId)
-          fd.append('clientId', clientId)
-          photoPaths.push(await uploadProgressPhoto(fd))
+          const { token, path } = await getPhotoUploadUrl(workspaceId, clientId, file.name)
+          const { error: uploadError } = await supabase.storage
+            .from('progress-photos')
+            .uploadToSignedUrl(path, token, file, { contentType: file.type || 'image/jpeg' })
+          if (uploadError) throw new Error(uploadError.message)
+          photoPaths.push(path)
         }
       } catch (err) {
         console.error('[check-in] photo upload failed:', err)
@@ -1099,6 +1146,7 @@ export default function CheckInForm() {
 
   // ── Screen routing
   if (pageStatus === 'loading')           return <LoadingScreen />
+  if (pageStatus === 'session_expired')   return <SessionExpiredScreen />
   if (pageStatus === 'error')             return <ErrorScreen message={error} />
   if (pageStatus === 'already_submitted') return <CheckinDoneScreen justSubmitted={false} t={t} />
   if (pageStatus === 'success')           return <CheckinDoneScreen justSubmitted={true} t={t} />

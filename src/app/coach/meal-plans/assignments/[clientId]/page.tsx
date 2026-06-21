@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
 import MealPlanAssignmentEditor from '../../MealPlanAssignmentEditor'
-import { getClients, getMealPlanTemplates, getClientAssignments } from '../../actions'
+import { getClients, getMealPlanTemplates, getClientAssignments, getCarbCycleAssignment } from '../../actions'
 
 async function resolveWorkspaceId(): Promise<string> {
   if (process.env.NODE_ENV === 'development') {
@@ -44,10 +44,11 @@ export default async function EditAssignmentPage({
 }) {
   const { clientId } = await params
   const workspaceId = await resolveWorkspaceId()
-  const [clients, templates, assignments] = await Promise.all([
+  const [clients, templates, assignments, carbCycle] = await Promise.all([
     getClients(workspaceId),
     getMealPlanTemplates(workspaceId),
     getClientAssignments(clientId),
+    getCarbCycleAssignment(clientId),
   ])
   if (!clients.find((c) => c.id === clientId)) notFound()
   return (
@@ -57,6 +58,7 @@ export default async function EditAssignmentPage({
       templates={templates}
       initialClientId={clientId}
       initialData={assignments}
+      initialCarbCycle={carbCycle}
     />
   )
 }

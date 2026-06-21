@@ -3,8 +3,8 @@
 import { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
-import { upsertClientMealPlanAssignment, type MealPlanTemplate, type ClientAssignments } from './actions'
+import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { upsertClientMealPlanAssignment, upsertCarbCycleAssignment, type MealPlanTemplate, type ClientAssignments, type CarbCycleAssignment } from './actions'
 
 export default function MealPlanAssignmentEditor({
   workspaceId,
@@ -12,12 +12,14 @@ export default function MealPlanAssignmentEditor({
   templates,
   initialClientId,
   initialData,
+  initialCarbCycle,
 }: {
   workspaceId: string
   clients: Array<{ id: string; name: string; email: string }>
   templates: MealPlanTemplate[]
   initialClientId?: string
   initialData?: ClientAssignments
+  initialCarbCycle?: CarbCycleAssignment | null
 }) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
@@ -35,6 +37,14 @@ export default function MealPlanAssignmentEditor({
     initialData?.overall?.templateId ?? ''
   )
 
+  // Carb cycle state
+  const [carbCycleEnabled, setCarbCycleEnabled] = useState<boolean>(!!initialCarbCycle)
+  const [carbCycleLowId, setCarbCycleLowId] = useState<string>(initialCarbCycle?.lowPlanId ?? '')
+  const [carbCycleHighId, setCarbCycleHighId] = useState<string>(initialCarbCycle?.highPlanId ?? '')
+  const [carbCycleStartDate, setCarbCycleStartDate] = useState<string>(
+    initialCarbCycle?.cycleStartDate ?? new Date().toISOString().split('T')[0]
+  )
+
   const savedStateRef = useRef<string | null>(null)
   if (savedStateRef.current === null) {
     savedStateRef.current = JSON.stringify({
@@ -42,6 +52,10 @@ export default function MealPlanAssignmentEditor({
       trainingTemplateId: initialData?.training?.templateId ?? '',
       restTemplateId: initialData?.rest?.templateId ?? '',
       overallTemplateId: initialData?.overall?.templateId ?? '',
+      carbCycleEnabled: !!initialCarbCycle,
+      carbCycleLowId: initialCarbCycle?.lowPlanId ?? '',
+      carbCycleHighId: initialCarbCycle?.highPlanId ?? '',
+      carbCycleStartDate: initialCarbCycle?.cycleStartDate ?? new Date().toISOString().split('T')[0],
     })
   }
 
@@ -51,8 +65,12 @@ export default function MealPlanAssignmentEditor({
       trainingTemplateId,
       restTemplateId,
       overallTemplateId,
+      carbCycleEnabled,
+      carbCycleLowId,
+      carbCycleHighId,
+      carbCycleStartDate,
     })
-  }, [clientId, trainingTemplateId, restTemplateId, overallTemplateId])
+  }, [clientId, trainingTemplateId, restTemplateId, overallTemplateId, carbCycleEnabled, carbCycleLowId, carbCycleHighId, carbCycleStartDate])
 
   const isDirty = useMemo(() => {
     return savedStateRef.current !== currentSnapshot
@@ -61,6 +79,8 @@ export default function MealPlanAssignmentEditor({
   const trainingTemplates = templates.filter((t) => t.planType === 'training')
   const restTemplates = templates.filter((t) => t.planType === 'rest')
   const overallTemplates = templates.filter((t) => t.planType === 'overall')
+  // Carb cycle can use any template regardless of plan_type
+  const allTemplates = templates
   const lockedClient = !!initialClientId
   const clientName = clients.find((c) => c.id === clientId)?.name ?? ''
 
@@ -70,15 +90,29 @@ export default function MealPlanAssignmentEditor({
       setError('Select a client')
       return
     }
+    if (carbCycleEnabled && (!carbCycleLowId || !carbCycleHighId)) {
+      setError('Select both a low carb and a high carb plan for the cycle')
+      return
+    }
     setSaving(true)
     try {
-      await upsertClientMealPlanAssignment({
-        workspaceId,
-        clientId,
-        trainingTemplateId: trainingTemplateId || null,
-        restTemplateId: restTemplateId || null,
-        overallTemplateId: overallTemplateId || null,
-      })
+      await Promise.all([
+        upsertClientMealPlanAssignment({
+          workspaceId,
+          clientId,
+          trainingTemplateId: trainingTemplateId || null,
+          restTemplateId: restTemplateId || null,
+          overallTemplateId: overallTemplateId || null,
+        }),
+        upsertCarbCycleAssignment({
+          workspaceId,
+          clientId,
+          lowPlanId: carbCycleEnabled ? carbCycleLowId || null : null,
+          highPlanId: carbCycleEnabled ? carbCycleHighId || null : null,
+          cycleStartDate: carbCycleStartDate,
+          cycleLength: 4,
+        }),
+      ])
       savedStateRef.current = currentSnapshot
       setSaving(false)
       setSaved(true)
@@ -244,6 +278,125 @@ export default function MealPlanAssignmentEditor({
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Carb Cycle Rotation */}
+      <div
+        className="mb-6"
+        style={{
+          backgroundColor: 'var(--color-surface-1)',
+          border: carbCycleEnabled ? '1px solid #f97316' : '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '16px 18px',
+          transition: 'border-color 0.2s',
+        }}
+      >
+        {/* Header row with toggle */}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <RefreshCw size={14} style={{ color: carbCycleEnabled ? '#f97316' : 'var(--color-text-hint)' }} />
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>
+              Carb Cycle Rotation
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCarbCycleEnabled((v) => !v)}
+            style={{
+              width: 36,
+              height: 20,
+              borderRadius: 10,
+              backgroundColor: carbCycleEnabled ? '#f97316' : 'var(--color-surface-3)',
+              border: 'none',
+              cursor: 'pointer',
+              position: 'relative',
+              transition: 'background-color 0.2s',
+              flexShrink: 0,
+            }}
+            aria-label="Toggle carb cycle"
+          >
+            <span
+              style={{
+                position: 'absolute',
+                top: 2,
+                left: carbCycleEnabled ? 18 : 2,
+                width: 16,
+                height: 16,
+                borderRadius: 8,
+                backgroundColor: '#fff',
+                transition: 'left 0.2s',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              }}
+            />
+          </button>
+        </div>
+
+        <p className="text-xs mb-3" style={{ color: 'var(--color-text-hint)' }}>
+          Overrides training/rest plans with a 4-day repeating cycle: Low, Low, Low, High.
+        </p>
+
+        {carbCycleEnabled && (
+          <div className="flex flex-col gap-3">
+            {/* Low + High side by side */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  Low Carb Plan
+                </label>
+                <select
+                  suppressHydrationWarning
+                  value={carbCycleLowId}
+                  onChange={(e) => setCarbCycleLowId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm"
+                  style={selectStyle()}
+                >
+                  <option value="">Select plan...</option>
+                  {allTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  High Carb Plan
+                </label>
+                <select
+                  suppressHydrationWarning
+                  value={carbCycleHighId}
+                  onChange={(e) => setCarbCycleHighId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm"
+                  style={selectStyle()}
+                >
+                  <option value="">Select plan...</option>
+                  {allTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Start date */}
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                Cycle Start Date
+              </label>
+              <input
+                type="date"
+                value={carbCycleStartDate}
+                onChange={(e) => setCarbCycleStartDate(e.target.value)}
+                className="px-3 py-2 text-sm"
+                style={{ ...selectStyle(), maxWidth: 200, width: '100%' }}
+              />
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-hint)' }}>
+                Day 1 of the cycle starts on this date. High carb = every 4th day.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (

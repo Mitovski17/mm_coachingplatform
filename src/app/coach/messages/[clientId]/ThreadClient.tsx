@@ -3,15 +3,17 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { format } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import MessageBubble from '@/components/shared/MessageBubble'
 import MessageInput from '@/components/shared/MessageInput'
-import { sendMessage, markMessagesRead, type Message } from './actions'
+import { sendMessage, markMessagesRead, type Message, type CheckinSnippet } from './actions'
 
 type Props = {
   conversationId: string
   clientName: string
   initialMessages: Message[]
+  initialCheckinSnippet?: CheckinSnippet | null
 }
 
 function getInitials(name: string): string {
@@ -59,10 +61,20 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
   return items
 }
 
-export default function ThreadClient({ conversationId, clientName, initialMessages }: Props) {
+const snippetPillStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 500,
+  padding: '2px 6px',
+  borderRadius: 4,
+  backgroundColor: 'var(--color-surface-3)',
+  color: 'var(--color-text-secondary)',
+}
+
+export default function ThreadClient({ conversationId, clientName, initialMessages, initialCheckinSnippet }: Props) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [inputValue, setInputValue] = useState('')
   const [sending, setSending] = useState(false)
+  const [pendingSnippet, setPendingSnippet] = useState<CheckinSnippet | null>(initialCheckinSnippet ?? null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const seenIds = useRef(new Set(initialMessages.map((m) => m.id)))
   const clientInitials = getInitials(clientName)
@@ -97,8 +109,10 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
     if (!trimmed || sending) return
     setSending(true)
     setInputValue('')
+    const snippetToAttach = pendingSnippet
+    setPendingSnippet(null)
     try {
-      const msg = await sendMessage(conversationId, trimmed, 'coach')
+      const msg = await sendMessage(conversationId, trimmed, 'coach', snippetToAttach)
       if (!seenIds.current.has(msg.id)) {
         seenIds.current.add(msg.id)
         setMessages((prev) => [...prev, msg])
@@ -106,6 +120,7 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
     } catch (err) {
       console.error('Failed to send message', err)
       setInputValue(trimmed)
+      setPendingSnippet(snippetToAttach)
     } finally {
       setSending(false)
     }
@@ -172,12 +187,12 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
       {/* Messages */}
       <div
         style={{
-          flex:          1,
-          overflowY:     'auto',
-          padding:       '16px',
-          display:       'flex',
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px',
+          display: 'flex',
           flexDirection: 'column',
-          gap:           3,
+          gap: 3,
         }}
       >
         {messages.length === 0 && (
@@ -213,11 +228,61 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
               isLast={item.isLast}
               showAvatar={item.showAvatar}
               avatarInitials={clientInitials}
+              checkinAttachment={item.msg.checkin_attachment}
             />
           )
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* Check-in snippet preview */}
+      {pendingSnippet && (
+        <div
+          style={{
+            margin: '0 12px',
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)',
+            backgroundColor: 'var(--color-surface-2)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span>📋</span>
+              <span>Replying to check-in · {format(new Date(pendingSnippet.submittedAt), 'MMM d')}</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {pendingSnippet.metrics.performance !== null && (
+                <span style={snippetPillStyle}>Perf {pendingSnippet.metrics.performance}/10</span>
+              )}
+              {pendingSnippet.metrics.nutrition !== null && (
+                <span style={snippetPillStyle}>Nutrition {pendingSnippet.metrics.nutrition}%</span>
+              )}
+              {pendingSnippet.metrics.training !== null && (
+                <span style={snippetPillStyle}>Training {pendingSnippet.metrics.training}%</span>
+              )}
+              {pendingSnippet.metrics.sleep !== null && (
+                <span style={snippetPillStyle}>Sleep {pendingSnippet.metrics.sleep}/10</span>
+              )}
+              {pendingSnippet.metrics.weight !== null && (
+                <span style={snippetPillStyle}>Weight {pendingSnippet.metrics.weight}kg</span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPendingSnippet(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', padding: 2, lineHeight: 1, flexShrink: 0 }}
+            aria-label="Remove check-in attachment"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <MessageInput
         value={inputValue}

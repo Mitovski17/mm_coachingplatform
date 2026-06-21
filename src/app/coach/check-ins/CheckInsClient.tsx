@@ -383,7 +383,7 @@ function CheckinCard({
             </div>
             <div className="flex items-center gap-2">
               <Link
-                href={`/coach/messages/${card.clientId}`}
+                href={`/coach/messages/${card.clientId}?checkinId=${card.checkinId}`}
                 className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5"
                 style={{
                   backgroundColor: 'var(--color-surface-3)',

@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
 import ThreadClient from './ThreadClient'
-import { markMessagesRead, type Message } from './actions'
+import { markMessagesRead, fetchCheckinSnippet, type Message, type CheckinSnippet } from './actions'
 
 async function fetchThread(clientId: string): Promise<{
   conversationId: string
@@ -13,7 +13,6 @@ async function fetchThread(clientId: string): Promise<{
 }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function run(svc: any, workspaceId: string, coachId: string) {
-    // Resolve client info first to get name and validate the clientId belongs to this workspace
     const { data: clientRow } = await svc
       .from('clients')
       .select('id, full_name, email')
@@ -23,7 +22,6 @@ async function fetchThread(clientId: string): Promise<{
 
     if (!clientRow) redirect('/coach/messages')
 
-    // Upsert conversation — coach can initiate even if client hasn't messaged yet
     const { data: convo, error } = await svc
       .from('conversations')
       .upsert(
@@ -80,13 +78,17 @@ async function fetchThread(clientId: string): Promise<{
 
 export default async function CoachThreadPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ clientId: string }>
+  searchParams: Promise<{ checkinId?: string }>
 }) {
-  const { clientId } = await params
-  const thread = await fetchThread(clientId)
+  const [{ clientId }, { checkinId }] = await Promise.all([params, searchParams])
+  const [thread, checkinSnippet] = await Promise.all([
+    fetchThread(clientId),
+    checkinId ? fetchCheckinSnippet(checkinId) : Promise.resolve(null),
+  ])
 
-  // Mark client messages as read (fire-and-forget)
   void markMessagesRead(thread.conversationId, 'coach')
 
   return (
@@ -94,6 +96,7 @@ export default async function CoachThreadPage({
       conversationId={thread.conversationId}
       clientName={thread.clientName}
       initialMessages={thread.initialMessages}
+      initialCheckinSnippet={checkinSnippet}
     />
   )
 }

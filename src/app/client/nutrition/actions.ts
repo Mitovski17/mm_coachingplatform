@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { searchFoods as searchFoodsLib, type FoodSearchResult } from '@/lib/food-search'
+import { resolveCarbCycleDay } from '@/lib/utils'
 
 function adminClient() {
   return createClient(
@@ -162,6 +163,83 @@ export async function getDateMealOverride(
             })),
         })),
     })),
+  }
+}
+
+export async function getActiveCarbCyclePlan(
+  clientId: string,
+  date: string
+): Promise<{ plan: FullMealPlan; dayType: 'low' | 'high' } | null> {
+  const admin = adminClient()
+  const { data: cycle, error } = await admin
+    .from('carb_cycle_assignments')
+    .select('low_plan_id, high_plan_id, cycle_start_date, cycle_length')
+    .eq('client_id', clientId)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error || !cycle) return null
+
+  const dayType = resolveCarbCycleDay(cycle.cycle_start_date, date, cycle.cycle_length)
+  const templateId = dayType === 'high' ? cycle.high_plan_id : cycle.low_plan_id
+
+  const { data: template } = await admin
+    .from('meal_plan_templates')
+    .select(`
+      id, name, plan_type, notes, recommendations, created_at,
+      meal_plan_meals(
+        id, name, sort_order,
+        meal_plan_meal_options(
+          id, label, sort_order,
+          meal_plan_foods(id, food_name, quantity, unit, calories, protein_g, carbs_g, fat_g, sort_order)
+        )
+      )
+    `)
+    .eq('id', templateId)
+    .maybeSingle()
+  if (!template) return null
+
+  type RawFood = { id: string; food_name: string; quantity: number; unit: string; calories: number; protein_g: number; carbs_g: number; fat_g: number; sort_order: number }
+  type RawOption = { id: string; label: string; sort_order: number; meal_plan_foods: RawFood[] }
+  type RawMeal = { id: string; name: string; sort_order: number; meal_plan_meal_options: RawOption[] }
+
+  const rawMeals = ((template.meal_plan_meals as unknown as RawMeal[]) ?? [])
+    .sort((a, b) => a.sort_order - b.sort_order)
+
+  return {
+    dayType,
+    plan: {
+      id: template.id,
+      name: template.name,
+      planType: template.plan_type as 'training' | 'rest' | 'overall',
+      notes: template.notes,
+      recommendations: template.recommendations,
+      updatedAt: template.created_at,
+      meals: rawMeals.map((m) => ({
+        id: m.id,
+        name: m.name,
+        sortOrder: m.sort_order,
+        options: (m.meal_plan_meal_options ?? [])
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((o) => ({
+            id: o.id,
+            label: o.label,
+            sortOrder: o.sort_order,
+            foods: (o.meal_plan_foods ?? [])
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((f) => ({
+                id: f.id,
+                foodName: f.food_name,
+                quantity: Number(f.quantity),
+                unit: f.unit,
+                calories: Number(f.calories),
+                proteinG: Number(f.protein_g),
+                carbsG: Number(f.carbs_g),
+                fatG: Number(f.fat_g),
+                sortOrder: f.sort_order,
+              })),
+          })),
+      })),
+    },
   }
 }
 

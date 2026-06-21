@@ -11,12 +11,25 @@ function adminClient() {
   )
 }
 
+export type CheckinSnippet = {
+  checkinId: string
+  submittedAt: string
+  metrics: {
+    performance: number | null
+    nutrition: number | null
+    training: number | null
+    sleep: number | null
+    weight: number | null
+  }
+}
+
 export type Message = {
   id: string
   conversation_id: string
   workspace_id: string
   sender_role: 'coach' | 'client'
   body: string
+  checkin_attachment: CheckinSnippet | null
   read_by_coach: boolean
   read_by_client: boolean
   created_at: string
@@ -29,7 +42,6 @@ export async function getOrCreateConversation(
 ): Promise<string> {
   const admin = adminClient()
 
-  // Upsert: one conversation per client per workspace
   const { data, error } = await admin
     .from('conversations')
     .upsert(

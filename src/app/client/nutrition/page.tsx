@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache'
-import { getCurrentClient, getActiveMealPlan, getDateMealOverride, getDayLogs } from './actions'
+import { getCurrentClient, getActiveMealPlan, getActiveCarbCyclePlan, getDateMealOverride, getDayLogs } from './actions'
 import { getTodayTemplate } from '../workouts/actions'
 import NutritionClient from './NutritionClient'
 
@@ -32,18 +32,20 @@ export default async function ClientNutritionPage() {
     )
   }
 
-  const [mealPlanTraining, mealPlanRest, mealPlanOverall, todayLogs, todayTemplate, dateOverride] = await Promise.all([
+  const [mealPlanTraining, mealPlanRest, mealPlanOverall, carbCycleResult, todayLogs, todayTemplate, dateOverride] = await Promise.all([
     getCachedMealPlan(client.id, 'training'),
     getCachedMealPlan(client.id, 'rest'),
     getCachedMealPlan(client.id, 'overall'),
+    getActiveCarbCyclePlan(client.id, today),
     getDayLogs(client.id, today),
     getTodayTemplate(client.id),
     getDateMealOverride(client.id, today),
   ])
 
-  // Date override takes precedence over the regular training/rest plan assignment
-  const effectiveTraining = dateOverride ?? mealPlanTraining ?? mealPlanOverall
-  const effectiveRest = dateOverride ?? mealPlanRest ?? mealPlanOverall
+  // Resolution priority: date override > carb cycle > training/rest plan > overall fallback
+  const carbCyclePlan = carbCycleResult?.plan ?? null
+  const effectiveTraining = dateOverride ?? carbCyclePlan ?? mealPlanTraining ?? mealPlanOverall
+  const effectiveRest = dateOverride ?? carbCyclePlan ?? mealPlanRest ?? mealPlanOverall
 
   return (
     <NutritionClient

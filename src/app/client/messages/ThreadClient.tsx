@@ -199,6 +199,7 @@ export default function ThreadClient({ conversationId, coachName, initialMessage
               isLast={item.isLast}
               showAvatar={item.showAvatar}
               avatarInitials={coachInitials}
+              checkinAttachment={item.msg.checkin_attachment}
             />
           )
         )}

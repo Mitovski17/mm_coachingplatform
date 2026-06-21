@@ -471,6 +471,71 @@ export async function getWorkspaceIdForCoach(email: string): Promise<string | nu
   return profile.workspace_id
 }
 
+// ─── Carb Cycle Assignments ────────────────────────────────────────────────
+
+export type CarbCycleAssignment = {
+  id: string
+  clientId: string
+  lowPlanId: string
+  highPlanId: string
+  cycleStartDate: string
+  cycleLength: number
+}
+
+export async function getCarbCycleAssignment(clientId: string): Promise<CarbCycleAssignment | null> {
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('carb_cycle_assignments')
+    .select('id, client_id, low_plan_id, high_plan_id, cycle_start_date, cycle_length')
+    .eq('client_id', clientId)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error || !data) return null
+  return {
+    id: data.id,
+    clientId: data.client_id,
+    lowPlanId: data.low_plan_id,
+    highPlanId: data.high_plan_id,
+    cycleStartDate: data.cycle_start_date,
+    cycleLength: data.cycle_length,
+  }
+}
+
+export async function upsertCarbCycleAssignment(payload: {
+  workspaceId: string
+  clientId: string
+  lowPlanId: string | null
+  highPlanId: string | null
+  cycleStartDate: string
+  cycleLength?: number
+}): Promise<void> {
+  const admin = adminClient()
+
+  // Deactivate any existing active cycle for this client
+  const { error: deErr } = await admin
+    .from('carb_cycle_assignments')
+    .update({ is_active: false })
+    .eq('client_id', payload.clientId)
+    .eq('is_active', true)
+  if (deErr) throw new Error(deErr.message)
+
+  // Insert new cycle only when both plans are provided
+  if (payload.lowPlanId && payload.highPlanId) {
+    const { error: iErr } = await admin.from('carb_cycle_assignments').insert({
+      workspace_id: payload.workspaceId,
+      client_id: payload.clientId,
+      low_plan_id: payload.lowPlanId,
+      high_plan_id: payload.highPlanId,
+      cycle_start_date: payload.cycleStartDate,
+      cycle_length: payload.cycleLength ?? 4,
+      is_active: true,
+    })
+    if (iErr) throw new Error(iErr.message)
+  }
+
+  revalidateTag('meal-plans', 'max')
+}
+
 export async function getClients(workspaceId: string): Promise<Array<{ id: string; name: string; email: string }>> {
   const admin = adminClient()
   const { data, error } = await admin

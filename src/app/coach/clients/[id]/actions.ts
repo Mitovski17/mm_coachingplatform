@@ -86,6 +86,28 @@ export type NutritionDay = {
   totalProtein: number | null
   totalCarbs: number | null
   totalFat: number | null
+  meals: NutritionMealGroup[]
+}
+
+export type NutritionLogEntry = {
+  id: string
+  foodName: string
+  quantity: number
+  unit: string
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  isCustom: boolean
+}
+
+export type NutritionMealGroup = {
+  mealType: string
+  entries: NutritionLogEntry[]
+  totalCalories: number
+  totalProtein: number
+  totalCarbs: number
+  totalFat: number
 }
 
 export type Checkin = {
@@ -400,21 +422,63 @@ export async function getNutritionHistory(
 
   const { data } = await admin
     .from('nutrition_logs')
-    .select('logged_date, calories, protein_g, carbs_g, fat_g')
+    .select(
+      'id, logged_date, meal_type, food_name, quantity, unit, calories, protein_g, carbs_g, fat_g, template_food_id, created_at'
+    )
     .eq('client_id', clientId)
     .gte('logged_date', dateOnly(start))
+    .order('created_at', { ascending: true })
 
-  const totals = new Map<
+  // Group logs by date, and within each date by meal, so the coach can expand a
+  // day and see exactly what was eaten. Building this here (server-side) means
+  // the dropdown opens instantly with no extra round trip.
+  const byDate = new Map<
     string,
-    { cal: number; p: number; c: number; f: number }
+    { cal: number; p: number; c: number; f: number; meals: Map<string, NutritionMealGroup> }
   >()
   for (const r of data ?? []) {
-    const cur = totals.get(r.logged_date) ?? { cal: 0, p: 0, c: 0, f: 0 }
-    cur.cal += r.calories ?? 0
-    cur.p += r.protein_g ?? 0
-    cur.c += r.carbs_g ?? 0
-    cur.f += r.fat_g ?? 0
-    totals.set(r.logged_date, cur)
+    let day = byDate.get(r.logged_date)
+    if (!day) {
+      day = { cal: 0, p: 0, c: 0, f: 0, meals: new Map() }
+      byDate.set(r.logged_date, day)
+    }
+    const calories = Number(r.calories ?? 0)
+    const proteinG = Number(r.protein_g ?? 0)
+    const carbsG = Number(r.carbs_g ?? 0)
+    const fatG = Number(r.fat_g ?? 0)
+    day.cal += calories
+    day.p += proteinG
+    day.c += carbsG
+    day.f += fatG
+
+    const mealType = r.meal_type ?? 'Other'
+    let group = day.meals.get(mealType)
+    if (!group) {
+      group = {
+        mealType,
+        entries: [],
+        totalCalories: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFat: 0,
+      }
+      day.meals.set(mealType, group)
+    }
+    group.entries.push({
+      id: r.id,
+      foodName: r.food_name,
+      quantity: Number(r.quantity ?? 0),
+      unit: r.unit ?? 'g',
+      calories,
+      proteinG,
+      carbsG,
+      fatG,
+      isCustom: r.template_food_id === null,
+    })
+    group.totalCalories = Math.round((group.totalCalories + calories) * 10) / 10
+    group.totalProtein = Math.round((group.totalProtein + proteinG) * 10) / 10
+    group.totalCarbs = Math.round((group.totalCarbs + carbsG) * 10) / 10
+    group.totalFat = Math.round((group.totalFat + fatG) * 10) / 10
   }
 
   const out: NutritionDay[] = []
@@ -422,13 +486,14 @@ export async function getNutritionHistory(
     const d = new Date(start)
     d.setUTCDate(start.getUTCDate() + i)
     const key = dateOnly(d)
-    const t = totals.get(key)
+    const t = byDate.get(key)
     out.push({
       date: key,
-      totalCalories: t ? t.cal : null,
-      totalProtein: t ? t.p : null,
-      totalCarbs: t ? t.c : null,
-      totalFat: t ? t.f : null,
+      totalCalories: t ? Math.round(t.cal * 10) / 10 : null,
+      totalProtein: t ? Math.round(t.p * 10) / 10 : null,
+      totalCarbs: t ? Math.round(t.c * 10) / 10 : null,
+      totalFat: t ? Math.round(t.f * 10) / 10 : null,
+      meals: t ? [...t.meals.values()] : [],
     })
   }
   return out

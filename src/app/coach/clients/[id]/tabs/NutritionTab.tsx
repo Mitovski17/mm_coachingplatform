@@ -1,7 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { format } from 'date-fns'
-import type { NutritionDay, NutritionSummary } from '../actions'
+import { ChevronDown } from 'lucide-react'
+import type {
+  NutritionDay,
+  NutritionSummary,
+  NutritionMealGroup,
+} from '../actions'
 
 const cardBase: React.CSSProperties = {
   backgroundColor: 'var(--color-surface-1)',
@@ -166,6 +172,119 @@ function Calendar({ history }: { history: NutritionDay[] }) {
   )
 }
 
+const MACRO_COLORS = {
+  protein: '#3b82f6',
+  carbs: '#f97316',
+  fat: '#ef4444',
+}
+
+function MealMacroPill({
+  value,
+  unit,
+  color,
+}: {
+  value: number
+  unit: string
+  color: string
+}) {
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color,
+        backgroundColor: 'var(--color-surface-3)',
+        padding: '2px 6px',
+        borderRadius: 5,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {Math.round(value)}
+      {unit}
+    </span>
+  )
+}
+
+function DayDetail({ groups }: { groups: NutritionMealGroup[] }) {
+  if (groups.length === 0) {
+    return (
+      <div
+        className="text-xs"
+        style={{ color: 'var(--color-text-hint)', padding: '10px 12px' }}
+      >
+        No meals logged this day.
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-3" style={{ padding: '10px 12px 12px' }}>
+      {groups.map((g) => (
+        <div key={g.mealType}>
+          <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+            <span
+              className="text-xs"
+              style={{
+                color: 'var(--color-text-primary)',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.03em',
+              }}
+            >
+              {g.mealType}
+            </span>
+            <div className="flex items-center gap-1">
+              <MealMacroPill value={g.totalCalories} unit="" color="var(--color-text-primary)" />
+              <MealMacroPill value={g.totalProtein} unit="P" color={MACRO_COLORS.protein} />
+              <MealMacroPill value={g.totalCarbs} unit="C" color={MACRO_COLORS.carbs} />
+              <MealMacroPill value={g.totalFat} unit="F" color={MACRO_COLORS.fat} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            {g.entries.map((e) => (
+              <div
+                key={e.id}
+                className="flex items-center justify-between gap-2"
+                style={{
+                  backgroundColor: 'var(--color-surface-2)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '6px 10px',
+                }}
+              >
+                <div className="min-w-0">
+                  <div
+                    className="text-sm truncate"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
+                    {e.foodName}
+                  </div>
+                  <div
+                    className="text-xs"
+                    style={{ color: 'var(--color-text-hint)' }}
+                  >
+                    {Math.round(e.quantity)}
+                    {e.unit}
+                    {e.isCustom && (
+                      <span style={{ marginLeft: 6, color: 'var(--color-accent)' }}>
+                        · added by client
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <MealMacroPill value={e.calories} unit="" color="var(--color-text-primary)" />
+                  <MealMacroPill value={e.proteinG} unit="P" color={MACRO_COLORS.protein} />
+                  <MealMacroPill value={e.carbsG} unit="C" color={MACRO_COLORS.carbs} />
+                  <MealMacroPill value={e.fatG} unit="F" color={MACRO_COLORS.fat} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function NutritionTab({
   summary,
   history,
@@ -175,6 +294,13 @@ export default function NutritionTab({
 }) {
   const todayKey = new Date().toISOString().split('T')[0]
   const last14 = history.slice(-14).reverse()
+
+  const [expandedDate, setExpandedDate] = useState<string | null>(null)
+
+  function toggleDay(date: string, empty: boolean) {
+    if (empty) return
+    setExpandedDate((cur) => (cur === date ? null : date))
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -253,46 +379,78 @@ export default function NutritionTab({
           {last14.map((d, idx) => {
             const isToday = d.date === todayKey
             const empty = !d.totalCalories
+            const isExpanded = expandedDate === d.date
+            const rowBg = isExpanded
+              ? 'var(--color-surface-3)'
+              : isToday
+                ? 'rgba(255,255,255,0.04)'
+                : idx % 2 === 0
+                  ? 'var(--color-surface-1)'
+                  : 'var(--color-surface-2)'
             return (
-              <div
-                key={d.date}
-                className="grid text-sm"
-                style={{
-                  gridTemplateColumns: '1.5fr 1fr 1fr 1fr 1fr',
-                  padding: '8px 12px',
-                  backgroundColor: isToday
-                    ? 'rgba(255,255,255,0.04)'
-                    : idx % 2 === 0
-                      ? 'var(--color-surface-1)'
-                      : 'var(--color-surface-2)',
-                  color: empty
-                    ? 'var(--color-text-hint)'
-                    : 'var(--color-text-secondary)',
-                }}
-              >
-                <span style={{ color: 'var(--color-text-primary)' }}>
-                  {format(new Date(d.date), 'EEE, MMM d')}
-                  {isToday && (
-                    <span
-                      className="ml-2 text-xs"
-                      style={{ color: 'var(--color-accent)' }}
-                    >
-                      Today
+              <div key={d.date}>
+                <button
+                  type="button"
+                  onClick={() => toggleDay(d.date, empty)}
+                  disabled={empty}
+                  className="grid text-sm w-full text-left"
+                  style={{
+                    gridTemplateColumns: '1.5fr 1fr 1fr 1fr 1fr',
+                    padding: '8px 12px',
+                    backgroundColor: rowBg,
+                    color: empty
+                      ? 'var(--color-text-hint)'
+                      : 'var(--color-text-secondary)',
+                    border: 'none',
+                    cursor: empty ? 'default' : 'pointer',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span
+                    className="flex items-center gap-1.5"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
+                    {!empty && (
+                      <ChevronDown
+                        size={13}
+                        style={{
+                          color: 'var(--color-text-hint)',
+                          transform: isExpanded ? 'rotate(180deg)' : 'none',
+                          transition: 'transform 0.15s ease',
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                    <span className="truncate">
+                      {format(new Date(d.date), 'EEE, MMM d')}
                     </span>
-                  )}
-                </span>
-                <span className="text-right">
-                  {empty ? '—' : Math.round(d.totalCalories ?? 0)}
-                </span>
-                <span className="text-right">
-                  {empty ? '—' : Math.round(d.totalProtein ?? 0) + 'g'}
-                </span>
-                <span className="text-right">
-                  {empty ? '—' : Math.round(d.totalCarbs ?? 0) + 'g'}
-                </span>
-                <span className="text-right">
-                  {empty ? '—' : Math.round(d.totalFat ?? 0) + 'g'}
-                </span>
+                    {isToday && (
+                      <span
+                        className="text-xs"
+                        style={{ color: 'var(--color-accent)' }}
+                      >
+                        Today
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-right">
+                    {empty ? '—' : Math.round(d.totalCalories ?? 0)}
+                  </span>
+                  <span className="text-right">
+                    {empty ? '—' : Math.round(d.totalProtein ?? 0) + 'g'}
+                  </span>
+                  <span className="text-right">
+                    {empty ? '—' : Math.round(d.totalCarbs ?? 0) + 'g'}
+                  </span>
+                  <span className="text-right">
+                    {empty ? '—' : Math.round(d.totalFat ?? 0) + 'g'}
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div style={{ backgroundColor: 'var(--color-surface-1)' }}>
+                    <DayDetail groups={d.meals} />
+                  </div>
+                )}
               </div>
             )
           })}

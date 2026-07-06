@@ -384,7 +384,8 @@ export default function NutritionClient({
 
   const handleRemoveCustomMeal = async (mealName: string) => {
     if (clientId) {
-      await removeOptionLog(clientId, selectedDate, mealName)
+      // A custom meal is entirely client-added, so clear all of its logs.
+      await removeOptionLog(clientId, selectedDate, mealName, false)
       await reloadDayLogs()
     }
     setCustomMealNames((prev) => prev.filter((n) => n !== mealName))
@@ -1282,7 +1283,10 @@ function MealCard({
     setEditingCustomId(null)
   }
 
-  const canLog = !!activeOption && activeOption.foods.length > 0
+  // The circle logs/unlogs the plan meal. Allow logging only when at least one
+  // plan food is still active (not removed); always allow unlogging when logged.
+  const hasActivePlanFood = !!activeOption && activeOption.foods.some((f) => !deletedFoodIds[f.id])
+  const canLog = isLogged || hasActivePlanFood
 
   return (
     <div

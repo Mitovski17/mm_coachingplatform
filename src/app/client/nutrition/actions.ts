@@ -358,12 +358,15 @@ export async function logMealOption(payload: {
   }>
 }): Promise<void> {
   const admin = adminClient()
+  // Only clear previously-logged PLAN foods for this meal. Custom/external foods
+  // (template_food_id IS NULL) the client added themselves must be preserved.
   const { error: dErr } = await admin
     .from('nutrition_logs')
     .delete()
     .eq('client_id', payload.clientId)
     .eq('logged_date', payload.loggedDate)
     .eq('meal_type', payload.mealType)
+    .not('template_food_id', 'is', null)
   if (dErr) throw new Error(dErr.message)
 
   if (payload.foods.length === 0) return
@@ -389,15 +392,23 @@ export async function logMealOption(payload: {
 export async function removeOptionLog(
   clientId: string,
   date: string,
-  mealType: string
+  mealType: string,
+  planFoodsOnly = true
 ): Promise<void> {
   const admin = adminClient()
-  const { error } = await admin
+  let query = admin
     .from('nutrition_logs')
     .delete()
     .eq('client_id', clientId)
     .eq('logged_date', date)
     .eq('meal_type', mealType)
+  // Unchecking a plan meal should only remove its plan foods, leaving any
+  // custom/external foods the client added intact. Removing a whole custom
+  // meal (planFoodsOnly = false) clears everything under that name.
+  if (planFoodsOnly) {
+    query = query.not('template_food_id', 'is', null)
+  }
+  const { error } = await query
   if (error) throw new Error(error.message)
 }
 

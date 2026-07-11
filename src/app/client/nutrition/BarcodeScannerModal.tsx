@@ -56,76 +56,91 @@ export default function BarcodeScannerModal({
       const { Html5Qrcode } = await import('html5-qrcode')
       if (!mountedRef.current) return
 
-      const scanner = new Html5Qrcode('barcode-reader-container', {
-        verbose: false,
-        formatsToSupport: BARCODE_FORMATS,
-        // Use the browser's native BarcodeDetector when available — it is far
-        // more reliable on small / low-contrast barcodes than the JS fallback.
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-      } as never)
-      scannerRef.current = scanner as never
-
-      // Request the highest practical resolution and continuous autofocus so
-      // tiny barcodes stay sharp. focusMode/advanced aren't in the TS lib types
-      // but browsers honour them, so we cast through.
-      const videoConstraints = {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        advanced: [{ focusMode: 'continuous' }],
-      } as unknown as MediaTrackConstraints
-
       // Rectangular scan box that tracks the viewport width — barcodes fill the
       // frame horizontally, so a wide box locks on faster than a square one.
       const qrboxFn = (vw: number, vh: number) => {
         const width = Math.floor(Math.min(vw, 400) * 0.85)
         const height = Math.floor(Math.min(width * 0.55, vh * 0.6))
-        return { width, height }
+        return { width: width || 250, height: height || 150 }
       }
 
-      await scanner.start(
-        videoConstraints,
-        {
-          fps: 15,
-          qrbox: qrboxFn,
-          aspectRatio: 1.7778,
-          disableFlip: true,
-        },
-        async (decodedText: string) => {
-          if (!mountedRef.current || stoppedRef.current) return
-          stoppedRef.current = true
+      const onDecoded = async (decodedText: string) => {
+        if (!mountedRef.current || stoppedRef.current) return
+        stoppedRef.current = true
+        const scanner = scannerRef.current
+        try {
+          await scanner?.stop()
+        } catch {
+          // ignore stop errors
+        }
 
-          try {
-            await scanner.stop()
-          } catch {
-            // ignore stop errors
-          }
+        if (!mountedRef.current) return
+        setScannedBarcode(decodedText)
+        setPhase('loading')
 
-          if (!mountedRef.current) return
-          setScannedBarcode(decodedText)
-          setPhase('loading')
+        const food = await lookupBarcode(decodedText)
+        if (!mountedRef.current) return
 
-          const food = await lookupBarcode(decodedText)
-          if (!mountedRef.current) return
+        if (food) {
+          setResult(food)
+          setPhase('found')
+        } else {
+          setPhase('not-found')
+        }
+      }
 
-          if (food) {
-            setResult(food)
-            setPhase('found')
-          } else {
-            setPhase('not-found')
-          }
-        },
-        undefined
-      )
+      // Only request `facingMode` up front — device capabilities like
+      // resolution/focus are applied *after* the stream is granted via
+      // applyVideoConstraints(). Requesting unsupported constraints (e.g.
+      // `advanced: [{ focusMode: 'continuous' }]`) in the initial getUserMedia
+      // call throws synchronously on many mobile browsers, which skips the
+      // permission prompt entirely and looks like "camera access denied".
+      try {
+        const scanner = new Html5Qrcode('barcode-reader-container', {
+          verbose: false,
+          formatsToSupport: BARCODE_FORMATS,
+          // Use the browser's native BarcodeDetector when available — it is
+          // far more reliable on small / low-contrast barcodes than the JS
+          // fallback.
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        } as never)
+        scannerRef.current = scanner
 
-      // Nudge continuous focus on again after the stream is live (some devices
-      // reset focusMode once the track starts) and detect torch support.
+        await scanner.start(
+          { facingMode: { ideal: 'environment' } },
+          { fps: 15, qrbox: qrboxFn, aspectRatio: 1.7778, disableFlip: true },
+          onDecoded,
+          undefined
+        )
+      } catch (enhancedErr) {
+        console.warn('Enhanced barcode scanner start failed, retrying with defaults:', enhancedErr)
+        if (!mountedRef.current) return
+
+        // Fall back to the plain, known-good config so scanning still works
+        // even if the enhanced setup isn't supported on this device/browser.
+        const scanner = new Html5Qrcode('barcode-reader-container')
+        scannerRef.current = scanner
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          onDecoded,
+          undefined
+        )
+      }
+
+      // Best-effort: bump resolution and enable continuous autofocus now that
+      // the stream is live. These are optional enhancements — if the device
+      // doesn't support them the scanner keeps working with its defaults.
+      const scanner = scannerRef.current
+      if (!scanner) return
       try {
         await scanner.applyVideoConstraints({
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           advanced: [{ focusMode: 'continuous' }],
         } as unknown as MediaTrackConstraints)
       } catch {
-        // device may not support programmatic focus control
+        // device may not support programmatic resolution/focus control
       }
       try {
         const caps = scanner.getRunningTrackCapabilities() as MediaTrackCapabilities & { torch?: boolean }

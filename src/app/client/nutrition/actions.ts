@@ -449,6 +449,32 @@ export async function searchFoodsForClient(query: string): Promise<FoodSearchRes
 }
 
 export async function lookupBarcode(barcode: string): Promise<FoodSearchResult | null> {
+  // 1. Check our own database first — includes products clients contributed
+  //    manually as well as previously-cached Open Food Facts imports.
+  try {
+    const admin = adminClient()
+    const { data: local } = await admin
+      .from('foods')
+      .select('name, brand, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, external_id')
+      .eq('barcode', barcode)
+      .maybeSingle()
+    if (local) {
+      return {
+        externalId: local.external_id ?? `off_${barcode}`,
+        name: local.name,
+        brand: local.brand ?? null,
+        caloriesPer100g: Number(local.calories_per_100g ?? 0),
+        proteinPer100g: Number(local.protein_per_100g ?? 0),
+        carbsPer100g: Number(local.carbs_per_100g ?? 0),
+        fatPer100g: Number(local.fat_per_100g ?? 0),
+        source: 'custom',
+      }
+    }
+  } catch {
+    // fall through to Open Food Facts
+  }
+
+  // 2. Fall back to the Open Food Facts public database.
   try {
     const res = await fetch(
       `https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,brands,nutriments`,
@@ -483,6 +509,67 @@ export async function lookupBarcode(barcode: string): Promise<FoodSearchResult |
   } catch {
     return null
   }
+}
+
+/**
+ * Client-contributed barcode product. Saves the product to the global `foods`
+ * database (so every client benefits from it in future scans) and logs the
+ * scanned quantity into the client's day. All nutrition values are per 100g.
+ */
+export async function addBarcodeFood(payload: {
+  clientId: string
+  workspaceId: string
+  loggedDate: string
+  mealType: string
+  barcode: string
+  name: string
+  brand?: string | null
+  caloriesPer100g: number
+  proteinPer100g: number
+  carbsPer100g: number
+  fatPer100g: number
+  fiberPer100g?: number | null
+  quantity: number
+}): Promise<void> {
+  const admin = adminClient()
+  const name = payload.name.trim()
+  if (!name) throw new Error('Product name is required')
+
+  // Save/refresh the product in the global database, keyed by barcode so the
+  // same product scanned again by anyone resolves without a re-entry.
+  const { error: fErr } = await admin.from('foods').upsert(
+    {
+      name,
+      brand: payload.brand?.trim() || null,
+      calories_per_100g: payload.caloriesPer100g,
+      protein_per_100g: payload.proteinPer100g,
+      carbs_per_100g: payload.carbsPer100g,
+      fat_per_100g: payload.fatPer100g,
+      fiber_per_100g: payload.fiberPer100g ?? null,
+      source: 'manual',
+      barcode: payload.barcode,
+      external_id: `off_${payload.barcode}`,
+    },
+    { onConflict: 'external_id' }
+  )
+  if (fErr) throw new Error(fErr.message)
+
+  // Log the scanned quantity into the client's day.
+  const q = payload.quantity
+  const ratio = q / 100
+  await logCustomFood({
+    clientId: payload.clientId,
+    workspaceId: payload.workspaceId,
+    loggedDate: payload.loggedDate,
+    mealType: payload.mealType,
+    foodName: payload.brand?.trim() ? `${name} (${payload.brand.trim()})` : name,
+    quantity: q,
+    unit: 'g',
+    calories: Math.round(payload.caloriesPer100g * ratio * 10) / 10,
+    proteinG: Math.round(payload.proteinPer100g * ratio * 10) / 10,
+    carbsG: Math.round(payload.carbsPer100g * ratio * 10) / 10,
+    fatG: Math.round(payload.fatPer100g * ratio * 10) / 10,
+  })
 }
 
 export async function deleteNutritionLog(logId: string): Promise<void> {

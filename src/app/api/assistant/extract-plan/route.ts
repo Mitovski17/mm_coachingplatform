@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 export const maxDuration = 60
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
+import { requireCoach, authErrorResponse } from '@/lib/auth'
 
 function adminClient() {
   return createClient<Database>(
@@ -16,6 +17,15 @@ function adminClient() {
 const SYSTEM_PROMPT = `You are a data extractor. Analyze this coaching conversation and determine if it contains a finalized meal plan or training program. If it contains a meal plan, output ONLY a JSON object with \`type: 'meal_plan'\` and a \`plan\` field matching this exact schema: \`{ name, plan_type ('training'|'rest'), notes, recommendations, meals: [{ name, sort_order, options: [{ label, sort_order, foods: [{ food_name, quantity, unit, calories, protein_g, carbs_g, fat_g }] }] }] }\`. If nothing is found output \`{ type: 'none' }\`. Output raw JSON only, no markdown, no explanation.`
 
 export async function POST(request: NextRequest) {
+  let coach
+  try {
+    coach = await requireCoach()
+  } catch (e) {
+    const r = authErrorResponse(e)
+    if (r) return r
+    throw e
+  }
+
   let body: unknown
   try {
     body = await request.json()
@@ -30,6 +40,10 @@ export async function POST(request: NextRequest) {
 
   if (!messages || !workspace_id) {
     return Response.json({ error: 'messages and workspace_id are required' }, { status: 400 })
+  }
+
+  if (workspace_id !== coach.workspaceId) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })

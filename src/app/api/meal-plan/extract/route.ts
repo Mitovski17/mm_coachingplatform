@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { requireCoach, authErrorResponse } from '@/lib/auth'
 
 const MEAL_PLAN_JSON_SCHEMA = `{
   "name": "string (descriptive plan name)",
@@ -32,6 +33,14 @@ const MEAL_PLAN_JSON_SCHEMA = `{
 }`
 
 export async function POST(request: NextRequest) {
+  try {
+    await requireCoach()
+  } catch (e) {
+    const r = authErrorResponse(e)
+    if (r) return r
+    throw e
+  }
+
   let body: unknown
   try {
     body = await request.json()

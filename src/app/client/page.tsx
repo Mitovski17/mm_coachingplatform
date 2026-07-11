@@ -85,13 +85,18 @@ async function resolveData() {
 
 export default async function ClientHomePage() {
   const data = await resolveData()
+  // Fail open: resolveData() only returns null on transient auth/query
+  // failures (a logged-out user is redirected by the proxy before this page
+  // renders). Defaulting to false would bounce an active user back to the
+  // onboarding wizard whenever a request hiccups.
+  const onboardingComplete = data?.onboardingComplete ?? true
   return (
     <HomeView
       today={data?.today ?? null}
       logs={data?.logs ?? []}
       stats={data?.stats ?? null}
       avatarUrl={data?.avatarUrl ?? null}
-      onboardingComplete={data?.onboardingComplete ?? false}
+      onboardingComplete={onboardingComplete}
       targets={data?.targets ?? null}
     />
   )

@@ -2,6 +2,7 @@
 
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createNotification } from '@/lib/notifications'
+import { requireClient } from '@/lib/auth'
 
 function adminClient() {
   return createServiceClient(
@@ -40,6 +41,11 @@ export async function getOrCreateConversation(
   workspaceId: string,
   coachId: string
 ): Promise<string> {
+  // Always bind to the session's own client/workspace/coach.
+  const ctx = await requireClient()
+  clientId = ctx.clientId
+  workspaceId = ctx.workspaceId
+  coachId = ctx.coachId ?? coachId
   const admin = adminClient()
 
   const { data, error } = await admin
@@ -59,12 +65,14 @@ export async function sendMessage(
   conversationId: string,
   body: string
 ): Promise<Message> {
+  const ctx = await requireClient()
   const admin = adminClient()
 
   const { data: convo, error: convoErr } = await admin
     .from('conversations')
     .select('workspace_id, coach_id, client_id, clients(full_name)')
     .eq('id', conversationId)
+    .eq('client_id', ctx.clientId)
     .single()
   if (convoErr || !convo) throw new Error('Conversation not found')
 
@@ -98,7 +106,18 @@ export async function sendMessage(
 }
 
 export async function markMessagesRead(conversationId: string): Promise<void> {
+  const ctx = await requireClient()
   const admin = adminClient()
+
+  // Only allow marking messages read in the caller's own conversation.
+  const { data: convo } = await admin
+    .from('conversations')
+    .select('id')
+    .eq('id', conversationId)
+    .eq('client_id', ctx.clientId)
+    .maybeSingle()
+  if (!convo) return
+
   await admin
     .from('messages')
     .update({ read_by_client: true })

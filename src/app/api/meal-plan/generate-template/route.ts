@@ -1,9 +1,18 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { requireCoach, authErrorResponse } from '@/lib/auth'
 
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
+  try {
+    await requireCoach()
+  } catch (e) {
+    const r = authErrorResponse(e)
+    if (r) return r
+    throw e
+  }
+
   let body: unknown
   try {
     body = await request.json()

@@ -5,6 +5,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { searchFoods as searchFoodsLib, type FoodSearchResult } from '@/lib/food-search'
 import { resolveCarbCycleDay } from '@/lib/utils'
+import { requireClient } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -99,6 +100,8 @@ export async function getDateMealOverride(
   clientId: string,
   date: string
 ): Promise<FullMealPlan | null> {
+  // Ignore the caller-supplied id — always act on the session's own client.
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   const { data: override } = await admin
     .from('date_meal_overrides')
@@ -170,6 +173,7 @@ export async function getActiveCarbCyclePlan(
   clientId: string,
   date: string
 ): Promise<{ plan: FullMealPlan; dayType: 'low' | 'high' } | null> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   const { data: cycle, error } = await admin
     .from('carb_cycle_assignments')
@@ -247,6 +251,7 @@ export async function getActiveMealPlan(
   clientId: string,
   planType: 'training' | 'rest' | 'overall'
 ): Promise<FullMealPlan | null> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   const { data: assignment, error: aErr } = await admin
     .from('meal_plan_assignments')
@@ -317,6 +322,7 @@ export async function getActiveMealPlan(
 }
 
 export async function getDayLogs(clientId: string, date: string): Promise<DayLog[]> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   const { data, error } = await admin
     .from('nutrition_logs')
@@ -357,6 +363,10 @@ export async function logMealOption(payload: {
     fatG: number
   }>
 }): Promise<void> {
+  // Bind to the session's own client/workspace — never trust the payload ids.
+  const ctx = await requireClient()
+  payload.clientId = ctx.clientId
+  payload.workspaceId = ctx.workspaceId
   const admin = adminClient()
   // Only clear previously-logged PLAN foods for this meal. Custom/external foods
   // (template_food_id IS NULL) the client added themselves must be preserved.
@@ -395,6 +405,7 @@ export async function removeOptionLog(
   mealType: string,
   planFoodsOnly = true
 ): Promise<void> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   let query = admin
     .from('nutrition_logs')
@@ -425,6 +436,9 @@ export async function logCustomFood(payload: {
   carbsG: number
   fatG: number
 }): Promise<void> {
+  const ctx = await requireClient()
+  payload.clientId = ctx.clientId
+  payload.workspaceId = ctx.workspaceId
   const admin = adminClient()
   const { error } = await admin.from('nutrition_logs').insert({
     client_id: payload.clientId,
@@ -444,11 +458,13 @@ export async function logCustomFood(payload: {
 }
 
 export async function searchFoodsForClient(query: string): Promise<FoodSearchResult[]> {
+  await requireClient()
   const client = adminClient()
   return searchFoodsLib(query, client)
 }
 
 export async function lookupBarcode(barcode: string): Promise<FoodSearchResult | null> {
+  await requireClient()
   // 1. Check our own database first — includes products clients contributed
   //    manually as well as previously-cached Open Food Facts imports.
   try {
@@ -531,6 +547,9 @@ export async function addBarcodeFood(payload: {
   fiberPer100g?: number | null
   quantity: number
 }): Promise<void> {
+  const ctx = await requireClient()
+  payload.clientId = ctx.clientId
+  payload.workspaceId = ctx.workspaceId
   const admin = adminClient()
   const name = payload.name.trim()
   if (!name) throw new Error('Product name is required')
@@ -573,8 +592,15 @@ export async function addBarcodeFood(payload: {
 }
 
 export async function deleteNutritionLog(logId: string): Promise<void> {
+  const { clientId } = await requireClient()
   const admin = adminClient()
-  const { error } = await admin.from('nutrition_logs').delete().eq('id', logId)
+  // Scope the delete to the caller's own client so a log id alone can't be
+  // used to delete another client's row.
+  const { error } = await admin
+    .from('nutrition_logs')
+    .delete()
+    .eq('id', logId)
+    .eq('client_id', clientId)
   if (error) throw new Error(error.message)
 }
 
@@ -584,6 +610,7 @@ export async function renameCustomMealLogs(
   oldMealType: string,
   newMealType: string
 ): Promise<void> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   const { error } = await admin
     .from('nutrition_logs')
@@ -597,20 +624,32 @@ export async function renameCustomMealLogs(
 export async function updateNutritionLogQuantity(
   logId: string,
   newQty: number,
-  origQty: number,
-  origCal: number,
-  origP: number,
-  origC: number,
-  origF: number
 ): Promise<void> {
-  const ratio = newQty / origQty
+  if (!(newQty > 0)) throw new Error('Quantity must be greater than zero')
+  const { clientId } = await requireClient()
   const admin = adminClient()
+
+  // Recompute macros server-side from the stored row (never trust caller-sent
+  // originals) and only touch the caller's own log.
+  const { data: row, error: readErr } = await admin
+    .from('nutrition_logs')
+    .select('quantity, calories, protein_g, carbs_g, fat_g')
+    .eq('id', logId)
+    .eq('client_id', clientId)
+    .maybeSingle()
+  if (readErr) throw new Error(readErr.message)
+  if (!row) throw new Error('Log not found')
+
+  const origQty = Number(row.quantity)
+  if (!(origQty > 0)) throw new Error('Cannot rescale a zero-quantity log')
+  const ratio = newQty / origQty
+
   const { error } = await admin.from('nutrition_logs').update({
     quantity: newQty,
-    calories: Math.round(origCal * ratio * 10) / 10,
-    protein_g: Math.round(origP * ratio * 10) / 10,
-    carbs_g: Math.round(origC * ratio * 10) / 10,
-    fat_g: Math.round(origF * ratio * 10) / 10,
-  }).eq('id', logId)
+    calories: Math.round(Number(row.calories) * ratio * 10) / 10,
+    protein_g: Math.round(Number(row.protein_g) * ratio * 10) / 10,
+    carbs_g: Math.round(Number(row.carbs_g) * ratio * 10) / 10,
+    fat_g: Math.round(Number(row.fat_g) * ratio * 10) / 10,
+  }).eq('id', logId).eq('client_id', clientId)
   if (error) throw new Error(error.message)
 }

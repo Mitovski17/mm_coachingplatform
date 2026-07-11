@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { requireClient } from '@/lib/auth'
 
 function adminClient() {
   return createAdminClient(
@@ -12,9 +13,13 @@ function adminClient() {
 }
 
 export async function updatePersonalInfo(clientId: string, name: string, phone: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+  let ctx
+  try {
+    ctx = await requireClient()
+  } catch {
+    return { error: 'Not authenticated' }
+  }
+  clientId = ctx.clientId
 
   const admin = adminClient()
   const { error } = await admin
@@ -66,11 +71,17 @@ export async function sendFeedbackToCoach(
   coachId: string,
   message: string
 ) {
-  if (!clientId || !workspaceId || !coachId) return { error: 'Missing context — please try again' }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+  let ctx
+  try {
+    ctx = await requireClient()
+  } catch {
+    return { error: 'Not authenticated' }
+  }
+  // Derive identity from the session; ignore caller-supplied ids.
+  clientId = ctx.clientId
+  workspaceId = ctx.workspaceId
+  coachId = ctx.coachId ?? ''
+  if (!coachId) return { error: 'You are not linked to a coach yet' }
 
   const admin = adminClient()
 

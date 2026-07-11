@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/auth'
 
 function svc() {
   return createServiceClient(
@@ -10,6 +11,7 @@ function svc() {
 }
 
 export async function suspendUser(userId: string): Promise<{ ok: boolean }> {
+  await requireAdmin()
   const { error } = await svc().auth.admin.updateUserById(userId, {
     ban_duration: '876600h', // 100 years
   })
@@ -17,6 +19,7 @@ export async function suspendUser(userId: string): Promise<{ ok: boolean }> {
 }
 
 export async function unsuspendUser(userId: string): Promise<{ ok: boolean }> {
+  await requireAdmin()
   const { error } = await svc().auth.admin.updateUserById(userId, {
     ban_duration: 'none',
   })

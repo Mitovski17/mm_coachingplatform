@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { generateDigestForClient } from '@/lib/digest'
+import { requireCoach, assertCoachOwnsClient, authErrorResponse } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   let raw: unknown
@@ -12,6 +13,15 @@ export async function POST(request: NextRequest) {
   const client_id = (raw as Record<string, unknown>)?.client_id
   if (!client_id || typeof client_id !== 'string') {
     return Response.json({ error: 'client_id is required' }, { status: 400 })
+  }
+
+  try {
+    const coach = await requireCoach()
+    await assertCoachOwnsClient(coach, client_id)
+  } catch (e) {
+    const r = authErrorResponse(e)
+    if (r) return r
+    throw e
   }
 
   const result = await generateDigestForClient(client_id)

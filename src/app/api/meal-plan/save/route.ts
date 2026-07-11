@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
+import { requireCoach, assertCoachOwnsClient, authErrorResponse } from '@/lib/auth'
 
 function adminClient() {
   return createClient<Database>(
@@ -56,6 +57,18 @@ export async function POST(request: NextRequest) {
 
   if (!client_id || !workspace_id || !plan) {
     return Response.json({ error: 'client_id, workspace_id, and plan are required' }, { status: 400 })
+  }
+
+  try {
+    const coach = await requireCoach()
+    if (workspace_id !== coach.workspaceId) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    await assertCoachOwnsClient(coach, client_id)
+  } catch (e) {
+    const r = authErrorResponse(e)
+    if (r) return r
+    throw e
   }
 
   const supabase = adminClient()

@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createNotification } from '@/lib/notifications'
+import { requireCoach } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -12,11 +13,14 @@ function adminClient() {
 }
 
 export async function updateCheckinNotes(checkinId: string, notes: string): Promise<void> {
+  const coach = await requireCoach()
   const admin = adminClient()
+  // Scope to the coach's own workspace so a coach can't edit another's check-ins.
   const { error } = await admin
     .from('checkins')
     .update({ coach_notes: notes })
     .eq('id', checkinId)
+    .eq('workspace_id', coach.workspaceId)
   if (error) throw new Error(error.message)
 
   if (notes.trim().length > 0) {
@@ -41,11 +45,13 @@ export async function updateCheckinNotes(checkinId: string, notes: string): Prom
 }
 
 export async function markCheckinReviewed(checkinId: string): Promise<void> {
+  const coach = await requireCoach()
   const admin = adminClient()
   const { error } = await admin
     .from('checkins')
     .update({ status: 'reviewed', reviewed_at: new Date().toISOString() })
     .eq('id', checkinId)
+    .eq('workspace_id', coach.workspaceId)
   if (error) throw new Error(error.message)
 
   const { data: checkin } = await admin

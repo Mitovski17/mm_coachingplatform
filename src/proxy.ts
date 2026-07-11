@@ -38,18 +38,17 @@ function handleMockAuth(request: NextRequest): NextResponse | null {
 // Copy all cookies from a supabaseResponse onto any redirect response so that
 // refreshed session tokens are never lost when we redirect.
 // Cookies deleted on the source (empty value) are properly deleted on the target too.
+// The original attributes (maxAge, httpOnly, sameSite, …) must be preserved:
+// Supabase auth cookies are intentionally readable by the browser client and
+// carry a long maxAge — overriding them here turns them into httpOnly session
+// cookies, which breaks client-side auth and logs users out on browser close.
 function copySupabaseCookies(from: NextResponse, to: NextResponse): void {
   from.cookies.getAll().forEach((cookie) => {
     if (!cookie.value) {
       // Cookie was cleared — propagate the deletion so the browser actually removes it
       to.cookies.delete(cookie.name)
     } else {
-      to.cookies.set(cookie.name, cookie.value, {
-        sameSite: 'lax',
-        path: '/',
-        httpOnly: cookie.name.startsWith('sb-'),
-        secure: process.env.NODE_ENV === 'production',
-      })
+      to.cookies.set(cookie)
     }
   })
 }
@@ -84,9 +83,13 @@ export async function proxy(request: NextRequest) {
   // Refresh session — do not add logic between createServerClient and getUser
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  // If the refresh token is invalid/expired, Supabase returns null for user.
-  // Wipe stale sb-* cookies so the next request starts clean and avoids loops.
-  if (!user || authError) {
+  // If the refresh token is definitively invalid/expired (4xx auth error),
+  // wipe stale sb-* cookies so the next request starts clean and avoids loops.
+  // Never wipe on transient failures (network errors / 5xx / status 0) — doing
+  // so would hard-logout users whenever Supabase is briefly unreachable.
+  const status = authError?.status ?? 0
+  const isDefinitiveAuthFailure = !user && !!authError && status >= 400 && status < 500
+  if (isDefinitiveAuthFailure) {
     request.cookies.getAll()
       .filter(c => c.name.startsWith('sb-'))
       .forEach(c => supabaseResponse.cookies.delete(c.name))

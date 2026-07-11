@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { unstable_cache, revalidateTag } from 'next/cache'
 import { createNotification } from '@/lib/notifications'
+import { requireCoach, assertCoachOwnsClient } from '@/lib/auth'
 import {
   searchFoods as searchFoodsLib,
   upsertFood as upsertFoodLib,
@@ -15,6 +16,18 @@ function adminClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
+}
+
+/** Asserts a meal-plan template belongs to the coach's workspace. */
+async function assertCoachOwnsTemplate(workspaceId: string, templateId: string): Promise<void> {
+  const admin = adminClient()
+  const { data } = await admin
+    .from('meal_plan_templates')
+    .select('id')
+    .eq('id', templateId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!data) throw new Error('Template not in your workspace')
 }
 
 export type PlanType = 'training' | 'rest' | 'overall'
@@ -123,10 +136,15 @@ const _getMealPlanTemplatesCached = unstable_cache(
 )
 
 export async function getMealPlanTemplates(workspaceId: string): Promise<MealPlanTemplate[]> {
-  return _getMealPlanTemplatesCached(workspaceId)
+  // Identity comes from the session, never the passed workspaceId.
+  void workspaceId
+  const coach = await requireCoach()
+  return _getMealPlanTemplatesCached(coach.workspaceId)
 }
 
 export async function getMealPlanTemplate(templateId: string): Promise<FullTemplate | null> {
+  const coach = await requireCoach()
+  await assertCoachOwnsTemplate(coach.workspaceId, templateId)
   const admin = adminClient()
   // Single nested query replaces 4 sequential queries
   const { data: template, error } = await admin
@@ -220,11 +238,14 @@ export async function upsertMealPlanTemplate(payload: {
     }>
   }>
 }): Promise<{ id: string }> {
+  const coach = await requireCoach()
   const admin = adminClient()
 
   let templateId = payload.id ?? null
 
   if (templateId) {
+    // Only allow editing a template that belongs to the coach's workspace.
+    await assertCoachOwnsTemplate(coach.workspaceId, templateId)
     const { error } = await admin
       .from('meal_plan_templates')
       .update({
@@ -234,12 +255,13 @@ export async function upsertMealPlanTemplate(payload: {
         recommendations: payload.recommendations || null,
       })
       .eq('id', templateId)
+      .eq('workspace_id', coach.workspaceId)
     if (error) throw new Error(error.message)
   } else {
     const { data, error } = await admin
       .from('meal_plan_templates')
       .insert({
-        workspace_id: payload.workspaceId,
+        workspace_id: coach.workspaceId,
         name: payload.name,
         plan_type: payload.planType,
         notes: payload.notes || null,
@@ -338,18 +360,25 @@ export async function duplicateMealPlanTemplate(templateId: string): Promise<{ i
 }
 
 export async function deleteMealPlanTemplate(templateId: string): Promise<void> {
+  const coach = await requireCoach()
   const admin = adminClient()
-  const { error } = await admin.from('meal_plan_templates').delete().eq('id', templateId)
+  const { error } = await admin
+    .from('meal_plan_templates')
+    .delete()
+    .eq('id', templateId)
+    .eq('workspace_id', coach.workspaceId)
   if (error) throw new Error(error.message)
   revalidateTag('meal-plans', 'max')
 }
 
 export async function getMealPlanAssignments(workspaceId: string): Promise<Assignment[]> {
+  void workspaceId
+  const coach = await requireCoach()
   const admin = adminClient()
   const { data, error } = await admin
     .from('meal_plan_assignments')
     .select('id, client_id, template_id, plan_type, is_active, clients(full_name), meal_plan_templates(name)')
-    .eq('workspace_id', workspaceId)
+    .eq('workspace_id', coach.workspaceId)
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []).map((a) => {
@@ -368,6 +397,8 @@ export async function getMealPlanAssignments(workspaceId: string): Promise<Assig
 }
 
 export async function getClientAssignments(clientId: string): Promise<ClientAssignments> {
+  const coach = await requireCoach()
+  await assertCoachOwnsClient(coach, clientId)
   const admin = adminClient()
   const { data, error } = await admin
     .from('meal_plan_assignments')
@@ -403,7 +434,13 @@ export async function upsertClientMealPlanAssignment(payload: {
   restTemplateId: string | null
   overallTemplateId: string | null
 }): Promise<void> {
+  const coach = await requireCoach()
+  await assertCoachOwnsClient(coach, payload.clientId)
   const admin = adminClient()
+  // Every template being assigned must belong to the coach's workspace.
+  for (const templateId of [payload.trainingTemplateId, payload.restTemplateId, payload.overallTemplateId]) {
+    if (templateId) await assertCoachOwnsTemplate(coach.workspaceId, templateId)
+  }
   const types: Array<{ planType: PlanType; templateId: string | null }> = [
     { planType: 'training', templateId: payload.trainingTemplateId },
     { planType: 'rest', templateId: payload.restTemplateId },
@@ -421,7 +458,7 @@ export async function upsertClientMealPlanAssignment(payload: {
 
     if (templateId) {
       const { error: iErr } = await admin.from('meal_plan_assignments').insert({
-        workspace_id: payload.workspaceId,
+        workspace_id: coach.workspaceId,
         client_id: payload.clientId,
         template_id: templateId,
         plan_type: planType,
@@ -433,7 +470,7 @@ export async function upsertClientMealPlanAssignment(payload: {
   const hasAssignment = payload.trainingTemplateId !== null || payload.restTemplateId !== null || payload.overallTemplateId !== null
   if (hasAssignment) {
     await createNotification({
-      workspaceId: payload.workspaceId,
+      workspaceId: coach.workspaceId,
       recipientType: 'client',
       recipientId: payload.clientId,
       type: 'meal_plan_assigned',
@@ -447,28 +484,22 @@ export async function upsertClientMealPlanAssignment(payload: {
 }
 
 export async function searchFoods(query: string): Promise<FoodSearchResult[]> {
+  await requireCoach()
   const client = adminClient()
   return searchFoodsLib(query, client)
 }
 
 export async function upsertFood(result: FoodSearchResult): Promise<string> {
+  await requireCoach()
   const client = adminClient()
   return upsertFoodLib(result, client)
 }
 
 export async function getWorkspaceIdForCoach(email: string): Promise<string | null> {
-  const admin = adminClient()
-  const { data: users, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 })
-  if (listErr) throw new Error(listErr.message)
-  const user = users.users.find((u) => u.email === email)
-  if (!user) return null
-  const { data: profile, error } = await admin
-    .from('profiles')
-    .select('workspace_id')
-    .eq('id', user.id)
-    .single()
-  if (error || !profile) return null
-  return profile.workspace_id
+  // Identity comes from the session, never the passed email.
+  void email
+  const coach = await requireCoach()
+  return coach.workspaceId
 }
 
 // ─── Carb Cycle Assignments ────────────────────────────────────────────────
@@ -483,6 +514,8 @@ export type CarbCycleAssignment = {
 }
 
 export async function getCarbCycleAssignment(clientId: string): Promise<CarbCycleAssignment | null> {
+  const coach = await requireCoach()
+  await assertCoachOwnsClient(coach, clientId)
   const admin = adminClient()
   const { data, error } = await admin
     .from('carb_cycle_assignments')
@@ -509,6 +542,11 @@ export async function upsertCarbCycleAssignment(payload: {
   cycleStartDate: string
   cycleLength?: number
 }): Promise<void> {
+  const coach = await requireCoach()
+  await assertCoachOwnsClient(coach, payload.clientId)
+  for (const planId of [payload.lowPlanId, payload.highPlanId]) {
+    if (planId) await assertCoachOwnsTemplate(coach.workspaceId, planId)
+  }
   const admin = adminClient()
 
   // Deactivate any existing active cycle for this client
@@ -522,7 +560,7 @@ export async function upsertCarbCycleAssignment(payload: {
   // Insert new cycle only when both plans are provided
   if (payload.lowPlanId && payload.highPlanId) {
     const { error: iErr } = await admin.from('carb_cycle_assignments').insert({
-      workspace_id: payload.workspaceId,
+      workspace_id: coach.workspaceId,
       client_id: payload.clientId,
       low_plan_id: payload.lowPlanId,
       high_plan_id: payload.highPlanId,
@@ -537,11 +575,13 @@ export async function upsertCarbCycleAssignment(payload: {
 }
 
 export async function getClients(workspaceId: string): Promise<Array<{ id: string; name: string; email: string }>> {
+  void workspaceId
+  const coach = await requireCoach()
   const admin = adminClient()
   const { data, error } = await admin
     .from('clients')
     .select('id, full_name, email')
-    .eq('workspace_id', workspaceId)
+    .eq('workspace_id', coach.workspaceId)
     .order('full_name', { ascending: true })
   if (error) throw new Error(error.message)
   return (data ?? []).map((c) => ({ id: c.id, name: c.full_name, email: c.email }))

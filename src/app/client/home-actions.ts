@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { getSundayStart } from '@/lib/checkin-window'
+import { requireClient } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -35,6 +36,10 @@ export type HomeStats = {
 }
 
 export async function getHomeStats(email: string, clientId: string): Promise<HomeStats> {
+  // Bind to the session's own client — ignore caller-supplied email/clientId.
+  const ctx = await requireClient()
+  email = ctx.email
+  clientId = ctx.clientId
   const admin = adminClient()
   const weekStart = getSundayStart()
 
@@ -101,7 +106,12 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
   ])
 
   const clientName = (clientRow.data as { full_name: string; onboarding_completed_at: string | null } | null)?.full_name ?? null
-  const onboardingComplete = !!(clientRow.data as { onboarding_completed_at: string | null } | null)?.onboarding_completed_at
+  // Fail open on query errors — only report "not onboarded" when the row was
+  // actually read and says so, otherwise a transient failure kicks the client
+  // back to the onboarding wizard mid-session.
+  const onboardingComplete = clientRow.error
+    ? true
+    : !!(clientRow.data as { onboarding_completed_at: string | null } | null)?.onboarding_completed_at
   const workoutsLogged = workoutsLoggedResult.count ?? 0
 
   const programDays = (activeProgramResult.data as { id: string; workout_program_days: { id: string; template_day_id: string | null }[] } | null)?.workout_program_days ?? []

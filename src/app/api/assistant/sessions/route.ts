@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireCoach, assertCoachOwnsClient, authErrorResponse } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -13,6 +14,15 @@ function adminClient() {
 export async function GET(req: NextRequest) {
   const clientId = req.nextUrl.searchParams.get('client_id')
   if (!clientId) return Response.json({ error: 'client_id required' }, { status: 400 })
+
+  try {
+    const coach = await requireCoach()
+    await assertCoachOwnsClient(coach, clientId)
+  } catch (e) {
+    const r = authErrorResponse(e)
+    if (r) return r
+    throw e
+  }
 
   const supabase = adminClient()
   const { data, error } = await supabase
@@ -37,6 +47,18 @@ export async function POST(req: NextRequest) {
   const { client_id, workspace_id, title, messages } = body
   if (!client_id || !workspace_id) {
     return Response.json({ error: 'client_id and workspace_id required' }, { status: 400 })
+  }
+
+  try {
+    const coach = await requireCoach()
+    if (workspace_id !== coach.workspaceId) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    await assertCoachOwnsClient(coach, client_id)
+  } catch (e) {
+    const r = authErrorResponse(e)
+    if (r) return r
+    throw e
   }
 
   const supabase = adminClient()

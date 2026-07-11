@@ -155,7 +155,10 @@ async function fetchCoachProfile(): Promise<{
       avatarUrl:
         profile?.avatar_url ??
         ((user.user_metadata?.avatar_url as string | undefined) ?? null),
-      onboardingCompleted: profile?.onboarding_completed ?? false,
+      // Fail open: only show the onboarding wizard when the profile row
+      // explicitly says onboarding is incomplete. A transiently failed query
+      // must not re-open the wizard for an already-onboarded coach.
+      onboardingCompleted: profile ? !!profile.onboarding_completed : true,
     }
   } catch {
     return { id: '', name: 'Coach', email: '', avatarUrl: null, onboardingCompleted: true }

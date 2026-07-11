@@ -323,16 +323,10 @@ export default function NutritionClient({
     await reloadDayLogs()
   }
 
-  const handleUpdateCustomQty = async (
-    logId: string,
-    newQty: number,
-    origQty: number,
-    origCal: number,
-    origP: number,
-    origC: number,
-    origF: number
-  ) => {
-    await updateNutritionLogQuantity(logId, newQty, origQty, origCal, origP, origC, origF)
+  const handleUpdateCustomQty = async (logId: string, newQty: number) => {
+    // Macros are recomputed server-side from the stored row, so only the new
+    // quantity needs to be sent.
+    await updateNutritionLogQuantity(logId, newQty)
     await reloadDayLogs()
   }
 

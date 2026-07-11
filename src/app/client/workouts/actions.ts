@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { requireClient } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -96,6 +97,7 @@ export async function getClientId(email: string): Promise<{ id: string; workspac
 }
 
 export async function hasActivePlan(clientId: string): Promise<boolean> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   const { data } = await admin
     .from('workout_programs')
@@ -109,6 +111,7 @@ export async function hasActivePlan(clientId: string): Promise<boolean> {
 
 
 export async function getTodayTemplate(clientId: string): Promise<TodayTemplate | null> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
 
   // Check for a date-specific override first
@@ -232,6 +235,7 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
 }
 
 export async function getTemplateDayWithExercises(templateDayId: string): Promise<TemplateWithExercises> {
+  await requireClient()
   const admin = adminClient()
   const { data: day, error } = await admin
     .from('workout_template_days')
@@ -271,6 +275,7 @@ export async function getLastSessionForTemplateDay(
   clientId: string,
   templateDayId: string
 ): Promise<LastSession | null> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   const { data: session } = await admin
     .from('workout_sessions')
@@ -310,6 +315,7 @@ export type ProgramWorkoutDay = {
 }
 
 export async function getProgramWorkoutDays(clientId: string): Promise<ProgramWorkoutDay[]> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
 
   const { data: program } = await admin
@@ -366,6 +372,7 @@ export type LibraryExercise = {
 }
 
 export async function getExerciseLibraryForClient(workspaceId: string): Promise<LibraryExercise[]> {
+  ;({ workspaceId } = await requireClient())
   const admin = adminClient()
   const { data, error } = await admin
     .from('exercises')
@@ -397,6 +404,9 @@ export async function saveWorkoutSession(payload: {
     }>
   }>
 }): Promise<{ sessionId: string }> {
+  const ctx = await requireClient()
+  payload.clientId = ctx.clientId
+  payload.workspaceId = ctx.workspaceId
   const admin = adminClient()
 
   const { data: session, error } = await admin
@@ -445,6 +455,7 @@ export async function saveWorkoutSession(payload: {
 }
 
 export async function getWorkoutHistory(clientId: string): Promise<HistorySession[]> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   const { data: sessions, error } = await admin
     .from('workout_sessions')
@@ -485,11 +496,13 @@ export async function getWorkoutHistory(clientId: string): Promise<HistorySessio
 }
 
 export async function getSessionDetail(sessionId: string): Promise<SessionDetail> {
+  const { clientId } = await requireClient()
   const admin = adminClient()
   const { data: session, error } = await admin
     .from('workout_sessions')
     .select('id, name, performed_at, duration_minutes, notes, workspace_id')
     .eq('id', sessionId)
+    .eq('client_id', clientId)
     .single()
   if (error || !session) throw new Error(error?.message ?? 'Session not found')
 
@@ -553,7 +566,17 @@ export async function updateWorkoutSession(
     }>
   }
 ): Promise<void> {
+  const { clientId } = await requireClient()
   const admin = adminClient()
+
+  // Verify the session belongs to the caller before mutating it or its sets.
+  const { data: owned } = await admin
+    .from('workout_sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('client_id', clientId)
+    .maybeSingle()
+  if (!owned) throw new Error('Session not found')
 
   // Update the session row
   const { error: sessErr } = await admin
@@ -564,6 +587,7 @@ export async function updateWorkoutSession(
       duration_minutes: payload.durationMinutes,
     })
     .eq('id', sessionId)
+    .eq('client_id', clientId)
   if (sessErr) throw new Error(sessErr.message)
 
   // Delete existing sets and reinsert
@@ -598,6 +622,7 @@ export async function createExerciseForWorkspace(
   muscleGroup: string,
   equipment: string,
 ): Promise<LibraryExercise> {
+  ;({ workspaceId } = await requireClient())
   const admin = adminClient()
   const { data, error } = await admin
     .from('exercises')

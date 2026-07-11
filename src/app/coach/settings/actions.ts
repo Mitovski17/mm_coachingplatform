@@ -22,6 +22,8 @@ export async function updateCoachProfile(profileId: string, name: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
+  // Always update the caller's own profile, never a caller-supplied id.
+  profileId = user.id
 
   const admin = adminClient()
   const { error } = await admin

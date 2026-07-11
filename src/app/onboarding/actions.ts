@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { getSessionEmail } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -27,11 +28,18 @@ type OnboardingData = {
 }
 
 export async function completeOnboarding(
-  email: string,
+  _email: string,
   data: OnboardingData
 ): Promise<{ error: string | null; clientId: string | null; workspaceId: string | null }> {
+  // Derive the email from the authenticated session, never from the argument.
+  // The onboarding user is already signed in at this point, so a caller can
+  // only ever complete their own onboarding.
+  const sessionEmail = await getSessionEmail()
+  if (!sessionEmail) {
+    return { error: 'Not authenticated', clientId: null, workspaceId: null }
+  }
   const admin = adminClient()
-  const normalizedEmail = email.toLowerCase().trim()
+  const normalizedEmail = sessionEmail
 
   const { data: existing } = await admin
     .from('clients')
@@ -67,9 +75,10 @@ export async function completeOnboarding(
   }
 
   // Look up full_name from Supabase auth metadata
-  const { data: authUsers } = await admin.auth.admin.listUsers()
+  // (default page size is 50 — without perPage the user may not be found)
+  const { data: authUsers } = await admin.auth.admin.listUsers({ perPage: 1000 })
   const authUser = authUsers?.users?.find((u) => u.email === normalizedEmail)
-  const fullName = (authUser?.user_metadata?.full_name as string | undefined) ?? email
+  const fullName = (authUser?.user_metadata?.full_name as string | undefined) ?? normalizedEmail
 
   const { data: created, error: insertErr } = await admin
     .from('clients')

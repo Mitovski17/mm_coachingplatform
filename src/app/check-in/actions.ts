@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createNotification } from '@/lib/notifications'
+import { requireClient } from '@/lib/auth'
 
 export type QuestionType = 'scale_1_10' | 'options' | 'text' | 'photo' | 'number' | 'choice'
 
@@ -80,17 +81,14 @@ function adminClient() {
 }
 
 export async function getClientByEmail(email: string): Promise<{ id: string; workspace_id: string } | null> {
-  const admin = adminClient()
-  const { data, error } = await admin
-    .from('clients')
-    .select('id, workspace_id')
-    .eq('email', email)
-    .maybeSingle()
-  if (error) throw new Error(error.message)
-  return data ?? null
+  // Identity comes from the session, never the passed email.
+  void email
+  const ctx = await requireClient()
+  return { id: ctx.clientId, workspace_id: ctx.workspaceId }
 }
 
 export async function ensureDefaultTemplate(workspaceId: string): Promise<CheckinTemplate> {
+  ;({ workspaceId } = await requireClient())
   const admin = adminClient()
 
   const { data: existing } = await admin
@@ -142,6 +140,7 @@ export async function getExistingCheckin(
   clientId: string,
   weekStartDate: string
 ): Promise<boolean> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
   const { data } = await admin
     .from('checkins')
@@ -159,6 +158,9 @@ export async function submitCheckin(payload: {
   answers: Record<string, string | number | string[] | null>
   week_start_date: string
 }): Promise<void> {
+  const ctx = await requireClient()
+  payload.client_id = ctx.clientId
+  payload.workspace_id = ctx.workspaceId
   const admin = adminClient()
   const { error } = await admin.from('checkins').insert({
     ...payload,
@@ -190,7 +192,8 @@ export async function getPhotoUploadUrl(
   clientId: string,
   filename: string
 ): Promise<{ signedUrl: string; token: string; path: string }> {
-  if (!workspaceId || !clientId || !filename) throw new Error('Missing required fields')
+  ;({ clientId, workspaceId } = await requireClient())
+  if (!filename) throw new Error('Missing filename')
 
   const ext  = filename.split('.').pop() ?? 'jpg'
   const path = `${workspaceId}/${clientId}/${Date.now()}.${ext}`

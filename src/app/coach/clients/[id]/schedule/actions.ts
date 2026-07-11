@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import { requireCoach, assertCoachOwnsClient } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -9,6 +10,13 @@ function adminClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
+}
+
+// Verifies the caller is a coach who owns the client; returns their workspace.
+async function guardClient(clientId: string) {
+  const coach = await requireCoach()
+  await assertCoachOwnsClient(coach, clientId)
+  return coach
 }
 
 export type TemplateDayOption = {
@@ -45,6 +53,8 @@ export async function getScheduleData(clientId: string, workspaceId: string): Pr
   templateDays: TemplateDayOption[]
   mealTemplates: MealTemplateOption[]
 }> {
+  const coach = await guardClient(clientId)
+  workspaceId = coach.workspaceId
   const admin = adminClient()
 
   const [woRes, moRes, tdRes, mtRes] = await Promise.all([
@@ -127,6 +137,8 @@ export async function upsertWorkoutOverride(payload: {
   templateDayId: string | null
   dates: string[]
 }): Promise<void> {
+  const coach = await guardClient(payload.clientId)
+  payload.workspaceId = coach.workspaceId
   const admin = adminClient()
   const rows = payload.dates.map((d) => ({
     workspace_id: payload.workspaceId,
@@ -147,6 +159,8 @@ export async function upsertMealOverride(payload: {
   templateId: string | null
   dates: string[]
 }): Promise<void> {
+  const coach = await guardClient(payload.clientId)
+  payload.workspaceId = coach.workspaceId
   const admin = adminClient()
   const rows = payload.dates.map((d) => ({
     workspace_id: payload.workspaceId,
@@ -162,15 +176,27 @@ export async function upsertMealOverride(payload: {
 }
 
 export async function deleteWorkoutOverride(overrideId: string, clientId: string): Promise<void> {
+  const coach = await guardClient(clientId)
   const admin = adminClient()
-  const { error } = await admin.from('date_workout_overrides').delete().eq('id', overrideId)
+  const { error } = await admin
+    .from('date_workout_overrides')
+    .delete()
+    .eq('id', overrideId)
+    .eq('client_id', clientId)
+    .eq('workspace_id', coach.workspaceId)
   if (error) throw new Error(error.message)
   revalidatePath(`/coach/clients/${clientId}/schedule`)
 }
 
 export async function deleteMealOverride(overrideId: string, clientId: string): Promise<void> {
+  const coach = await guardClient(clientId)
   const admin = adminClient()
-  const { error } = await admin.from('date_meal_overrides').delete().eq('id', overrideId)
+  const { error } = await admin
+    .from('date_meal_overrides')
+    .delete()
+    .eq('id', overrideId)
+    .eq('client_id', clientId)
+    .eq('workspace_id', coach.workspaceId)
   if (error) throw new Error(error.message)
   revalidatePath(`/coach/clients/${clientId}/schedule`)
 }

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { requireCoach, assertCoachOwnsClient } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -8,6 +9,14 @@ function adminClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
+}
+
+// Guards a coach action that operates on a specific client: verifies the
+// caller is a coach and that the client belongs to their workspace.
+async function guardClient(clientId: string) {
+  const coach = await requireCoach()
+  await assertCoachOwnsClient(coach, clientId)
+  return coach
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -212,6 +221,7 @@ function getStr(obj: Record<string, unknown>, key: string): string | null {
 // ─── Server actions ───────────────────────────────────────────────────────────
 
 export async function getClientProfile(clientId: string): Promise<ClientProfile> {
+  await guardClient(clientId)
   const admin = adminClient()
   const { data, error } = await admin
     .from('clients')
@@ -231,6 +241,7 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
 export async function getWorkoutCompliance(
   clientId: string
 ): Promise<WorkoutCompliance> {
+  await guardClient(clientId)
   const admin = adminClient()
   const monday = currentMondayISO()
   const monthStart = startOfMonthISO()
@@ -280,6 +291,7 @@ export async function getWorkoutCompliance(
 export async function getWorkoutHistory(
   clientId: string
 ): Promise<WorkoutSession[]> {
+  await guardClient(clientId)
   const admin = adminClient()
   const { data: sessions, error } = await admin
     .from('workout_sessions')
@@ -346,6 +358,7 @@ export async function getWorkoutHistory(
 export async function getNutritionSummary(
   clientId: string
 ): Promise<NutritionSummary> {
+  await guardClient(clientId)
   const admin = adminClient()
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
@@ -414,6 +427,7 @@ export async function getNutritionSummary(
 export async function getNutritionHistory(
   clientId: string
 ): Promise<NutritionDay[]> {
+  await guardClient(clientId)
   const admin = adminClient()
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
@@ -500,6 +514,7 @@ export async function getNutritionHistory(
 }
 
 export async function getCheckinHistory(clientId: string): Promise<Checkin[]> {
+  await guardClient(clientId)
   const admin = adminClient()
   const { data, error } = await admin
     .from('checkins')
@@ -542,6 +557,7 @@ export async function getProgressPhotos(
   clientId: string,
   checkins: Checkin[]
 ): Promise<ProgressPhoto[]> {
+  await guardClient(clientId)
   const admin = adminClient()
 
   // Start standalone photos fetch immediately while we build checkin paths list
@@ -586,6 +602,7 @@ export async function getProgressPhotos(
 }
 
 export async function getLatestDigest(clientId: string): Promise<AiDigest | null> {
+  await guardClient(clientId)
   const admin = adminClient()
   const { data } = await admin
     .from('ai_digests')
@@ -649,6 +666,8 @@ export async function saveBodyMetric(payload: {
   rightThighCm?: number
   notes?: string
 }): Promise<BodyMetric> {
+  const coach = await guardClient(payload.clientId)
+  payload.workspaceId = coach.workspaceId
   const admin = adminClient()
   const { data, error } = await admin
     .from('body_metrics')
@@ -674,6 +693,7 @@ export async function saveBodyMetric(payload: {
 }
 
 export async function getBodyMetrics(clientId: string): Promise<BodyMetric[]> {
+  await guardClient(clientId)
   const admin = adminClient()
   const { data, error } = await admin
     .from('body_metrics')
@@ -688,16 +708,19 @@ export async function saveCoachNotes(
   checkinId: string,
   notes: string
 ): Promise<void> {
+  const coach = await requireCoach()
   const admin = adminClient()
   await admin
     .from('checkins')
     .update({ coach_notes: notes })
     .eq('id', checkinId)
+    .eq('workspace_id', coach.workspaceId)
 }
 
 export async function getClientAssignments(
   clientId: string
 ): Promise<ClientAssignments> {
+  await guardClient(clientId)
   const admin = adminClient()
   const [progRes, mealRes] = await Promise.all([
     admin

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
+import { requireCoach, authErrorResponse } from '@/lib/auth'
 
 export const maxDuration = 60
 
@@ -61,6 +62,18 @@ export async function POST(request: NextRequest) {
     }
     if (!workspace_id) {
       return Response.json({ error: 'workspace_id is required' }, { status: 400 })
+    }
+
+    let coach
+    try {
+      coach = await requireCoach()
+    } catch (e) {
+      const r = authErrorResponse(e)
+      if (r) return r
+      throw e
+    }
+    if (workspace_id !== coach.workspaceId) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const supabase = adminClient()

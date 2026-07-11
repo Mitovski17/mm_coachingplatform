@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 export const maxDuration = 60
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
+import { requireCoach, authErrorResponse } from '@/lib/auth'
 
 function adminClient() {
   return createClient<Database>(
@@ -110,6 +111,15 @@ Apply the feedback and write a well-formatted markdown preview of the revised pl
 }
 
 export async function POST(request: NextRequest) {
+  let coach
+  try {
+    coach = await requireCoach()
+  } catch (e) {
+    const r = authErrorResponse(e)
+    if (r) return r
+    throw e
+  }
+
   let body: unknown
   try {
     body = await request.json()
@@ -131,6 +141,11 @@ export async function POST(request: NextRequest) {
 
   if (!incomingMessages || incomingMessages.length === 0 || !workspace_id) {
     return Response.json({ error: 'messages and workspace_id are required' }, { status: 400 })
+  }
+
+  // Callers can only operate within their own workspace.
+  if (workspace_id !== coach.workspaceId) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const lastUserMessage =

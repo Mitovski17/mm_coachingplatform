@@ -2,6 +2,7 @@
 
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import { requireAdmin } from '@/lib/auth'
 
 function svc() {
   return createServiceClient(
@@ -11,6 +12,7 @@ function svc() {
 }
 
 export async function flagDigest(id: string, reason: string): Promise<{ ok: boolean }> {
+  await requireAdmin()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (svc() as any)
     .from('ai_digests')
@@ -21,6 +23,7 @@ export async function flagDigest(id: string, reason: string): Promise<{ ok: bool
 }
 
 export async function unflagDigest(id: string): Promise<{ ok: boolean }> {
+  await requireAdmin()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (svc() as any)
     .from('ai_digests')

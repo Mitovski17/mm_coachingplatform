@@ -21,12 +21,22 @@ export async function createClientFromInvite(
   // Get workspace_id and invited_by (coach) from the invite
   const { data: invite, error: inviteErr } = await admin
     .from('invites')
-    .select('workspace_id, invited_by')
+    .select('workspace_id, invited_by, email, expires_at')
     .eq('id', inviteId)
     .single()
 
   if (inviteErr || !invite) {
     return { error: 'Invite not found' }
+  }
+
+  // The invite is bound to the email it was sent to — you can only accept your
+  // own invite. Without this, any valid invite id could be used to create or
+  // re-point a clients row for an arbitrary email.
+  if (invite.email?.toLowerCase().trim() !== normalizedEmail) {
+    return { error: 'This invite was issued for a different email address.' }
+  }
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+    return { error: 'This invite has expired. Please ask your coach to resend it.' }
   }
 
   // Check if a clients row already exists for this email

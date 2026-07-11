@@ -42,23 +42,26 @@ export default async function RootPage() {
     }
   }
 
-  // Production fallback: use real auth session
+  // Production fallback: use real auth session.
+  // NOTE: redirect() works by throwing, so it must never be called inside a
+  // try/catch — the catch would swallow it and send everyone to /login.
+  let destination = '/login'
   try {
     const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) redirect('/login')
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .single()
-
-    redirect(profile ? '/coach/dashboard' : '/client')
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle()
+      destination = profile ? '/coach/dashboard' : '/client'
+    }
   } catch {
-    redirect('/login')
+    // fall through to /login
   }
+  redirect(destination)
 }

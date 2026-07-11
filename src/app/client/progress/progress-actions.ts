@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { requireClient } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -46,6 +47,7 @@ export type ProgressData = {
 }
 
 export async function getProgressData(clientId: string): Promise<ProgressData> {
+  ;({ clientId } = await requireClient())
   const admin = adminClient()
 
   const [clientResult, checkinsResult, standaloneResult, metricsResult] = await Promise.all([
@@ -171,11 +173,12 @@ export async function getProgressData(clientId: string): Promise<ProgressData> {
 }
 
 export async function uploadStandalonePhoto(formData: FormData): Promise<void> {
-  const file        = formData.get('file')        as File
-  const clientId    = formData.get('clientId')    as string
-  const workspaceId = formData.get('workspaceId') as string
+  const file = formData.get('file') as File
+  // Bind the upload to the session's own client/workspace, ignoring any
+  // form-supplied ids.
+  const { clientId, workspaceId } = await requireClient()
 
-  if (!file || !clientId || !workspaceId) throw new Error('Missing required fields')
+  if (!file) throw new Error('Missing file')
 
   const ext  = file.name.split('.').pop() ?? 'jpg'
   const path = `${workspaceId}/${clientId}/${Date.now()}.${ext}`
@@ -200,6 +203,9 @@ export async function saveClientWeight(payload: {
   recordedDate: string
   weight: number
 }): Promise<void> {
+  const ctx = await requireClient()
+  payload.clientId = ctx.clientId
+  payload.workspaceId = ctx.workspaceId
   const admin = adminClient()
   const { error } = await admin
     .from('body_metrics')

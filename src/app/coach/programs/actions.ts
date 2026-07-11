@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { unstable_cache, revalidateTag } from 'next/cache'
 import { createNotification } from '@/lib/notifications'
+import { requireCoach, assertCoachOwnsClient } from '@/lib/auth'
 
 function adminClient() {
   return createClient(
@@ -121,21 +122,14 @@ export type ProgramWithDays = {
 }
 
 export async function getWorkspaceIdForCoach(email: string): Promise<string | null> {
-  const admin = adminClient()
-  const { data: users, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 })
-  if (listErr) throw new Error(listErr.message)
-  const user = users.users.find((u) => u.email === email)
-  if (!user) return null
-  const { data: profile, error } = await admin
-    .from('profiles')
-    .select('workspace_id')
-    .eq('id', user.id)
-    .single()
-  if (error || !profile) return null
-  return profile.workspace_id
+  // Identity comes from the session, never the passed email.
+  void email
+  const coach = await requireCoach()
+  return coach.workspaceId
 }
 
 export async function getAllExercises(): Promise<Exercise[]> {
+  await requireCoach()
   const admin = adminClient()
   const { data, error } = await admin
     .from('exercises')
@@ -152,6 +146,7 @@ export async function getAllExercises(): Promise<Exercise[]> {
 }
 
 export async function getAllExercisesForWorkspace(workspaceId: string): Promise<Exercise[]> {
+  ;({ workspaceId } = await requireCoach())
   const admin = adminClient()
   const { data, error } = await admin
     .from('exercises')
@@ -176,6 +171,7 @@ export async function updateCustomExercise(
   workspaceId: string,
   payload: { name: string; muscleGroup: string; equipment: string; description?: string }
 ): Promise<void> {
+  ;({ workspaceId } = await requireCoach())
   const admin = adminClient()
   const { error } = await admin
     .from('exercises')
@@ -195,6 +191,7 @@ export async function deleteCustomExercise(
   exerciseId: string,
   workspaceId: string
 ): Promise<void> {
+  ;({ workspaceId } = await requireCoach())
   const admin = adminClient()
   const { error } = await admin
     .from('exercises')
@@ -269,10 +266,12 @@ const _getTemplatesCached = unstable_cache(
 )
 
 export async function getTemplates(workspaceId: string): Promise<Template[]> {
-  return _getTemplatesCached(workspaceId)
+  const coach = await requireCoach()
+  return _getTemplatesCached(coach.workspaceId)
 }
 
 export async function getTemplate(templateId: string): Promise<TemplateWithDays | null> {
+  const coach = await requireCoach()
   const admin = adminClient()
   const { data: template, error } = await admin
     .from('workout_templates')
@@ -288,6 +287,7 @@ export async function getTemplate(templateId: string): Promise<TemplateWithDays 
       )
     `)
     .eq('id', templateId)
+    .eq('workspace_id', coach.workspaceId)
     .single()
   if (error || !template) return null
 
@@ -362,6 +362,8 @@ export async function upsertTemplate(payload: {
     }>
   }>
 }): Promise<{ id: string }> {
+  const coach = await requireCoach()
+  payload.workspaceId = coach.workspaceId
   const admin = adminClient()
 
   let templateId = payload.id ?? null
@@ -371,6 +373,7 @@ export async function upsertTemplate(payload: {
       .from('workout_templates')
       .update({ name: payload.name, notes: payload.notes ?? null })
       .eq('id', templateId)
+      .eq('workspace_id', coach.workspaceId)
     if (error) throw new Error(error.message)
   } else {
     const { data, error } = await admin

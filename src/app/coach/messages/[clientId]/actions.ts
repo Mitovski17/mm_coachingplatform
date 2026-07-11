@@ -2,6 +2,7 @@
 
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createNotification } from '@/lib/notifications'
+import { requireCoach } from '@/lib/auth'
 
 function adminClient() {
   return createServiceClient(
@@ -36,11 +37,13 @@ export type Message = {
 }
 
 export async function fetchCheckinSnippet(checkinId: string): Promise<CheckinSnippet | null> {
+  const coach = await requireCoach()
   const admin = adminClient()
   const { data, error } = await admin
     .from('checkins')
     .select('id, submitted_at, answers')
     .eq('id', checkinId)
+    .eq('workspace_id', coach.workspaceId)
     .maybeSingle()
   if (error || !data) return null
 
@@ -71,12 +74,15 @@ export async function sendMessage(
   senderRole: 'coach' | 'client',
   checkinAttachment?: CheckinSnippet | null
 ): Promise<Message> {
+  const coach = await requireCoach()
+  // This is the coach endpoint — always send as the coach, never forge a client.
   const admin = adminClient()
 
   const { data: convo, error: convoErr } = await admin
     .from('conversations')
     .select('workspace_id, client_id, profiles(full_name)')
     .eq('id', conversationId)
+    .eq('workspace_id', coach.workspaceId)
     .single()
   if (convoErr || !convo) throw new Error('Conversation not found')
 
@@ -85,45 +91,51 @@ export async function sendMessage(
     .insert({
       conversation_id: conversationId,
       workspace_id: convo.workspace_id,
-      sender_role: senderRole,
+      sender_role: 'coach',
       body: body.trim(),
       checkin_attachment: checkinAttachment ?? null,
-      read_by_coach: senderRole === 'coach',
-      read_by_client: senderRole === 'client',
+      read_by_coach: true,
+      read_by_client: false,
     })
     .select()
     .single()
 
   if (error) throw new Error(error.message)
 
-  if (senderRole === 'coach') {
-    const coachName = (convo.profiles as unknown as { full_name: string } | null)?.full_name ?? 'Your coach'
-    await createNotification({
-      workspaceId: convo.workspace_id,
-      recipientType: 'client',
-      recipientId: convo.client_id,
-      type: 'new_message',
-      title: 'New message from your coach',
-      body: `${coachName}: ${body.trim().slice(0, 80)}`,
-      link: '/client/messages',
-    })
-  }
+  const coachName = (convo.profiles as unknown as { full_name: string } | null)?.full_name ?? 'Your coach'
+  await createNotification({
+    workspaceId: convo.workspace_id,
+    recipientType: 'client',
+    recipientId: convo.client_id,
+    type: 'new_message',
+    title: 'New message from your coach',
+    body: `${coachName}: ${body.trim().slice(0, 80)}`,
+    link: '/client/messages',
+  })
 
   return data as Message
 }
 
 export async function markMessagesRead(
   conversationId: string,
-  readerRole: 'coach' | 'client'
+  _readerRole?: 'coach' | 'client'
 ): Promise<void> {
+  const coach = await requireCoach()
+  // Coach endpoint — only the coach's own read state, in their own workspace.
   const admin = adminClient()
-  const field = readerRole === 'coach' ? 'read_by_coach' : 'read_by_client'
-  const senderRole = readerRole === 'coach' ? 'client' : 'coach'
+
+  const { data: convo } = await admin
+    .from('conversations')
+    .select('id')
+    .eq('id', conversationId)
+    .eq('workspace_id', coach.workspaceId)
+    .maybeSingle()
+  if (!convo) return
 
   await admin
     .from('messages')
-    .update({ [field]: true })
+    .update({ read_by_coach: true })
     .eq('conversation_id', conversationId)
-    .eq('sender_role', senderRole)
-    .eq(field, false)
+    .eq('sender_role', 'client')
+    .eq('read_by_coach', false)
 }

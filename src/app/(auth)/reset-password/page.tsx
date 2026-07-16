@@ -31,10 +31,29 @@ export default function ResetPasswordPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  // Supabase's magic-link / recovery flow puts the tokens in the URL hash.
-  // The client SDK picks them up automatically on mount via onAuthStateChange.
+  // This app uses createBrowserClient from @supabase/ssr, which defaults to
+  // the PKCE flow. That means the recovery link lands here with a `?code=`
+  // query param, not an `#access_token` hash — the SDK does NOT exchange
+  // that code for a session automatically, so PASSWORD_RECOVERY never fires
+  // on its own and the page was stuck on the loading spinner forever.
   useEffect(() => {
     const supabase = createClient()
+
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setServerError('This reset link is invalid or has expired. Please request a new one.')
+          return
+        }
+        setReady(true)
+      })
+    }
+
+    // Fallback for hash-based recovery links (older Supabase configs),
+    // which the SDK does pick up automatically and surfaces as this event.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setReady(true)
@@ -81,6 +100,31 @@ export default function ResetPasswordPage() {
           <p className="text-sm" style={{ color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
             Your password has been changed. Redirecting you to login…
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!ready && serverError) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center px-8"
+        style={{ backgroundColor: 'var(--color-surface-1)' }}
+      >
+        <div className="w-full max-w-sm text-center">
+          <h2 className="text-2xl mb-3" style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>
+            Link expired
+          </h2>
+          <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+            {serverError}
+          </p>
+          <a
+            href="/forgot-password"
+            className="text-sm"
+            style={{ color: 'var(--color-text-hint)', textDecoration: 'none' }}
+          >
+            ← Request a new link
+          </a>
         </div>
       </div>
     )

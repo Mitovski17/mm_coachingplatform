@@ -31,35 +31,40 @@ export default function ResetPasswordPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  // This app uses createBrowserClient from @supabase/ssr, which defaults to
-  // the PKCE flow. That means the recovery link lands here with a `?code=`
-  // query param, not an `#access_token` hash — the SDK does NOT exchange
-  // that code for a session automatically, so PASSWORD_RECOVERY never fires
-  // on its own and the page was stuck on the loading spinner forever.
+  // The actual token/code verification happens server-side in
+  // /auth/confirm before the browser ever lands here - by the time this
+  // page loads, the session cookie should already be set. This effect just
+  // confirms that session exists, with a short grace period before showing
+  // an error (in case someone opens this URL directly without a valid link).
   useEffect(() => {
     const supabase = createClient()
+    let cancelled = false
 
-    const params = new URLSearchParams(window.location.search)
-    const code = params.get('code')
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!cancelled && session) setReady(true)
+    })
 
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) {
-          setServerError('This reset link is invalid or has expired. Please request a new one.')
-          return
-        }
-        setReady(true)
-      })
-    }
-
-    // Fallback for hash-based recovery links (older Supabase configs),
-    // which the SDK does pick up automatically and surfaces as this event.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
         setReady(true)
       }
     })
-    return () => subscription.unsubscribe()
+
+    const timeout = setTimeout(() => {
+      if (cancelled) return
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!cancelled && !session) {
+          setServerError('This reset link is invalid or has expired. Please request a new one.')
+        }
+      })
+    }, 3000)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const onSubmit = async (data: FormValues) => {

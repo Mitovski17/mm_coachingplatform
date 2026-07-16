@@ -14,7 +14,13 @@ type FormValues = z.infer<typeof schema>
 
 export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false)
-  const [serverError, setServerError] = useState<string | null>(null)
+  const [serverError, setServerError] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    const params = new URLSearchParams(window.location.search)
+    return params.get('error') === 'invalid_link'
+      ? 'That reset link was invalid or has expired. Enter your email below to get a new one.'
+      : null
+  })
 
   const {
     register,
@@ -26,7 +32,7 @@ export default function ForgotPasswordPage() {
     setServerError(null)
     const supabase = createClient()
     const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password`,
     })
     if (error) {
       setServerError(error.message)

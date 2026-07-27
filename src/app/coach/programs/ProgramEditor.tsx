@@ -10,6 +10,9 @@ import {
   type Template,
   type ProgramWithDays,
 } from './actions'
+import { getProgramExport } from '@/app/coach/export-actions'
+import DownloadPdfButton from '@/components/coach/DownloadPdfButton'
+import { downloadProgramPdf } from '@/lib/pdf/program'
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -124,6 +127,13 @@ export default function ProgramEditor({
     }
     return m
   }, [templates])
+
+  /** Exports the saved program — days are resolved server-side into exercises. */
+  const handleDownloadPdf = async () => {
+    if (!initialData) return
+    const data = await getProgramExport(initialData.id)
+    await downloadProgramPdf(data)
+  }
 
   const handleSave = async () => {
     setError(null)
@@ -654,6 +664,18 @@ export default function ProgramEditor({
           borderTop: '1px solid var(--color-border)',
         }}
       >
+        {initialData && (
+          <DownloadPdfButton
+            onDownload={handleDownloadPdf}
+            variant="subtle"
+            disabled={isDirty}
+            title={
+              isDirty
+                ? 'Save your changes first — the PDF is built from the saved program'
+                : 'Download the full training plan as a PDF'
+            }
+          />
+        )}
         <Link
           href="/coach/programs"
           className="px-4 py-2 text-sm font-medium"

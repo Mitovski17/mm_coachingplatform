@@ -31,13 +31,24 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
     }
+    console.error('[auth/confirm] verifyOtp(token_hash) failed', { type, error: error.message })
   }
 
   if (code) {
+    // This path only works if the browser completing the exchange is the
+    // same one that called resetPasswordForEmail/signUp (the PKCE code
+    // verifier is stored there as a cookie). It reliably breaks when a
+    // user opens the email link on a different device, or inside an
+    // in-app browser (Gmail/Outlook/mail-app webviews) that doesn't share
+    // cookies with their regular browser. If this is firing in practice,
+    // the real fix is switching the Supabase "Reset Password" (and any
+    // other auth) email template to the token_hash link format above,
+    // not patching this branch further.
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
     }
+    console.error('[auth/confirm] exchangeCodeForSession(code) failed', { error: error.message })
   }
 
   return NextResponse.redirect(`${origin}/forgot-password?error=invalid_link`)

@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Pencil, Trash2, Plus, LayoutList, Dumbbell, Copy } from 'lucide-react'
 import { deleteTemplate, deleteProgram, duplicateTemplate, type Template, type Program } from './actions'
+import { getProgramExport } from '@/app/coach/export-actions'
+import DownloadPdfButton from '@/components/coach/DownloadPdfButton'
+import { downloadProgramPdf } from '@/lib/pdf/program'
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -364,6 +367,15 @@ function ProgramCard({
           </p>
         </div>
         <div className="flex items-center gap-1">
+          <DownloadPdfButton
+            iconOnly
+            size="sm"
+            title={`Download ${program.clientName}'s training plan as a PDF`}
+            onDownload={async () => {
+              const data = await getProgramExport(program.id)
+              await downloadProgramPdf(data)
+            }}
+          />
           <Link
             href={`/coach/programs/${program.id}`}
             title="Edit program"

@@ -352,6 +352,7 @@ export default function ClientDetailClient(props: Props) {
         <AssignmentsTab
           assignments={props.assignments}
           clientId={props.profile.id}
+          clientName={props.profile.name}
         />
       )}
       {activeTab === 'assistant' && (

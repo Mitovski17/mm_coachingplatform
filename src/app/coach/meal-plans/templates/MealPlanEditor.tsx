@@ -11,6 +11,9 @@ import {
   type FullTemplate,
   type PlanType,
 } from '../actions'
+import { getBrandName } from '@/app/coach/export-actions'
+import DownloadPdfButton from '@/components/coach/DownloadPdfButton'
+import { downloadMealPlanPdf, type PdfMealPlan } from '@/lib/pdf/meal-plan'
 import type { FoodSearchResult } from '@/lib/food-search'
 
 const MEAL_PRESETS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Pre-workout', 'Post-workout', 'Other']
@@ -144,6 +147,45 @@ function serializePlan(meals: MealEntry[], name: string, planType: PlanType, not
         foods: o.foods.map((f) => ({ food_name: f.foodName, quantity: f.quantity, unit: f.unit, calories: f.calories, protein_g: f.proteinG, carbs_g: f.carbsG, fat_g: f.fatG })),
       })),
     })),
+  }
+}
+
+/**
+ * Maps the live editor state onto the PDF shape, so a download reflects what
+ * the coach currently sees — including edits that have not been saved yet.
+ * The active option is emitted first because daily totals count option one.
+ */
+function toPdfPlan(
+  meals: MealEntry[],
+  name: string,
+  planType: PlanType,
+  notes: string,
+  recommendations: string,
+): PdfMealPlan {
+  return {
+    name: name.trim() || 'Untitled meal plan',
+    planType,
+    notes,
+    recommendations,
+    meals: meals.map((m) => {
+      const active = m.options.find((o) => o.tempId === m.activeOptionTempId)
+      const ordered = active ? [active, ...m.options.filter((o) => o !== active)] : m.options
+      return {
+        name: m.name.trim() || 'Meal',
+        options: ordered.map((o) => ({
+          label: o.label,
+          foods: o.foods.map((f) => ({
+            name: f.foodName,
+            quantity: f.quantity,
+            unit: f.unit,
+            calories: f.calories,
+            proteinG: f.proteinG,
+            carbsG: f.carbsG,
+            fatG: f.fatG,
+          })),
+        })),
+      }
+    }),
   }
 }
 
@@ -408,6 +450,14 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
     }))
   }
 
+  const handleDownloadPdf = async () => {
+    const brand = await getBrandName()
+    await downloadMealPlanPdf({
+      brand,
+      plans: [toPdfPlan(meals, name, planType, notes, recommendations)],
+    })
+  }
+
   const handleSave = async () => {
     setError(null)
     if (!name.trim()) { setError('Template name is required'); return }
@@ -496,13 +546,19 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           </h1>
         </div>
 
-        <div className="mpe-header-actions" style={{ display: 'flex', gap: 8, marginTop: 4, flexShrink: 0 }}>
+        <div className="mpe-header-actions" style={{ display: 'flex', gap: 8, marginTop: 4, flexShrink: 0, flexWrap: 'wrap' }}>
           <Link
             href="/coach/meal-plans"
             style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, border: '1px solid #2a2a2a', color: '#888', textDecoration: 'none' }}
           >
             Cancel
           </Link>
+          <DownloadPdfButton
+            onDownload={handleDownloadPdf}
+            variant="subtle"
+            disabled={meals.length === 0}
+            title="Download this meal plan as a PDF"
+          />
           {canUndo && (
             <button
               type="button"

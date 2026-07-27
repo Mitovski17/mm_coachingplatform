@@ -11,6 +11,9 @@ import {
   type Assignment,
   type PlanType,
 } from './actions'
+import { getClientMealPlanExport, getMealPlanTemplateExport } from '@/app/coach/export-actions'
+import DownloadPdfButton from '@/components/coach/DownloadPdfButton'
+import { downloadMealPlanPdf } from '@/lib/pdf/meal-plan'
 
 export default function MealPlansClient({
   templates,
@@ -287,6 +290,15 @@ function TemplateCard({
           >
             <Pencil size={13} />
           </Link>
+          <DownloadPdfButton
+            iconOnly
+            size="sm"
+            title="Download as PDF"
+            onDownload={async () => {
+              const data = await getMealPlanTemplateExport(t.id)
+              await downloadMealPlanPdf({ brand: data.brand, plans: data.plans })
+            }}
+          />
           <button
             type="button"
             disabled={duplicating || deleting}
@@ -419,20 +431,38 @@ function AssignmentsPanel({
                   )}
                 </div>
               </div>
-              <Link
-                href={`/coach/meal-plans/assignments/${r.clientId}`}
-                title="Edit"
-                className="inline-flex items-center justify-center"
-                style={{
-                  width: 32,
-                  height: 32,
-                  color: 'var(--color-text-muted)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
-                }}
-              >
-                <Pencil size={14} />
-              </Link>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <DownloadPdfButton
+                  size="sm"
+                  label="PDF"
+                  busyLabel="…"
+                  title={`Download every meal plan assigned to ${r.clientName}`}
+                  disabled={!r.training && !r.rest && !r.overall}
+                  onDownload={async () => {
+                    const data = await getClientMealPlanExport(r.clientId)
+                    if (data.plans.length === 0) throw new Error('No meal plan assigned')
+                    await downloadMealPlanPdf({
+                      brand: data.brand,
+                      clientName: data.clientName ?? r.clientName,
+                      plans: data.plans,
+                    })
+                  }}
+                />
+                <Link
+                  href={`/coach/meal-plans/assignments/${r.clientId}`}
+                  title="Edit"
+                  className="inline-flex items-center justify-center"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    color: 'var(--color-text-muted)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                  }}
+                >
+                  <Pencil size={14} />
+                </Link>
+              </div>
             </div>
           ))}
         </div>

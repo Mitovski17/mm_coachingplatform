@@ -436,6 +436,109 @@
   }
 }
 
+/* ─── Workout template builder (TemplateEditor) — mobile ─────────────── */
+@media (max-width: 767px) {
+  .te-exercise-card {
+    padding: 12px !important;
+  }
+
+  /* Exercise selector / Rest / Notes: stack instead of squeezing 3 columns */
+  .te-exercise-top-row {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+  }
+
+  /* Sets table: keep its designed column widths and scroll horizontally
+     instead of crushing every field down to a sliver */
+  .te-sets-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+  .te-set-row {
+    min-width: 460px;
+  }
+}
+
+/* ─── Meal plan template builder (MealPlanEditor) — mobile ───────────── */
+@media (max-width: 767px) {
+  /* Template name + plan type toggle: stack */
+  .mpe-name-type {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .mpe-plan-toggle {
+    display: flex !important;
+    width: 100%;
+  }
+  .mpe-plan-toggle button {
+    flex: 1 1 0;
+  }
+
+  /* Macro stat cards: 4-across → 2×2 */
+  .mpe-macro-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Notes / Recommendations: stack */
+  .mpe-notes {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Meal card header: let the name + macro summary wrap under the controls */
+  .mpe-meal-header {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 12px 14px !important;
+  }
+  .mpe-meal-header-left {
+    flex-wrap: wrap !important;
+    width: 100%;
+  }
+  .mpe-meal-macros {
+    margin-left: 0 !important;
+  }
+  .mpe-meal-controls {
+    width: 100%;
+    justify-content: flex-end !important;
+  }
+
+  /* Option tabs: scroll instead of wrapping awkwardly */
+  .mpe-option-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Food table: hide the per-macro columns (still visible in the meal header
+     summary) and shrink the quantity column so name + quantity + remove fit */
+  .mpe-food-header,
+  .mpe-food-row {
+    grid-template-columns: 1fr 112px 28px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+  .mpe-food-col-hide {
+    display: none !important;
+  }
+  .mpe-food-qty-cell {
+    min-width: 0;
+  }
+
+  .mpe-manual-entry {
+    padding: 12px 14px !important;
+  }
+}
+
+/* ─── Client schedule overrides — mobile ──────────────────────────────── */
+@media (max-width: 767px) {
+  .schedule-override-form {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* ─── Responsive coach page content wrapper ───────────────────────── */
 .coach-page {
   padding: 32px 28px;

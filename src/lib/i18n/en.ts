@@ -95,6 +95,8 @@ export const en = {
     backToHome: 'Back to home',
     loadFailed: 'Failed to load check-in. Please refresh.',
     photoFailed: 'Photo upload failed. Try again or skip the photo.',
+    photoUploadPartialFailure: "Check-in submitted. One or more photos didn't upload — you can send them to your coach separately.",
+    inAppBrowserWarning: "Photo uploads can fail in this in-app browser. If it doesn't work, tap the menu and open this page in Safari or Chrome.",
     submitFailed: 'Submission failed. Please try again.',
     whatContributed: 'What contributed?',
     typeAnswer: 'Type your answer…',

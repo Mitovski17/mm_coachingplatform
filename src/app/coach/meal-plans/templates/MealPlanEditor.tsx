@@ -15,6 +15,7 @@ import { getBrandName } from '@/app/coach/export-actions'
 import DownloadPdfButton from '@/components/coach/DownloadPdfButton'
 import { downloadMealPlanPdf, type PdfMealPlan } from '@/lib/pdf/meal-plan'
 import type { FoodSearchResult } from '@/lib/food-search'
+import { normalizeDecimalInput } from '@/lib/numeric-input'
 
 const MEAL_PRESETS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Pre-workout', 'Post-workout', 'Other']
 const UNITS = ['g', 'ml', 'kg', 'L', 'oz', 'tbsp', 'tsp', 'cup', 'piece', 'serving']
@@ -943,7 +944,7 @@ function QuantityInput({ value, onChange, style }: { value: number; onChange: (v
       type="text"
       inputMode="decimal"
       value={display}
-      onChange={(e) => setDisplay(e.target.value.replace(/[^0-9.]/g, ''))}
+      onChange={(e) => setDisplay(normalizeDecimalInput(e.target.value))}
       onBlur={() => {
         const parsed = parseFloat(display)
         const num = isFinite(parsed) ? parsed : 0
@@ -1009,8 +1010,8 @@ function OptionContent({
           className="mpe-food-row"
           style={{ display: 'grid', gridTemplateColumns: FOOD_COLS, padding: '9px 18px', borderBottom: '1px solid #161616', alignItems: 'center', gap: 4 }}
         >
-          <span style={{ fontSize: 13, color: '#e0e0e0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.foodName}</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span className="mpe-food-name" style={{ fontSize: 13, color: '#e0e0e0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.foodName}</span>
+          <div className="mpe-food-qty-cell" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <QuantityInput
               value={f.quantity}
               onChange={(q) => onUpdateFoodQuantity(f.tempId, q)}
@@ -1198,12 +1199,12 @@ function ManualEntry({ onAdd, onClose }: { onAdd: (p: { foodName: string; calori
         </div>
         <div>
           <label style={lbl}>Quantity ({unit})</label>
-          <input type="text" inputMode="decimal" value={q} onChange={(e) => setQ(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} />
+          <input type="text" inputMode="decimal" value={q} onChange={(e) => setQ(normalizeDecimalInput(e.target.value))} style={inp} />
         </div>
-        <div><label style={lbl}>kcal {suffix}</label><input type="text" inputMode="decimal" value={cal} onChange={(e) => setCal(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} /></div>
-        <div><label style={lbl}>Protein {suffix}</label><input type="text" inputMode="decimal" value={p} onChange={(e) => setP(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} /></div>
-        <div><label style={lbl}>Carbs {suffix}</label><input type="text" inputMode="decimal" value={c} onChange={(e) => setC(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} /></div>
-        <div><label style={lbl}>Fat {suffix}</label><input type="text" inputMode="decimal" value={f} onChange={(e) => setF(e.target.value.replace(/[^0-9.]/g, ''))} style={inp} /></div>
+        <div><label style={lbl}>kcal {suffix}</label><input type="text" inputMode="decimal" value={cal} onChange={(e) => setCal(normalizeDecimalInput(e.target.value))} style={inp} /></div>
+        <div><label style={lbl}>Protein {suffix}</label><input type="text" inputMode="decimal" value={p} onChange={(e) => setP(normalizeDecimalInput(e.target.value))} style={inp} /></div>
+        <div><label style={lbl}>Carbs {suffix}</label><input type="text" inputMode="decimal" value={c} onChange={(e) => setC(normalizeDecimalInput(e.target.value))} style={inp} /></div>
+        <div><label style={lbl}>Fat {suffix}</label><input type="text" inputMode="decimal" value={f} onChange={(e) => setF(normalizeDecimalInput(e.target.value))} style={inp} /></div>
       </div>
       <button
         type="button"

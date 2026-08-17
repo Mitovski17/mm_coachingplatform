@@ -10,6 +10,7 @@ import {
   type Exercise,
   type TemplateWithDays,
 } from '../actions'
+import { normalizeIntegerInput } from '@/lib/numeric-input'
 
 type SetRow = {
   tempId: string
@@ -1217,6 +1218,7 @@ export default function TemplateEditor({
               {exercises.map((ex, i) => (
                 <div
                   key={ex.tempId}
+                  className="te-exercise-card"
                   style={{
                     padding: '16px',
                     backgroundColor: 'var(--color-surface-2)',
@@ -1246,9 +1248,9 @@ export default function TemplateEditor({
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div className="te-exercise-body" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                     {/* Drag handle + reorder */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 6, flexShrink: 0 }}>
+                    <div className="te-exercise-reorder" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 6, flexShrink: 0 }}>
                       <GripVertical size={14} style={{ color: 'var(--color-text-hint)' }} />
                       <button
                         type="button"
@@ -1274,6 +1276,7 @@ export default function TemplateEditor({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* Top row: exercise selector + rest + notes */}
                       <div
+                        className="te-exercise-top-row"
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '1fr 80px 1fr',
@@ -1313,15 +1316,9 @@ export default function TemplateEditor({
                           <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 4 }}>
                             Rest (s)
                           </label>
-                          <input
-                            type="number"
-                            min={0}
-                            step={15}
+                          <RestSecondsInput
                             value={ex.restSeconds}
-                            onChange={(e) =>
-                              updateExercise(ex.tempId, { restSeconds: Math.max(0, Number(e.target.value) || 0) })
-                            }
-                            style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
+                            onChange={(v) => updateExercise(ex.tempId, { restSeconds: v })}
                           />
                         </div>
 
@@ -1341,8 +1338,9 @@ export default function TemplateEditor({
                       </div>
 
                       {/* Sets table */}
-                      <div>
+                      <div className="te-sets-scroll">
                         <div
+                          className="te-set-row"
                           style={{
                             display: 'grid',
                             gridTemplateColumns: '32px 64px 88px 60px 1fr 28px',
@@ -1365,6 +1363,7 @@ export default function TemplateEditor({
                           {ex.sets.map((s) => (
                             <div
                               key={s.tempId}
+                              className="te-set-row"
                               style={{
                                 display: 'grid',
                                 gridTemplateColumns: '32px 64px 88px 60px 1fr 28px',
@@ -1388,7 +1387,7 @@ export default function TemplateEditor({
                                 value={s.targetReps}
                                 onChange={(e) =>
                                   updateSet(ex.tempId, s.tempId, {
-                                    targetReps: e.target.value.replace(/[^0-9]/g, ''),
+                                    targetReps: normalizeIntegerInput(e.target.value),
                                   })
                                 }
                                 style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}
@@ -1895,6 +1894,26 @@ function CustomExerciseModal({
         </div>
       </div>
     </div>
+  )
+}
+
+function RestSecondsInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [display, setDisplay] = useState(String(value))
+  useEffect(() => { setDisplay(String(value)) }, [value])
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={display}
+      onChange={(e) => setDisplay(normalizeIntegerInput(e.target.value))}
+      onBlur={() => {
+        const parsed = parseInt(display, 10)
+        const num = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+        setDisplay(String(num))
+        onChange(num)
+      }}
+      style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
+    />
   )
 }
 

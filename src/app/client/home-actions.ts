@@ -91,10 +91,10 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
       .limit(3),
     admin
       .from('checkins')
-      .select('notes, submitted_at')
+      .select('coach_notes, submitted_at')
       .eq('client_id', clientId)
-      .not('notes', 'is', null)
-      .neq('notes', '')
+      .not('coach_notes', 'is', null)
+      .neq('coach_notes', '')
       .order('submitted_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -165,7 +165,7 @@ export async function getHomeStats(email: string, clientId: string): Promise<Hom
     durationMinutes: s.duration_minutes,
   }))
 
-  const coachNote = coachNoteResult.data?.notes ?? null
+  const coachNote = coachNoteResult.data?.coach_notes ?? null
   const coachNoteDate = coachNoteResult.data?.submitted_at ?? null
   const checkinSubmittedThisWeek = (checkinThisWeekResult.count ?? 0) > 0
 

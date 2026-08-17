@@ -20,6 +20,7 @@ import type { FoodSearchResult } from '@/lib/food-search'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import FoodScannerModal from './FoodScannerModal'
 import { useLanguage, tx } from '@/lib/i18n'
+import { normalizeDecimalInput } from '@/lib/numeric-input'
 
 const COLOR_PROTEIN = '#3b82f6'
 const COLOR_CARBS = '#f97316'
@@ -1042,7 +1043,7 @@ function CustomMealCard({
                     <input
                       type="number"
                       value={customEditQty}
-                      onChange={(e) => setCustomEditQty(e.target.value)}
+                      onChange={(e) => setCustomEditQty(normalizeDecimalInput(e.target.value))}
                       autoFocus
                       style={{ width: 60, padding: '3px 6px', fontSize: 12, backgroundColor: 'var(--color-surface-3)', border: '1px solid var(--color-accent)', borderRadius: 6, color: 'var(--color-text-primary)', outline: 'none' }}
                     />
@@ -1456,7 +1457,7 @@ function MealCard({
                     <input
                       type="number"
                       value={customEditQty}
-                      onChange={(e) => setCustomEditQty(e.target.value)}
+                      onChange={(e) => setCustomEditQty(normalizeDecimalInput(e.target.value))}
                       autoFocus
                       style={{
                         width: 60,
@@ -1680,7 +1681,7 @@ function FoodRow({
           <input
             type="number"
             value={editQty}
-            onChange={(e) => setEditQty(e.target.value)}
+            onChange={(e) => setEditQty(normalizeDecimalInput(e.target.value))}
             autoFocus
             style={{
               width: 60,
@@ -2104,7 +2105,7 @@ function AddCustomFood({
             <input
               type="number"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
+              onChange={(e) => setQuantity(normalizeDecimalInput(e.target.value))}
               style={{
                 width: 70,
                 padding: '6px 8px',
@@ -2258,11 +2259,11 @@ function ManualEntryForm({
         style={{ ...inputStyle, marginBottom: 6 }}
       />
       <div className="grid grid-cols-2 gap-2 mb-2">
-        <input type="number" value={cal} onChange={(e) => setCal(e.target.value)} placeholder={t.nutrition.calories} style={inputStyle} />
-        <input type="number" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`${t.nutrition.quantity} (${t.nutrition.grams})`} style={inputStyle} />
-        <input type="number" value={p} onChange={(e) => setP(e.target.value)} placeholder={`${t.nutrition.protein} (${t.nutrition.grams})`} style={inputStyle} />
-        <input type="number" value={c} onChange={(e) => setC(e.target.value)} placeholder={`${t.nutrition.carbs} (${t.nutrition.grams})`} style={inputStyle} />
-        <input type="number" value={f} onChange={(e) => setF(e.target.value)} placeholder={`${t.nutrition.fat} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="number" value={cal} onChange={(e) => setCal(normalizeDecimalInput(e.target.value))} placeholder={t.nutrition.calories} style={inputStyle} />
+        <input type="number" value={q} onChange={(e) => setQ(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.quantity} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="number" value={p} onChange={(e) => setP(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.protein} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="number" value={c} onChange={(e) => setC(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.carbs} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="number" value={f} onChange={(e) => setF(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.fat} (${t.nutrition.grams})`} style={inputStyle} />
       </div>
       <div className="flex items-center gap-2">
         <button

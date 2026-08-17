@@ -842,7 +842,7 @@ function LoadingScreen() {
   )
 }
 
-function CheckinDoneScreen({ justSubmitted, t }: { justSubmitted: boolean; t: Translations }) {
+function CheckinDoneScreen({ justSubmitted, warning, t }: { justSubmitted: boolean; warning?: string | null; t: Translations }) {
   const [msLeft, setMsLeft] = useState<number>(() => getNextSundayMidnight().getTime() - Date.now())
 
   useEffect(() => {
@@ -872,6 +872,12 @@ function CheckinDoneScreen({ justSubmitted, t }: { justSubmitted: boolean; t: Tr
         <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 28 }}>
           {justSubmitted ? t.checkin.coachReviewing : t.checkin.coachHasUpdate}
         </p>
+
+        {warning && (
+          <div style={{ marginBottom: 16, padding: '12px 16px', fontSize: 13, backgroundColor: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 10, color: '#f97316', textAlign: 'left' }}>
+            {warning}
+          </div>
+        )}
 
         <div style={{ backgroundColor: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 16, padding: 20, marginBottom: 16 }}>
           <p style={{ fontSize: 12, color: 'var(--color-text-hint)', marginBottom: 4 }}>{t.checkin.nextWindowOpens}</p>
@@ -1001,6 +1007,19 @@ export default function CheckInForm() {
   const [clientId, setClientId]         = useState('')
   const [workspaceId, setWorkspaceId]   = useState('')
   const [templateId, setTemplateId]     = useState('')
+  const [photoWarning, setPhotoWarning] = useState<string | null>(null)
+  const [inAppBrowser, setInAppBrowser] = useState(false)
+
+  useEffect(() => {
+    // Instagram/Facebook/TikTok/etc. open links in a stripped-down in-app
+    // WebView that frequently breaks file uploads (fetch requests get killed
+    // mid-flight, showing a bare "Load failed" error). Flag it so we can
+    // warn the client before they lose time attaching photos that won't go
+    // through.
+    const ua = navigator.userAgent || ''
+    const isInApp = /Instagram|FBAN|FBAV|FB_IAB|Line\/|MicroMessenger|TikTok|Twitter/i.test(ua)
+    setInAppBrowser(isInApp)
+  }, [])
 
   useEffect(() => {
     const init = async () => {
@@ -1095,24 +1114,28 @@ export default function CheckInForm() {
     setIsSubmitting(true)
     setError(null)
 
+    // Photos are optional and uploaded over a flaky path (in-app browsers
+    // like Instagram/Facebook/TikTok sandbox network requests and frequently
+    // kill large uploads mid-flight, surfacing as a bare "Load failed" error).
+    // Each photo is uploaded independently so one failure never blocks the
+    // rest — and the check-in itself is always submitted even if every
+    // photo fails, since the answers matter far more than the pictures.
     const photoPaths: string[] = []
+    let photoUploadFailures = 0
     if (photoFiles.length > 0) {
-      try {
-        const supabase = createClient()
-        for (const file of photoFiles) {
+      const supabase = createClient()
+      for (const file of photoFiles) {
+        try {
           const { token, path } = await getPhotoUploadUrl(workspaceId, clientId, file.name)
           const { error: uploadError } = await supabase.storage
             .from('progress-photos')
             .uploadToSignedUrl(path, token, file, { contentType: file.type || 'image/jpeg' })
           if (uploadError) throw new Error(uploadError.message)
           photoPaths.push(path)
+        } catch (err) {
+          console.error('[check-in] photo upload failed, skipping this photo:', err)
+          photoUploadFailures++
         }
-      } catch (err) {
-        console.error('[check-in] photo upload failed:', err)
-        const msg = err instanceof Error ? err.message : String(err)
-        setError(msg || t.checkin.photoFailed)
-        setIsSubmitting(false)
-        return
       }
     }
 
@@ -1141,6 +1164,9 @@ export default function CheckInForm() {
       return
     }
 
+    if (photoUploadFailures > 0) {
+      setPhotoWarning(t.checkin.photoUploadPartialFailure)
+    }
     setPageStatus('success')
   }
 
@@ -1149,7 +1175,7 @@ export default function CheckInForm() {
   if (pageStatus === 'session_expired')   return <SessionExpiredScreen />
   if (pageStatus === 'error')             return <ErrorScreen message={error} />
   if (pageStatus === 'already_submitted') return <CheckinDoneScreen justSubmitted={false} t={t} />
-  if (pageStatus === 'success')           return <CheckinDoneScreen justSubmitted={true} t={t} />
+  if (pageStatus === 'success')           return <CheckinDoneScreen justSubmitted={true} warning={photoWarning} t={t} />
   if (!currentQ)                          return <LoadingScreen />
 
   const canProceed =
@@ -1268,7 +1294,14 @@ export default function CheckInForm() {
             )}
 
             {currentQ.type === 'photo' && (
-              <PhotoInput files={photoFiles} onFilesChange={setPhotoFiles} t={t} />
+              <>
+                {inAppBrowser && (
+                  <div style={{ marginBottom: 16, padding: '12px 16px', fontSize: 13, backgroundColor: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 10, color: '#f97316' }}>
+                    {t.checkin.inAppBrowserWarning}
+                  </div>
+                )}
+                <PhotoInput files={photoFiles} onFilesChange={setPhotoFiles} t={t} />
+              </>
             )}
 
             {error && (

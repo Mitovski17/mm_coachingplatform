@@ -5,6 +5,7 @@ import { X, Loader2, Zap, ZapOff, PlusCircle } from 'lucide-react'
 import { lookupBarcode, logCustomFood, addBarcodeFood } from './actions'
 import type { FoodSearchResult } from '@/lib/food-search'
 import { useLanguage } from '@/lib/i18n'
+import { normalizeDecimalInput } from '@/lib/numeric-input'
 
 type Phase = 'scanning' | 'loading' | 'found' | 'not-found' | 'manual'
 
@@ -450,7 +451,7 @@ export default function BarcodeScannerModal({
               <input
                 type="number"
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
+                onChange={(e) => setQuantity(normalizeDecimalInput(e.target.value))}
                 min="1"
                 style={{
                   width: 90,
@@ -678,7 +679,7 @@ function ManualProductForm({
           type="number"
           inputMode="decimal"
           value={value}
-          onChange={(e) => setter(e.target.value)}
+          onChange={(e) => setter(normalizeDecimalInput(e.target.value))}
           min="0"
           placeholder="0"
           style={inputStyle}
@@ -726,7 +727,7 @@ function ManualProductForm({
             type="number"
             inputMode="decimal"
             value={calories}
-            onChange={(e) => setCalories(e.target.value)}
+            onChange={(e) => setCalories(normalizeDecimalInput(e.target.value))}
             min="0"
             placeholder="0"
             style={inputStyle}
@@ -751,7 +752,7 @@ function ManualProductForm({
             type="number"
             inputMode="decimal"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => setAmount(normalizeDecimalInput(e.target.value))}
             min="1"
             style={inputStyle}
           />

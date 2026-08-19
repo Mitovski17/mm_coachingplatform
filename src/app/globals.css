@@ -436,7 +436,14 @@
   }
 }
 
-/* ─── Workout template builder (TemplateEditor) — mobile ─────────────── */
+/* ─── Workout template builder (TemplateEditor) ───────────────────────── */
+/* Sets table: scroll horizontally within its own card instead of ever
+   forcing the surrounding editor panel wider than the viewport */
+.te-sets-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 @media (max-width: 767px) {
   .te-exercise-card {
     padding: 12px !important;
@@ -452,8 +459,6 @@
   /* Sets table: keep its designed column widths and scroll horizontally
      instead of crushing every field down to a sliver */
   .te-sets-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     margin: 0 -12px;
     padding: 0 12px;
   }

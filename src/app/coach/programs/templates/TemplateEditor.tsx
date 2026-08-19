@@ -295,13 +295,16 @@ function NotesField({
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
-              maxWidth: 560,
+              maxWidth: 760,
+              maxHeight: '85vh',
               backgroundColor: 'var(--color-surface-1)',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-xl)',
               padding: 20,
               display: 'flex',
               flexDirection: 'column',
+              overflowY: 'auto',
+              boxSizing: 'border-box',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -322,14 +325,14 @@ function NotesField({
               onChange={(e) => onChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
               placeholder={placeholder}
-              rows={12}
+              rows={16}
               style={{
                 ...inputStyle(),
                 width: '100%',
                 fontSize: '0.9rem',
                 lineHeight: 1.6,
                 resize: 'vertical',
-                minHeight: 240,
+                minHeight: 380,
                 boxSizing: 'border-box',
               }}
             />
@@ -930,7 +933,7 @@ export default function TemplateEditor({
       {/* Two-column layout */}
       <div className="coach-editor-body" style={{ overflow: 'hidden' }}>
         {/* Left: main editor */}
-        <div className="coach-editor-left no-scrollbar" style={{ flex: '0 0 55%', minWidth: 0, overflowY: 'auto', padding: '28px 32px 80px' }}>
+        <div className="coach-editor-left no-scrollbar" style={{ flex: '0 0 55%', minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: '28px 32px 80px' }}>
 
           {/* AI panel */}
           {!aiGenerated ? (
@@ -1412,7 +1415,7 @@ export default function TemplateEditor({
                         }}
                       >
                         {/* Exercise selector */}
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                           <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 4 }}>
                             Exercise
                           </label>
@@ -1439,7 +1442,7 @@ export default function TemplateEditor({
                         </div>
 
                         {/* Rest */}
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                           <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 4 }}>
                             Rest (s)
                           </label>
@@ -1450,7 +1453,7 @@ export default function TemplateEditor({
                         </div>
 
                         {/* Notes */}
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                           <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 4 }}>
                             Notes
                           </label>
@@ -1636,6 +1639,7 @@ export default function TemplateEditor({
             borderLeft: '1px solid var(--color-border)',
             padding: '24px 28px',
             overflowY: 'auto',
+            overflowX: 'hidden',
             backgroundColor: 'var(--color-surface-1)',
           }}
         >

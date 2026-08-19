@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Sparkles, Loader2, BarChart2, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Sparkles, Loader2, BarChart2, RotateCcw, Maximize2 } from 'lucide-react'
 import {
   upsertTemplate,
   createCustomExercise,
@@ -227,6 +227,135 @@ function ExerciseCombobox({
         </div>
       )}
     </div>
+  )
+}
+
+function NotesField({
+  value,
+  onChange,
+  placeholder,
+  title,
+  compactStyle,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  title: string
+  compactStyle?: React.CSSProperties
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <div
+        onClick={() => setOpen(true)}
+        title="Click to expand"
+        style={{
+          ...inputStyle(),
+          width: '100%',
+          fontSize: '0.875rem',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          boxSizing: 'border-box',
+          ...compactStyle,
+        }}
+      >
+        <span
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+            minWidth: 0,
+            color: value ? 'var(--color-text-primary)' : 'var(--color-text-hint)',
+          }}
+        >
+          {value || placeholder || 'Click to add notes'}
+        </span>
+        <Maximize2 size={12} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
+      </div>
+
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 560,
+              backgroundColor: 'var(--color-surface-1)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-xl)',
+              padding: 20,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                {title}
+              </span>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', padding: 4 }}
+              >
+                ✕
+              </button>
+            </div>
+            <textarea
+              autoFocus
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
+              placeholder={placeholder}
+              rows={12}
+              style={{
+                ...inputStyle(),
+                width: '100%',
+                fontSize: '0.9rem',
+                lineHeight: 1.6,
+                resize: 'vertical',
+                minHeight: 240,
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                style={{
+                  padding: '8px 18px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--color-accent)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -1033,12 +1162,11 @@ export default function TemplateEditor({
             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-text-hint)', marginBottom: 6 }}>
               Notes (optional)
             </label>
-            <textarea
+            <NotesField
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={setNotes}
               placeholder="Any notes for this template..."
-              rows={2}
-              style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem', lineHeight: 1.5, resize: 'none' }}
+              title="Template notes"
             />
           </div>
 
@@ -1159,12 +1287,11 @@ export default function TemplateEditor({
                 <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 5 }}>
                   Day notes (optional)
                 </label>
-                <input
-                  type="text"
+                <NotesField
                   value={activeDay.notes}
-                  onChange={(e) => updateDayNotes(activeDayIndex, e.target.value)}
+                  onChange={(v) => updateDayNotes(activeDayIndex, v)}
                   placeholder="e.g. Focus on mind-muscle connection"
-                  style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
+                  title={`Day notes — ${activeDay.label || `Day ${activeDayIndex + 1}`}`}
                 />
               </div>
             </div>
@@ -1327,12 +1454,11 @@ export default function TemplateEditor({
                           <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-hint)', marginBottom: 4 }}>
                             Notes
                           </label>
-                          <input
-                            type="text"
+                          <NotesField
                             value={ex.notes}
-                            onChange={(e) => updateExercise(ex.tempId, { notes: e.target.value })}
+                            onChange={(v) => updateExercise(ex.tempId, { notes: v })}
                             placeholder="e.g. pause at bottom"
-                            style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
+                            title={`Exercise notes — ${ex.exerciseName || 'Exercise'}`}
                           />
                         </div>
                       </div>
@@ -1406,12 +1532,12 @@ export default function TemplateEditor({
                                 placeholder="8"
                                 style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}
                               />
-                              <input
-                                type="text"
+                              <NotesField
                                 value={s.notes}
-                                onChange={(e) => updateSet(ex.tempId, s.tempId, { notes: e.target.value })}
+                                onChange={(v) => updateSet(ex.tempId, s.tempId, { notes: v })}
                                 placeholder="optional"
-                                style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}
+                                title={`Set ${s.setNumber} notes — ${ex.exerciseName || 'Exercise'}`}
+                                compactStyle={{ padding: '6px 8px', fontSize: '0.875rem' }}
                               />
                               <button
                                 type="button"

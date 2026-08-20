@@ -173,13 +173,6 @@
     overscroll-behavior: none;
     min-height: 100dvh;
   }
-  /* Promote fixed header/nav to their own compositor layer — avoids repaints on scroll */
-  header,
-  nav {
-    will-change: transform;
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
-  }
   /* Buttons: prevent 300ms tap delay on iOS (pointer-events: none breaks things, touch-action doesn't) */
   button,
   a,

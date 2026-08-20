@@ -1041,7 +1041,8 @@ function CustomMealCard({
                   </p>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={customEditQty}
                       onChange={(e) => setCustomEditQty(normalizeDecimalInput(e.target.value))}
                       autoFocus
@@ -1455,7 +1456,8 @@ function MealCard({
                   </p>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={customEditQty}
                       onChange={(e) => setCustomEditQty(normalizeDecimalInput(e.target.value))}
                       autoFocus
@@ -1679,7 +1681,8 @@ function FoodRow({
         </p>
         <div className="flex items-center gap-1.5 flex-wrap">
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={editQty}
             onChange={(e) => setEditQty(normalizeDecimalInput(e.target.value))}
             autoFocus
@@ -2103,7 +2106,8 @@ function AddCustomFood({
           </p>
           <div className="flex items-center gap-2 mb-2">
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={quantity}
               onChange={(e) => setQuantity(normalizeDecimalInput(e.target.value))}
               style={{
@@ -2259,11 +2263,11 @@ function ManualEntryForm({
         style={{ ...inputStyle, marginBottom: 6 }}
       />
       <div className="grid grid-cols-2 gap-2 mb-2">
-        <input type="number" value={cal} onChange={(e) => setCal(normalizeDecimalInput(e.target.value))} placeholder={t.nutrition.calories} style={inputStyle} />
-        <input type="number" value={q} onChange={(e) => setQ(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.quantity} (${t.nutrition.grams})`} style={inputStyle} />
-        <input type="number" value={p} onChange={(e) => setP(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.protein} (${t.nutrition.grams})`} style={inputStyle} />
-        <input type="number" value={c} onChange={(e) => setC(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.carbs} (${t.nutrition.grams})`} style={inputStyle} />
-        <input type="number" value={f} onChange={(e) => setF(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.fat} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="text" inputMode="decimal" value={cal} onChange={(e) => setCal(normalizeDecimalInput(e.target.value))} placeholder={t.nutrition.calories} style={inputStyle} />
+        <input type="text" inputMode="decimal" value={q} onChange={(e) => setQ(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.quantity} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="text" inputMode="decimal" value={p} onChange={(e) => setP(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.protein} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="text" inputMode="decimal" value={c} onChange={(e) => setC(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.carbs} (${t.nutrition.grams})`} style={inputStyle} />
+        <input type="text" inputMode="decimal" value={f} onChange={(e) => setF(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.fat} (${t.nutrition.grams})`} style={inputStyle} />
       </div>
       <div className="flex items-center gap-2">
         <button

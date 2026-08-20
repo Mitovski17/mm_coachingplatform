@@ -11,7 +11,11 @@ function todayISO(): string {
 const getCachedMealPlan = unstable_cache(
   getActiveMealPlan,
   ['meal-plan'],
-  { revalidate: 60 }
+  // Tagged with 'meal-plans' so that saving a template or reassigning a
+  // client's plan (coach/meal-plans/actions.ts) invalidates this cache
+  // immediately via revalidateTag, instead of clients seeing a stale plan
+  // (e.g. a newly added Option B) for up to the 60s TTL.
+  { tags: ['meal-plans'], revalidate: 60 }
 )
 
 export default async function ClientNutritionPage() {

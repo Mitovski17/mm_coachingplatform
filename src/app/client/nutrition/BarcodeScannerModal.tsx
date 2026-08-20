@@ -449,7 +449,8 @@ export default function BarcodeScannerModal({
                 {t.nutrition.quantity}
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={quantity}
                 onChange={(e) => setQuantity(normalizeDecimalInput(e.target.value))}
                 min="1"
@@ -676,7 +677,7 @@ function ManualProductForm({
       <label style={{ ...labelStyle, color }}>{label}</label>
       <div style={{ position: 'relative' }}>
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
           value={value}
           onChange={(e) => setter(normalizeDecimalInput(e.target.value))}
@@ -724,7 +725,7 @@ function ManualProductForm({
         <label style={labelStyle}>{t.nutrition.caloriesLabel}</label>
         <div style={{ position: 'relative' }}>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
             value={calories}
             onChange={(e) => setCalories(normalizeDecimalInput(e.target.value))}
@@ -749,7 +750,7 @@ function ManualProductForm({
         <label style={labelStyle}>{t.nutrition.quantityEatenG}</label>
         <div style={{ position: 'relative' }}>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(normalizeDecimalInput(e.target.value))}

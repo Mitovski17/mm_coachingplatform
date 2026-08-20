@@ -6,6 +6,7 @@ import { Camera, Scale } from 'lucide-react'
 import type { ProgressData, WeightDataPoint } from './progress-actions'
 import { uploadStandalonePhoto, saveClientWeight } from './progress-actions'
 import { useLanguage, type Translations } from '@/lib/i18n'
+import { normalizeDecimalInput } from '@/lib/numeric-input'
 
 type FilterKey = '4W' | '8W' | '12W' | 'All'
 const FILTER_COUNT: Record<FilterKey, number> = { '4W': 4, '8W': 8, '12W': 12, All: 9999 }
@@ -606,14 +607,13 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
                   {t.progress.weight} ({unit})
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.1"
                   min="1"
                   max="999"
                   placeholder={t.progress.weightPlaceholder}
                   value={weightValue}
-                  onChange={(e) => setWeightValue(e.target.value)}
+                  onChange={(e) => setWeightValue(normalizeDecimalInput(e.target.value))}
                   style={{
                     width: '100%',
                     padding: '12px 14px',

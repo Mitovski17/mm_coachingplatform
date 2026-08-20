@@ -18,6 +18,7 @@ import {
 import { useLanguage, tx, type Translations } from '@/lib/i18n'
 import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 import type { SetRow, ExerciseState, RestTimer } from '@/lib/workout-session-types'
+import { normalizeDecimalInput } from '@/lib/numeric-input'
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
@@ -1030,9 +1031,9 @@ function SetRowItem({
 
       {/* Weight */}
       <input
-        type="number" inputMode="decimal"
+        type="text" inputMode="decimal"
         value={row.weightKg}
-        onChange={(e) => onChange({ weightKg: e.target.value })}
+        onChange={(e) => onChange({ weightKg: normalizeDecimalInput(e.target.value) })}
         placeholder="0"
         style={{
           width: 76, textAlign: 'center',

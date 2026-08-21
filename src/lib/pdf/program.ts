@@ -5,6 +5,9 @@
  * each training day becomes a card with its exercise table. Exercises whose
  * sets differ from one another get an expanded per-set breakdown so a client
  * can read the plan straight off the page.
+ *
+ * The same day cards back the workout-template export at the bottom of this
+ * file — a template is just the schedule without the weekday / cycle framing.
  */
 
 import type { UserOptions } from 'jspdf-autotable'
@@ -53,6 +56,17 @@ export type ProgramPdfInput = {
   scheduleType: 'weekly' | 'cyclic'
   cycleStartDate?: string | null
   isActive?: boolean
+  days: PdfWorkoutDay[]
+  notes?: string | null
+}
+
+/**
+ * A saved workout template — the reusable building block a program is assembled
+ * from. Same day cards as a program, minus the weekday / cycle framing.
+ */
+export type WorkoutTemplatePdfInput = {
+  brand: string
+  templateName: string
   days: PdfWorkoutDay[]
   notes?: string | null
 }
@@ -251,10 +265,34 @@ function exerciseTableOptions(ctx: Ctx, day: PdfWorkoutDay): UserOptions {
   }
 }
 
+/** Day cards + exercise tables — shared by the program and template documents. */
+async function drawDays(ctx: Ctx, days: PdfWorkoutDay[]): Promise<void> {
+  const { default: autoTable } = await import('jspdf-autotable')
+
+  days.forEach((day, i) => {
+    drawDayHeader(ctx, day, i)
+    if (day.isRest) return
+
+    autoTable(ctx.doc, {
+      ...exerciseTableOptions(ctx, day),
+      willDrawPage: () => paintBackground(ctx),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ctx.y = (ctx.doc as any).lastAutoTable.finalY + 16
+
+    const dayNotes = (day.notes ?? '').trim()
+    if (dayNotes) {
+      drawNoteBlock(ctx, `${day.title} — notes`, dayNotes, C.blue)
+    }
+  })
+}
+
+const DISCLAIMER =
+  'Rest values are the target pause between sets. Where an exercise ramps, the per-set breakdown is listed directly under it.'
+
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 export async function buildProgramPdf(input: ProgramPdfInput) {
-  const { default: autoTable } = await import('jspdf-autotable')
   const generatedOn = formatToday()
   const ctx = await createDoc(input.programName)
 
@@ -296,31 +334,13 @@ export async function buildProgramPdf(input: ProgramPdfInput) {
     ctx.y += 24
   }
 
-  input.days.forEach((day, i) => {
-    drawDayHeader(ctx, day, i)
-    if (day.isRest) return
-
-    autoTable(ctx.doc, {
-      ...exerciseTableOptions(ctx, day),
-      willDrawPage: () => paintBackground(ctx),
-    })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ctx.y = (ctx.doc as any).lastAutoTable.finalY + 16
-
-    const dayNotes = (day.notes ?? '').trim()
-    if (dayNotes) {
-      drawNoteBlock(ctx, `${day.title} — notes`, dayNotes, C.blue)
-    }
-  })
+  await drawDays(ctx, input.days)
 
   if (input.notes?.trim()) {
     drawNoteBlock(ctx, 'Program notes', input.notes.trim(), C.blue)
   }
 
-  drawDisclaimer(
-    ctx,
-    'Rest values are the target pause between sets. Where an exercise ramps, the per-set breakdown is listed directly under it.',
-  )
+  drawDisclaimer(ctx, DISCLAIMER)
 
   drawFooters(ctx, input.brand, generatedOn)
   return ctx.doc
@@ -329,4 +349,56 @@ export async function buildProgramPdf(input: ProgramPdfInput) {
 export async function downloadProgramPdf(input: ProgramPdfInput): Promise<void> {
   const doc = await buildProgramPdf(input)
   doc.save(fileName(['Training-Plan', input.clientName ?? input.programName]))
+}
+
+// ─── Workout template ────────────────────────────────────────────────────────
+
+export async function buildWorkoutTemplatePdf(input: WorkoutTemplatePdfInput) {
+  const generatedOn = formatToday()
+  const ctx = await createDoc(input.templateName)
+
+  const totalExercises = input.days.reduce((n, d) => n + d.exercises.length, 0)
+  const totalSets = input.days.reduce(
+    (n, d) => n + d.exercises.reduce((m, e) => m + setCount(e), 0),
+    0,
+  )
+
+  drawHeader(ctx, {
+    eyebrow: input.brand,
+    kind: 'Workout Template',
+    title: input.templateName || 'Workout template',
+    meta: [
+      `${input.days.length} ${input.days.length === 1 ? 'day' : 'days'}`,
+      generatedOn,
+    ],
+    accent: C.blue,
+  })
+
+  drawStatCards(ctx, [
+    { label: 'Days', value: String(input.days.length), unit: 'total', color: C.text },
+    { label: 'Exercises', value: String(totalExercises), unit: 'total', color: C.blue },
+    { label: 'Working sets', value: String(totalSets), unit: 'total', color: C.green },
+  ])
+
+  if (input.days.length === 0) {
+    setFont(ctx, 'regular', 10, C.hint)
+    paragraph(ctx, 'This template has no days yet.', MARGIN, ctx.y, CONTENT_W, 14)
+    ctx.y += 24
+  }
+
+  await drawDays(ctx, input.days)
+
+  if (input.notes?.trim()) {
+    drawNoteBlock(ctx, 'Template notes', input.notes.trim(), C.blue)
+  }
+
+  drawDisclaimer(ctx, DISCLAIMER)
+
+  drawFooters(ctx, input.brand, generatedOn)
+  return ctx.doc
+}
+
+export async function downloadWorkoutTemplatePdf(input: WorkoutTemplatePdfInput): Promise<void> {
+  const doc = await buildWorkoutTemplatePdf(input)
+  doc.save(fileName(['Workout-Template', input.templateName]))
 }

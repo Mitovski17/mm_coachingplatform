@@ -5,9 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Pencil, Trash2, Plus, LayoutList, Dumbbell, Copy } from 'lucide-react'
 import { deleteTemplate, deleteProgram, duplicateTemplate, type Template, type Program } from './actions'
-import { getProgramExport } from '@/app/coach/export-actions'
+import { getProgramExport, getWorkoutTemplateExport } from '@/app/coach/export-actions'
 import DownloadPdfButton from '@/components/coach/DownloadPdfButton'
-import { downloadProgramPdf } from '@/lib/pdf/program'
+import { downloadProgramPdf, downloadWorkoutTemplatePdf } from '@/lib/pdf/program'
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -225,6 +225,16 @@ function TemplatesPanel({
                 >
                   <Pencil size={14} />
                 </Link>
+                <DownloadPdfButton
+                  iconOnly
+                  size="sm"
+                  title="Download as PDF"
+                  disabled={t.dayCount === 0}
+                  onDownload={async () => {
+                    const data = await getWorkoutTemplateExport(t.id)
+                    await downloadWorkoutTemplatePdf(data)
+                  }}
+                />
                 <button
                   type="button"
                   disabled={duplicatingId === t.id || deleting}

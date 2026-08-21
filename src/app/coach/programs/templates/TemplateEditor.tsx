@@ -10,6 +10,9 @@ import {
   type Exercise,
   type TemplateWithDays,
 } from '../actions'
+import { getBrandName } from '@/app/coach/export-actions'
+import DownloadPdfButton from '@/components/coach/DownloadPdfButton'
+import { downloadWorkoutTemplatePdf, type PdfWorkoutDay } from '@/lib/pdf/program'
 import { normalizeIntegerInput } from '@/lib/numeric-input'
 
 type SetRow = {
@@ -85,6 +88,36 @@ const MUSCLE_GROUP_COLORS: Record<string, string> = {
 
 function muscleGroupLabel(g: string): string {
   return g.charAt(0).toUpperCase() + g.slice(1)
+}
+
+/**
+ * Editor state → PDF days. Mirrors the shape `getWorkoutTemplateExport` returns
+ * for a saved template, so the export works on unsaved edits too. Rows without
+ * an exercise picked yet carry no information and are left out.
+ */
+function toPdfDays(days: DayState[]): PdfWorkoutDay[] {
+  return days.map((d, i) => ({
+    title: d.label.trim() || `Day ${i + 1}`,
+    notes: d.notes.trim() || null,
+    isRest: false,
+    exercises: d.exercises
+      .filter((ex) => ex.exerciseName.trim())
+      .map((ex) => ({
+        name: ex.exerciseName,
+        muscleGroup: ex.muscleGroup,
+        targetSets: ex.sets.length,
+        targetReps: ex.sets[0]?.targetReps ?? '',
+        restSeconds: ex.restSeconds,
+        notes: ex.notes.trim() || null,
+        sets: ex.sets.map((s) => ({
+          setNumber: s.setNumber,
+          targetReps: Number(s.targetReps) || 0,
+          targetWeight: s.targetWeight.trim() || null,
+          rpe: s.rpe.trim() || null,
+          notes: s.notes.trim() || null,
+        })),
+      })),
+  }))
 }
 
 function snapshotTemplate(name: string, notes: string, days: DayState[]): string {
@@ -740,6 +773,23 @@ export default function TemplateEditor({
     }
   }
 
+  // ── PDF export ───────────────────────────────────────────────────────────────
+
+  const canExportPdf = useMemo(
+    () => days.some((d) => d.exercises.some((ex) => ex.exerciseName.trim())),
+    [days],
+  )
+
+  const handleDownloadPdf = async () => {
+    const brand = await getBrandName()
+    await downloadWorkoutTemplatePdf({
+      brand,
+      templateName: name.trim() || 'Workout template',
+      notes: notes.trim() || null,
+      days: toPdfDays(days),
+    })
+  }
+
   // ── Save ─────────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
@@ -808,6 +858,7 @@ export default function TemplateEditor({
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', overflow: 'hidden' }}>
       {/* Top header bar */}
       <div
+        className="te-hdr"
         style={{
           borderBottom: '1px solid var(--color-border)',
           backgroundColor: 'var(--color-surface-1)',
@@ -821,9 +872,11 @@ export default function TemplateEditor({
           zIndex: 20,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="te-hdr-crumbs" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <Link
             href="/coach/programs"
+            className="te-hdr-back"
+            title="Back to programs"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -837,10 +890,11 @@ export default function TemplateEditor({
             }}
           >
             <ArrowLeft size={12} />
-            Programs
+            <span className="te-hdr-back-label">Programs</span>
           </Link>
-          <span style={{ color: 'var(--color-border)', fontSize: '0.75rem' }}>›</span>
+          <span className="te-hdr-sep" style={{ color: 'var(--color-border)', fontSize: '0.75rem' }}>›</span>
           <span
+            className="te-hdr-crumb"
             style={{
               fontSize: '0.75rem',
               color: 'var(--color-text-hint)',
@@ -851,8 +905,9 @@ export default function TemplateEditor({
           >
             Templates
           </span>
-          <span style={{ color: 'var(--color-border)', fontSize: '0.75rem' }}>›</span>
+          <span className="te-hdr-sep" style={{ color: 'var(--color-border)', fontSize: '0.75rem' }}>›</span>
           <span
+            className="te-hdr-title"
             style={{
               fontSize: '0.8rem',
               color: 'var(--color-text-primary)',
@@ -863,12 +918,13 @@ export default function TemplateEditor({
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: '0.72rem', color: 'var(--color-text-hint)' }}>
+        <div className="te-hdr-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="te-hdr-editing" style={{ fontSize: '0.72rem', color: 'var(--color-text-hint)' }}>
             Editing template
           </span>
           <Link
             href="/coach/programs"
+            className="te-hdr-desktop-only"
             style={{
               padding: '6px 14px',
               fontSize: '0.8rem',
@@ -883,11 +939,32 @@ export default function TemplateEditor({
           >
             Cancel
           </Link>
+          {/* PDF export — full label on desktop, icon-only on mobile */}
+          <span className="te-hdr-desktop-only">
+            <DownloadPdfButton
+              onDownload={handleDownloadPdf}
+              variant="subtle"
+              size="sm"
+              disabled={!canExportPdf}
+              title="Download this workout template as a PDF"
+            />
+          </span>
+          <span className="te-hdr-mobile-only">
+            <DownloadPdfButton
+              onDownload={handleDownloadPdf}
+              variant="subtle"
+              size="sm"
+              iconOnly
+              disabled={!canExportPdf}
+              title="Download this workout template as a PDF"
+            />
+          </span>
           {canUndo && (
             <button
               type="button"
               onClick={handleUndo}
               title="Undo last change"
+              className="te-hdr-undo"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -904,13 +981,14 @@ export default function TemplateEditor({
               }}
             >
               <RotateCcw size={13} />
-              Undo
+              <span className="te-hdr-btn-label">Undo</span>
             </button>
           )}
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || saved || !isDirty}
+            className="te-hdr-save"
             style={{
               padding: '6px 16px',
               fontSize: '0.8rem',
@@ -922,10 +1000,16 @@ export default function TemplateEditor({
               cursor: saving || saved || !isDirty ? 'not-allowed' : 'pointer',
               opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1),
               fontFamily: 'inherit',
+              whiteSpace: 'nowrap',
               transition: 'opacity 0.15s, background-color 0.2s',
             }}
           >
-            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Template'}
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : (
+              <>
+                <span className="te-hdr-label-full">Save Template</span>
+                <span className="te-hdr-label-short">Save</span>
+              </>
+            )}
           </button>
         </div>
       </div>

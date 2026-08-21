@@ -437,7 +437,87 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* Top bar: mobile-only affordances stay hidden on desktop */
+.te-hdr-mobile-only { display: none; }
+.te-hdr-label-short { display: none; }
+
 @media (max-width: 767px) {
+  /* ── Top bar ──────────────────────────────────────────────────────
+     One tidy row: [back] [template name…] [pdf] [undo] [save].
+     Kept at 53px tall so .coach-editor-body's height calc still holds. */
+  .te-hdr {
+    padding: 10px 14px !important;
+    gap: 8px !important;
+  }
+
+  /* Collapse the breadcrumb — the back button already says where "up" is */
+  .te-hdr-sep,
+  .te-hdr-crumb,
+  .te-hdr-back-label,
+  .te-hdr-editing,
+  .te-hdr-desktop-only {
+    display: none !important;
+  }
+  .te-hdr-mobile-only { display: inline-flex !important; }
+
+  .te-hdr-crumbs {
+    flex: 1 1 auto !important;
+    gap: 10px !important;
+  }
+  .te-hdr-back {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    justify-content: center;
+    gap: 0 !important;
+    color: var(--color-text-secondary) !important;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .te-hdr-back svg {
+    width: 16px;
+    height: 16px;
+  }
+  /* Long template names truncate rather than shoving the actions off-screen */
+  .te-hdr-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.875rem !important;
+  }
+
+  .te-hdr-actions {
+    flex-shrink: 0;
+    gap: 6px !important;
+  }
+  .te-hdr-actions > * { flex-shrink: 0; }
+  /* Uniform 32px touch targets across the whole action row */
+  .te-hdr-actions button,
+  .te-hdr-actions a {
+    height: 32px !important;
+  }
+  .te-hdr-mobile-only > button {
+    width: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
+  }
+  .te-hdr-undo {
+    width: 32px;
+    justify-content: center;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+  .te-hdr-undo .te-hdr-btn-label { display: none; }
+  .te-hdr-undo svg { width: 15px; height: 15px; }
+
+  .te-hdr-save {
+    padding: 0 14px !important;
+  }
+  .te-hdr-label-full { display: none; }
+  .te-hdr-label-short { display: inline; }
+
   .te-exercise-card {
     padding: 12px !important;
   }

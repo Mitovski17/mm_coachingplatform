@@ -10,7 +10,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { requireCoach, assertCoachOwnsClient } from '@/lib/auth'
 import type { PdfMealPlan } from '@/lib/pdf/meal-plan'
-import type { ProgramPdfInput, PdfWorkoutDay, PdfExercise } from '@/lib/pdf/program'
+import type {
+  ProgramPdfInput,
+  WorkoutTemplatePdfInput,
+  PdfWorkoutDay,
+  PdfExercise,
+} from '@/lib/pdf/program'
 
 function adminClient() {
   return createClient(
@@ -211,7 +216,7 @@ function one<T>(v: T | T[] | null): T | null {
   return Array.isArray(v) ? (v[0] ?? null) : v
 }
 
-function toPdfExercises(day: RawTemplateDay): PdfExercise[] {
+function toPdfExercises(day: { workout_template_exercises: RawTemplateExercise[] }): PdfExercise[] {
   return (day.workout_template_exercises ?? [])
     .slice()
     .sort((a, b) => a.sort_order - b.sort_order)
@@ -356,4 +361,63 @@ export async function getClientProgramExport(clientId: string): Promise<ProgramP
 
   if (!data) return null
   return buildProgramExport(data.id)
+}
+
+// ─── Workout templates ───────────────────────────────────────────────────────
+
+type RawWorkoutTemplateDay = {
+  label: string
+  sort_order: number
+  notes: string | null
+  workout_template_exercises: RawTemplateExercise[]
+}
+type RawWorkoutTemplate = {
+  name: string
+  notes: string | null
+  workout_template_days: RawWorkoutTemplateDay[]
+}
+
+const WORKOUT_TEMPLATE_SELECT = `
+  name, notes,
+  workout_template_days(
+    label, sort_order, notes,
+    workout_template_exercises(
+      sort_order, target_sets, target_reps, rest_seconds, notes,
+      exercises(name, muscle_group),
+      workout_template_exercise_sets(set_number, target_reps, target_weight, rpe, notes)
+    )
+  )
+`
+
+/** A single saved workout template, plus the coach's brand name. */
+export async function getWorkoutTemplateExport(
+  templateId: string,
+): Promise<WorkoutTemplatePdfInput> {
+  const coach = await requireCoach()
+  const admin = adminClient()
+
+  const [{ data, error }, brand] = await Promise.all([
+    admin
+      .from('workout_templates')
+      .select(WORKOUT_TEMPLATE_SELECT)
+      .eq('id', templateId)
+      .eq('workspace_id', coach.workspaceId)
+      .maybeSingle(),
+    getBrandName(),
+  ])
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Template not found')
+
+  const raw = data as unknown as RawWorkoutTemplate
+  const days: PdfWorkoutDay[] = (raw.workout_template_days ?? [])
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((d, i) => ({
+      title: d.label?.trim() || `Day ${i + 1}`,
+      notes: d.notes,
+      exercises: toPdfExercises(d),
+      isRest: false,
+    }))
+
+  return { brand, templateName: raw.name, notes: raw.notes, days }
 }

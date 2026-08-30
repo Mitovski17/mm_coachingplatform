@@ -524,12 +524,17 @@ function SessionInner() {
     setExercises((prev) => prev.map((ex) => {
       if (ex.exerciseId !== exerciseId) return ex
       const last = ex.currentSets[ex.currentSets.length - 1]
+      const setNumber = (last?.setNumber ?? 0) + 1
+      // Extra sets beyond the template's target are still in last session's
+      // history — start from what they actually lifted on that set, not from a
+      // copy of the set above it.
+      const prevSet = ex.previousSets[setNumber - 1]
       return {
         ...ex,
         currentSets: [...ex.currentSets, {
-          setNumber: (last?.setNumber ?? 0) + 1,
-          weightKg: last?.weightKg ?? '',
-          reps: last?.reps ?? firstNum(ex.targetReps),
+          setNumber,
+          weightKg: prevSet ? String(prevSet.weightKg) : (last?.weightKg ?? ''),
+          reps: prevSet ? String(prevSet.reps) : (last?.reps ?? firstNum(ex.targetReps)),
           done: false,
         }],
       }
@@ -938,12 +943,16 @@ function ExerciseCard({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
           {exercise.currentSets.map((s) => {
             const idx  = s.setNumber - 1
-            const prev = exercise.previousSets[idx] ?? exercise.previousSets[exercise.previousSets.length - 1]
+            // Exact match only for the hint — set 4 must show set 4's history,
+            // never set 3's. The PR badge still falls back to the last set.
+            const sameSet = exercise.previousSets[idx] ?? null
+            const prev = sameSet ?? exercise.previousSets[exercise.previousSets.length - 1]
             const isPR = s.done && prev && parseFloat(s.weightKg) > prev.weightKg
             return (
               <SetRowItem
                 key={s.setNumber}
                 row={s}
+                previous={sameSet}
                 isPR={!!isPR}
                 onChange={(patch) => onUpdateSet(exercise.exerciseId, s.setNumber, patch)}
                 onToggleDone={() => onToggleDone(exercise.exerciseId, s.setNumber)}
@@ -1003,9 +1012,10 @@ function ExerciseCard({
 // ─── Set row (inline inputs) ──────────────────────────────────────────────────
 
 function SetRowItem({
-  row, isPR, onChange, onToggleDone, onDelete, t,
+  row, previous, isPR, onChange, onToggleDone, onDelete, t,
 }: {
   row: SetRow
+  previous: { weightKg: number; reps: number } | null
   isPR: boolean
   onChange: (patch: Partial<SetRow>) => void
   onToggleDone: () => void
@@ -1061,7 +1071,17 @@ function SetRowItem({
         }}
       />
 
-      <div style={{ flex: 1 }} />
+      {/* What they did on this same set last time */}
+      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+        {previous && (
+          <span style={{
+            fontSize: 11, color: 'var(--color-text-hint)',
+            whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums',
+          }}>
+            {previous.weightKg}{t.checkin.weightUnit}×{previous.reps}
+          </span>
+        )}
+      </div>
 
       {/* PR badge */}
       {isPR && (

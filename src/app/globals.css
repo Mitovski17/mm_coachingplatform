@@ -241,6 +241,17 @@
 .messages-row { background-color: var(--color-surface-1); transition: background-color 0.15s; }
 .messages-row:hover { background-color: var(--color-surface-2); }
 
+/* ─── Coach shell main column ─────────────────────────────────────── */
+/* <main> is a flex item, so its default `min-width: auto` lets page content
+   push it wider than the viewport — the sidebar stays fixed and the whole
+   document gets a horizontal scrollbar. Worse, an indefinite main width means
+   percentage flex-bases inside (e.g. the editor's `flex: 0 0 55%` column)
+   fall back to max-content, so one long nowrap line blows the layout out.
+   Pinning min-width to 0 makes the column resolve against the viewport. */
+.coach-main-content {
+  min-width: 0;
+}
+
 /* ─── Coach mobile responsive layout ──────────────────────────────── */
 /* Hidden by default (desktop); shown on mobile */
 .coach-mobile-header { display: none; }
@@ -440,6 +451,17 @@
 /* Top bar: mobile-only affordances stay hidden on desktop */
 .te-hdr-mobile-only { display: none; }
 .te-hdr-label-short { display: none; }
+
+/* Top bar, all sizes: a long template name truncates rather than pushing the
+   action buttons past the right edge */
+.te-hdr-crumbs { min-width: 0; }
+.te-hdr-actions { flex-shrink: 0; }
+.te-hdr-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 
 @media (max-width: 767px) {
   /* ── Top bar ──────────────────────────────────────────────────────

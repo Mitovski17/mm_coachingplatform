@@ -286,17 +286,18 @@ export async function getLastSessionForTemplateDay(
     .limit(1)
     .maybeSingle()
 
-  if (!session) return null
+  const resolved = session ?? (await recoverOrphanedSessions(clientId, templateDayId))
+  if (!resolved) return null
 
   const { data: sets } = await admin
     .from('workout_sets')
     .select('exercise_id, set_number, weight_kg, reps')
-    .eq('session_id', session.id)
+    .eq('session_id', resolved.id)
     .order('set_number', { ascending: true })
 
   return {
-    sessionId: session.id,
-    performedAt: session.performed_at,
+    sessionId: resolved.id,
+    performedAt: resolved.performed_at,
     sets: (sets ?? []).map((s) => ({
       exerciseId: s.exercise_id,
       setNumber: s.set_number,
@@ -304,6 +305,48 @@ export async function getLastSessionForTemplateDay(
       reps: s.reps !== null ? Number(s.reps) : null,
     })),
   }
+}
+
+/**
+ * Re-attaches history that lost its template_day_id.
+ *
+ * Saving a workout template used to delete and re-create its days, and
+ * workout_sessions.template_day_id is ON DELETE SET NULL — so sessions logged
+ * before a template edit were cut loose and the client stopped seeing any
+ * previous weights. The template day's name is still on the session, so match
+ * on that, write the id back, and return the most recent one.
+ */
+async function recoverOrphanedSessions(
+  clientId: string,
+  templateDayId: string
+): Promise<{ id: string; performed_at: string } | null> {
+  const admin = adminClient()
+  const { data: day } = await admin
+    .from('workout_template_days')
+    .select('label, workout_templates(name)')
+    .eq('id', templateDayId)
+    .maybeSingle()
+  if (!day) return null
+
+  const tpl = day.workout_templates as unknown as { name: string } | null
+  // Mirrors the name getTemplateDayWithExercises builds and the session stores.
+  const sessionName = tpl?.name ? `${tpl.name} — ${day.label}` : day.label
+
+  const { data: orphans } = await admin
+    .from('workout_sessions')
+    .select('id, performed_at')
+    .eq('client_id', clientId)
+    .is('template_day_id', null)
+    .eq('name', sessionName)
+    .order('performed_at', { ascending: false })
+  if (!orphans || orphans.length === 0) return null
+
+  await admin
+    .from('workout_sessions')
+    .update({ template_day_id: templateDayId })
+    .in('id', orphans.map((s) => s.id))
+
+  return orphans[0]
 }
 
 export type ProgramWorkoutDay = {

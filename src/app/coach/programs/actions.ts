@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { unstable_cache, revalidateTag } from 'next/cache'
 import { createNotification } from '@/lib/notifications'
 import { requireCoach, assertCoachOwnsClient } from '@/lib/auth'
+import { reconcileRows } from '@/lib/reconcile'
 
 function adminClient() {
   return createClient(
@@ -385,18 +386,49 @@ export async function upsertTemplate(payload: {
     templateId = data.id
   }
 
-  // Delete all existing days (cascade deletes exercises and sets)
-  await admin.from('workout_template_days').delete().eq('template_id', templateId)
+  // Day ids are referenced by workout_program_days, date_workout_overrides and
+  // workout_sessions, all ON DELETE SET NULL — dropping and re-creating days on
+  // every save would silently unassign the clients using this template. Match
+  // the incoming days onto the existing rows instead and reuse their ids.
+  const { data: existingDayRows, error: exDaysErr } = await admin
+    .from('workout_template_days')
+    .select('id, label, sort_order')
+    .eq('template_id', templateId)
+    .order('sort_order', { ascending: true })
+  if (exDaysErr) throw new Error(exDaysErr.message)
 
-  // Re-insert all days with their exercises
-  for (const day of payload.days) {
-    const { data: insertedDay, error: dayErr } = await admin
-      .from('workout_template_days')
-      .insert({ template_id: templateId, sort_order: day.sortOrder, label: day.label, notes: day.notes ?? null })
-      .select('id')
-      .single()
-    if (dayErr || !insertedDay) throw new Error(dayErr?.message ?? 'Failed to create day')
-    const dayId = insertedDay.id
+  const { pairs: dayPairs, removed: removedDays } = reconcileRows(
+    payload.days,
+    existingDayRows ?? [],
+    { idOf: (d) => d.id, keyOf: (d) => d.label, existingKeyOf: (d) => d.label }
+  )
+
+  for (const { incoming: day, existing, id: dayId } of dayPairs) {
+    const dayValues = {
+      template_id: templateId,
+      sort_order: day.sortOrder,
+      label: day.label,
+      notes: day.notes ?? null,
+    }
+    if (existing) {
+      const { error: updErr } = await admin
+        .from('workout_template_days')
+        .update(dayValues)
+        .eq('id', dayId)
+      if (updErr) throw new Error(updErr.message)
+      // Exercises and sets carry no external references, so replacing them
+      // wholesale is fine — only the day row itself has to survive.
+      const { error: delExErr } = await admin
+        .from('workout_template_exercises')
+        .delete()
+        .eq('template_day_id', dayId)
+      if (delExErr) throw new Error(delExErr.message)
+    } else {
+      const { error: insErr } = await admin
+        .from('workout_template_days')
+        .insert({ id: dayId, ...dayValues })
+      if (insErr) throw new Error(insErr.message)
+    }
 
     if (day.exercises.length === 0) continue
 
@@ -429,6 +461,16 @@ export async function upsertTemplate(payload: {
       const { error: setsErr } = await admin.from('workout_template_exercise_sets').insert(setInserts)
       if (setsErr) throw new Error(setsErr.message)
     }
+  }
+
+  // Days the coach actually removed. Done last so nothing is transiently
+  // unassigned while the rest of the template is being written.
+  if (removedDays.length > 0) {
+    const { error: delDaysErr } = await admin
+      .from('workout_template_days')
+      .delete()
+      .in('id', removedDays.map((d) => d.id))
+    if (delDaysErr) throw new Error(delDaysErr.message)
   }
 
   revalidateTag('programs', 'max')

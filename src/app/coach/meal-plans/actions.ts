@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { unstable_cache, revalidateTag } from 'next/cache'
 import { createNotification } from '@/lib/notifications'
 import { requireCoach, assertCoachOwnsClient } from '@/lib/auth'
+import { reconcileRows } from '@/lib/reconcile'
 import {
   searchFoods as searchFoodsLib,
   upsertFood as upsertFoodLib,
@@ -273,54 +274,105 @@ export async function upsertMealPlanTemplate(payload: {
     templateId = data.id
   }
 
-  // Cascade-delete via meals; foreign keys cascade to options + foods
-  const { error: delErr } = await admin
+  // nutrition_logs point at meal_plan_meal_options and meal_plan_foods with
+  // ON DELETE SET NULL, so deleting the plan's rows on every save orphans every
+  // meal a client has already ticked off — they stop counting as plan foods and
+  // the day reads as unlogged. Match the incoming rows onto the existing ones
+  // and reuse their ids instead of re-creating them.
+  const { data: existingMeals, error: exErr } = await admin
     .from('meal_plan_meals')
-    .delete()
+    .select(`
+      id, name, sort_order,
+      meal_plan_meal_options(
+        id, label, sort_order,
+        meal_plan_foods(id, food_name, sort_order)
+      )
+    `)
     .eq('template_id', templateId)
-  if (delErr) throw new Error(delErr.message)
+    .order('sort_order', { ascending: true })
+  if (exErr) throw new Error(exErr.message)
 
-  for (const meal of payload.meals) {
-    const { data: mealRow, error: mErr } = await admin
-      .from('meal_plan_meals')
-      .insert({
-        template_id: templateId!,
-        name: meal.name,
-        sort_order: meal.sortOrder,
-      })
-      .select('id')
-      .single()
-    if (mErr || !mealRow) throw new Error(mErr?.message ?? 'Failed to insert meal')
+  type ExistingFood = { id: string; food_name: string; sort_order: number }
+  type ExistingOption = { id: string; label: string; sort_order: number; meal_plan_foods: ExistingFood[] }
+  type ExistingMeal = { id: string; name: string; sort_order: number; meal_plan_meal_options: ExistingOption[] }
 
-    for (const option of meal.options) {
-      const { data: optRow, error: oErr } = await admin
-        .from('meal_plan_meal_options')
-        .insert({
-          meal_id: mealRow.id,
-          label: option.label,
-          sort_order: option.sortOrder,
-        })
-        .select('id')
-        .single()
-      if (oErr || !optRow) throw new Error(oErr?.message ?? 'Failed to insert option')
+  const sortByOrder = <T extends { sort_order: number }>(rows: T[] | null | undefined): T[] =>
+    [...(rows ?? [])].sort((a, b) => a.sort_order - b.sort_order)
 
-      if (option.foods.length > 0) {
-        const foodRows = option.foods.map((f) => ({
-          option_id: optRow.id,
-          food_id: f.foodId,
-          food_name: f.foodName,
-          quantity: f.quantity,
-          unit: f.unit,
-          calories: f.calories,
-          protein_g: f.proteinG,
-          carbs_g: f.carbsG,
-          fat_g: f.fatG,
-          sort_order: f.sortOrder,
-        }))
-        const { error: fErr } = await admin.from('meal_plan_foods').insert(foodRows)
+  const mealMatches = reconcileRows(
+    payload.meals,
+    sortByOrder(existingMeals as unknown as ExistingMeal[]),
+    { idOf: (m) => m.id, keyOf: (m) => m.name, existingKeyOf: (m) => m.name }
+  )
+
+  const removedMealIds = mealMatches.removed.map((m) => m.id)
+  const removedOptionIds: string[] = []
+  const removedFoodIds: string[] = []
+
+  for (const { incoming: meal, existing: existingMeal, id: mealId } of mealMatches.pairs) {
+    const mealValues = { template_id: templateId!, name: meal.name, sort_order: meal.sortOrder }
+    if (existingMeal) {
+      const { error: uErr } = await admin.from('meal_plan_meals').update(mealValues).eq('id', mealId)
+      if (uErr) throw new Error(uErr.message)
+    } else {
+      const { error: iErr } = await admin.from('meal_plan_meals').insert({ id: mealId, ...mealValues })
+      if (iErr) throw new Error(iErr.message)
+    }
+
+    const optionMatches = reconcileRows(
+      meal.options,
+      sortByOrder(existingMeal?.meal_plan_meal_options),
+      { idOf: (o) => o.id, keyOf: (o) => o.label, existingKeyOf: (o) => o.label }
+    )
+    removedOptionIds.push(...optionMatches.removed.map((o) => o.id))
+
+    for (const { incoming: option, existing: existingOption, id: optionId } of optionMatches.pairs) {
+      const optionValues = { meal_id: mealId, label: option.label, sort_order: option.sortOrder }
+      if (existingOption) {
+        const { error: uErr } = await admin.from('meal_plan_meal_options').update(optionValues).eq('id', optionId)
+        if (uErr) throw new Error(uErr.message)
+      } else {
+        const { error: iErr } = await admin.from('meal_plan_meal_options').insert({ id: optionId, ...optionValues })
+        if (iErr) throw new Error(iErr.message)
+      }
+
+      const foodMatches = reconcileRows(
+        option.foods,
+        sortByOrder(existingOption?.meal_plan_foods),
+        { idOf: (f) => f.id, keyOf: (f) => f.foodName, existingKeyOf: (f) => f.food_name }
+      )
+      removedFoodIds.push(...foodMatches.removed.map((f) => f.id))
+
+      const foodRows = foodMatches.pairs.map(({ incoming: f, id }) => ({
+        id,
+        option_id: optionId,
+        food_id: f.foodId,
+        food_name: f.foodName,
+        quantity: f.quantity,
+        unit: f.unit,
+        calories: f.calories,
+        protein_g: f.proteinG,
+        carbs_g: f.carbsG,
+        fat_g: f.fatG,
+        sort_order: f.sortOrder,
+      }))
+      if (foodRows.length > 0) {
+        const { error: fErr } = await admin.from('meal_plan_foods').upsert(foodRows)
         if (fErr) throw new Error(fErr.message)
       }
     }
+  }
+
+  // Rows the coach actually removed. Deleting meals cascades to their options
+  // and foods, so drop the leftovers first and let the cascade cover the rest.
+  for (const [table, ids] of [
+    ['meal_plan_foods', removedFoodIds],
+    ['meal_plan_meal_options', removedOptionIds],
+    ['meal_plan_meals', removedMealIds],
+  ] as const) {
+    if (ids.length === 0) continue
+    const { error: dErr } = await admin.from(table).delete().in('id', ids)
+    if (dErr) throw new Error(dErr.message)
   }
 
   revalidateTag('meal-plans', 'max')

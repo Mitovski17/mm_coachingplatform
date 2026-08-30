@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Sparkles
 import {
   upsertTemplate,
   createCustomExercise,
+  setExerciseDefaultNotes,
   type Exercise,
   type TemplateWithDays,
 } from '../actions'
@@ -269,14 +270,46 @@ function NotesField({
   placeholder,
   title,
   compactStyle,
+  onSaveAsDefault,
 }: {
   value: string
   onChange: (v: string) => void
   placeholder?: string
   title: string
   compactStyle?: React.CSSProperties
+  /**
+   * When given, the modal offers a second button that stores the current text
+   * as the workspace-wide default for this exercise. Resolves to the message
+   * shown next to the buttons.
+   */
+  onSaveAsDefault?: (value: string) => Promise<string>
 }) {
   const [open, setOpen] = useState(false)
+  const [defaultState, setDefaultState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle')
+  const [defaultMessage, setDefaultMessage] = useState('')
+
+  const handleSaveAsDefault = async () => {
+    if (!onSaveAsDefault) return
+    setDefaultState('saving')
+    setDefaultMessage('')
+    try {
+      const message = await onSaveAsDefault(value)
+      setDefaultState('done')
+      setDefaultMessage(message)
+    } catch (e) {
+      setDefaultState('error')
+      setDefaultMessage(e instanceof Error ? e.message : 'Could not save')
+    }
+  }
+
+  // A fresh edit invalidates the "saved" confirmation.
+  const handleChange = (v: string) => {
+    if (defaultState !== 'idle') {
+      setDefaultState('idle')
+      setDefaultMessage('')
+    }
+    onChange(v)
+  }
 
   return (
     <>
@@ -355,7 +388,7 @@ function NotesField({
             <textarea
               autoFocus
               value={value}
-              onChange={(e) => onChange(e.target.value)}
+              onChange={(e) => handleChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
               placeholder={placeholder}
               rows={16}
@@ -369,7 +402,53 @@ function NotesField({
                 boxSizing: 'border-box',
               }}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                flexWrap: 'wrap',
+                gap: 10,
+                marginTop: 12,
+              }}
+            >
+              {defaultMessage && (
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    marginRight: 'auto',
+                    color: defaultState === 'error' ? 'var(--color-danger, #ef4444)' : 'var(--color-text-hint)',
+                  }}
+                >
+                  {defaultMessage}
+                </span>
+              )}
+              {onSaveAsDefault && (
+                <button
+                  type="button"
+                  onClick={handleSaveAsDefault}
+                  disabled={defaultState === 'saving'}
+                  title="Store these notes on the exercise itself — they pre-fill every time you pick it in any template"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    backgroundColor: 'transparent',
+                    color: 'var(--color-text-primary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: defaultState === 'saving' ? 'default' : 'pointer',
+                    opacity: defaultState === 'saving' ? 0.6 : 1,
+                    fontFamily: 'inherit',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  {defaultState === 'saving' && <Loader2 size={13} className="animate-spin" />}
+                  Save as default
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -399,10 +478,13 @@ export default function TemplateEditor({
   workspaceId,
   allExercises,
   initialData,
+  initialDefaultNotes = {},
 }: {
   workspaceId: string
   allExercises: Exercise[]
   initialData?: TemplateWithDays
+  /** Workspace-wide notes per exercise id, used to pre-fill newly picked exercises. */
+  initialDefaultNotes?: Record<string, string>
 }) {
   const router = useRouter()
 
@@ -451,6 +533,7 @@ export default function TemplateEditor({
     [name, notes, days],
   )
   const [exerciseList, setExerciseList] = useState<Exercise[]>(allExercises)
+  const [defaultNotes, setDefaultNotes] = useState<Record<string, string>>(initialDefaultNotes)
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -587,11 +670,39 @@ export default function TemplateEditor({
 
   const setExerciseSelection = (tempId: string, exerciseId: string) => {
     const ex = exerciseById.get(exerciseId)
-    updateExercise(tempId, {
-      exerciseId,
-      exerciseName: ex?.name ?? '',
-      muscleGroup: ex?.muscleGroup ?? '',
+    setActiveDayExercises((prev) =>
+      prev.map((row) => {
+        if (row.tempId !== tempId) return row
+        // Notes the coach actually typed survive an exercise swap; notes that are
+        // empty or still the previous exercise's default get replaced by the new
+        // exercise's default.
+        const previousDefault = defaultNotes[row.exerciseId] ?? ''
+        const isCoachEdited = row.notes.trim() !== '' && row.notes !== previousDefault
+        return {
+          ...row,
+          exerciseId,
+          exerciseName: ex?.name ?? '',
+          muscleGroup: ex?.muscleGroup ?? '',
+          notes: isCoachEdited ? row.notes : (defaultNotes[exerciseId] ?? ''),
+        }
+      })
+    )
+  }
+
+  /**
+   * Stores the row's notes as this exercise's workspace default. Later picks of
+   * the same exercise — here and in every other template — pre-fill with them.
+   */
+  const saveNotesAsDefault = async (exerciseId: string, notes: string): Promise<string> => {
+    await setExerciseDefaultNotes(exerciseId, notes)
+    const trimmed = notes.trim()
+    setDefaultNotes((prev) => {
+      const next = { ...prev }
+      if (trimmed) next[exerciseId] = trimmed
+      else delete next[exerciseId]
+      return next
     })
+    return trimmed ? 'Saved as the default for this exercise' : 'Default notes cleared'
   }
 
   const removeExercise = (tempId: string) => {
@@ -725,7 +836,7 @@ export default function TemplateEditor({
         exerciseName: ex.exerciseName,
         muscleGroup: ex.muscleGroup,
         restSeconds: ex.restSeconds,
-        notes: ex.notes ?? '',
+        notes: ex.notes?.trim() ? ex.notes : (defaultNotes[ex.exerciseId] ?? ''),
         sets: ex.sets.map((s) => ({
           tempId: crypto.randomUUID(),
           setNumber: s.setNumber,
@@ -1546,6 +1657,11 @@ export default function TemplateEditor({
                             onChange={(v) => updateExercise(ex.tempId, { notes: v })}
                             placeholder="e.g. pause at bottom"
                             title={`Exercise notes — ${ex.exerciseName || 'Exercise'}`}
+                            onSaveAsDefault={
+                              ex.exerciseId
+                                ? (v) => saveNotesAsDefault(ex.exerciseId, v)
+                                : undefined
+                            }
                           />
                         </div>
                       </div>

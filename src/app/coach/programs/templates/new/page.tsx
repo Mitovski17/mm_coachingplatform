@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
 import TemplateEditor from '../TemplateEditor'
-import { getAllExercises } from '../../actions'
+import { getAllExercises, getExerciseDefaultNotes } from '../../actions'
 
 async function resolveWorkspaceId(): Promise<string> {
   if (process.env.NODE_ENV === 'development') {
@@ -39,6 +39,15 @@ async function resolveWorkspaceId(): Promise<string> {
 
 export default async function NewTemplatePage() {
   const workspaceId = await resolveWorkspaceId()
-  const allExercises = await getAllExercises()
-  return <TemplateEditor workspaceId={workspaceId} allExercises={allExercises} />
+  const [allExercises, defaultNotes] = await Promise.all([
+    getAllExercises(),
+    getExerciseDefaultNotes(),
+  ])
+  return (
+    <TemplateEditor
+      workspaceId={workspaceId}
+      allExercises={allExercises}
+      initialDefaultNotes={defaultNotes}
+    />
+  )
 }

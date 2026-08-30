@@ -167,6 +167,57 @@ export async function getAllExercisesForWorkspace(workspaceId: string): Promise<
   }))
 }
 
+/**
+ * The workspace's "universal instructions" per exercise, keyed by exercise id.
+ * Used to pre-fill the notes field whenever that exercise is picked in a template.
+ */
+export async function getExerciseDefaultNotes(): Promise<Record<string, string>> {
+  const { workspaceId } = await requireCoach()
+  const admin = adminClient()
+  const { data, error } = await admin
+    .from('exercise_default_notes')
+    .select('exercise_id, notes')
+    .eq('workspace_id', workspaceId)
+  if (error) throw new Error(error.message)
+  const map: Record<string, string> = {}
+  for (const row of data ?? []) map[row.exercise_id] = row.notes
+  return map
+}
+
+/** Saves (or, with empty notes, clears) the workspace default for one exercise. */
+export async function setExerciseDefaultNotes(
+  exerciseId: string,
+  notes: string
+): Promise<void> {
+  const { workspaceId } = await requireCoach()
+  if (!exerciseId) throw new Error('Pick an exercise first')
+  const admin = adminClient()
+  const trimmed = notes.trim()
+
+  if (!trimmed) {
+    const { error } = await admin
+      .from('exercise_default_notes')
+      .delete()
+      .eq('workspace_id', workspaceId)
+      .eq('exercise_id', exerciseId)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await admin
+      .from('exercise_default_notes')
+      .upsert(
+        {
+          workspace_id: workspaceId,
+          exercise_id: exerciseId,
+          notes: trimmed,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'workspace_id,exercise_id' }
+      )
+    if (error) throw new Error(error.message)
+  }
+  revalidateTag('programs', 'max')
+}
+
 export async function updateCustomExercise(
   exerciseId: string,
   workspaceId: string,

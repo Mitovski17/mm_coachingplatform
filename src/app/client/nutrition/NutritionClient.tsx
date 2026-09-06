@@ -296,6 +296,15 @@ export default function NutritionClient({
     await reloadDayLogs()
   }
 
+  // Clears every log under a meal name, plan foods and client-added custom foods
+  // alike. Used when unchecking a plan meal the client has fully replaced with
+  // their own foods.
+  const handleRemoveMealFully = async (mealName: string) => {
+    if (!clientId) return
+    await removeOptionLog(clientId, selectedDate, mealName, false)
+    await reloadDayLogs()
+  }
+
   const handleDeleteFood = async (foodId: string, loggedFoodId?: string | null) => {
     setDeletedFoodIds(prev => ({ ...prev, [foodId]: true }))
     setDeletionHistory(prev => [...prev, foodId])
@@ -464,6 +473,7 @@ export default function NutritionClient({
                   }
                   onLogMeal={async () => { if (activeOption) await handleLogMeal(meal, activeOption) }}
                   onRemoveMeal={async () => handleRemoveMeal(meal.name)}
+                  onRemoveMealFully={async () => handleRemoveMealFully(meal.name)}
                   onDeleteCustom={handleDeleteCustom}
                   onUpdateCustomQty={handleUpdateCustomQty}
                   onPortionOverride={(foodId, qty) =>
@@ -1144,6 +1154,7 @@ function MealCard({
   onSelectOption,
   onLogMeal,
   onRemoveMeal,
+  onRemoveMealFully,
   onDeleteCustom,
   onUpdateCustomQty,
   onPortionOverride,
@@ -1169,6 +1180,7 @@ function MealCard({
   onSelectOption: (id: string) => void
   onLogMeal: () => Promise<void>
   onRemoveMeal: () => Promise<void>
+  onRemoveMealFully: () => Promise<void>
   onDeleteCustom: (logId: string) => void
   onUpdateCustomQty: (
     logId: string,
@@ -1208,7 +1220,22 @@ function MealCard({
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
   const [customEditQty, setCustomEditQty] = useState('')
 
-  const effectiveLogged = optimisticLogged !== null ? optimisticLogged : isLogged
+  // The circle marks the meal as eaten. A plain plan meal is "logged" when its
+  // plan foods have been logged. A meal the client has fully replaced with custom
+  // foods (every pre-filled food removed) has no plan logs, but the custom foods
+  // are saved the moment they're added — so it still counts as logged/eaten.
+  const hasActivePlanFood =
+    !!activeOption && activeOption.foods.some((f) => !deletedFoodIds[f.id])
+  const hasCustomLogs = customLogs.length > 0
+  const customOnlyLogged = !isLogged && !hasActivePlanFood && hasCustomLogs
+
+  const effectiveLogged =
+    optimisticLogged !== null ? optimisticLogged : isLogged || customOnlyLogged
+
+  // Enable the circle whenever the meal has something to record: active plan
+  // foods, already-logged plan foods, or custom foods the client added. Without
+  // the custom-foods case, a fully-customized meal could never be checked.
+  const canLog = isLogged || hasActivePlanFood || hasCustomLogs
 
   const mealFoodIds = useMemo(
     () => new Set((activeOption?.foods ?? []).map(f => f.id)),
@@ -1217,7 +1244,7 @@ function MealCard({
   const hasDeletions = (activeOption?.foods ?? []).some(f => deletedFoodIds[f.id])
 
   const handleCircleTap = async () => {
-    if (circleLoading) return
+    if (circleLoading || !canLog) return
     const next = !effectiveLogged
     setOptimisticLogged(next)
     setCircleLoading(true)
@@ -1225,6 +1252,11 @@ function MealCard({
     try {
       if (next) {
         await onLogMeal()
+      } else if (customOnlyLogged) {
+        // No plan foods remain — unchecking clears the custom foods the client
+        // added under this meal (mirrors unchecking a plan meal, which drops its
+        // plan logs).
+        await onRemoveMealFully()
       } else {
         await onRemoveMeal()
       }
@@ -1278,11 +1310,6 @@ function MealCard({
     }
     setEditingCustomId(null)
   }
-
-  // The circle logs/unlogs the plan meal. Allow logging only when at least one
-  // plan food is still active (not removed); always allow unlogging when logged.
-  const hasActivePlanFood = !!activeOption && activeOption.foods.some((f) => !deletedFoodIds[f.id])
-  const canLog = isLogged || hasActivePlanFood
 
   return (
     <div

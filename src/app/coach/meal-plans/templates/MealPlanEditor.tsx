@@ -367,10 +367,14 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
   const addOption = (mealTempId: string) => {
     pushUndo()
     updateMeal(mealTempId, (m) => {
-      if (m.options.length >= 3) return m
-      const labels = ['A', 'B', 'C']
       const used = new Set(m.options.map((o) => o.label))
-      const nextLabel = labels.find((l) => !used.has(l)) ?? 'C'
+      let nextLabel = ''
+      for (let i = 0; ; i++) {
+        const letter = String.fromCharCode(65 + (i % 26))
+        const round = Math.floor(i / 26)
+        const label = round === 0 ? letter : `${letter}${round + 1}`
+        if (!used.has(label)) { nextLabel = label; break }
+      }
       const opt = emptyOption(nextLabel, m.options.length)
       return { ...m, options: [...m.options, opt], activeOptionTempId: opt.tempId }
     })
@@ -881,15 +885,13 @@ function MealCard({
         <div className="mpe-meal-controls" style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <button type="button" title="Move up" disabled={index === 0} onClick={() => onMove(-1)} style={iconBtn(index === 0)}><ChevronUp size={13} /></button>
           <button type="button" title="Move down" disabled={index === total - 1} onClick={() => onMove(1)} style={iconBtn(index === total - 1)}><ChevronDown size={13} /></button>
-          {meal.options.length < 3 && (
-            <button
-              type="button"
-              onClick={onAddOption}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 10px', height: 28, fontSize: 12, fontWeight: 500, background: 'transparent', border: '1px solid #222', borderRadius: 6, color: '#888', cursor: 'pointer', whiteSpace: 'nowrap' }}
-            >
-              <Plus size={12} /> Option
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onAddOption}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 10px', height: 28, fontSize: 12, fontWeight: 500, background: 'transparent', border: '1px solid #222', borderRadius: 6, color: '#888', cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            <Plus size={12} /> Option
+          </button>
           <button type="button" title="Delete meal" onClick={onRemove} style={{ ...iconBtn(), color: '#ef4444', border: '1px solid #222' }}><Trash2 size={13} /></button>
         </div>
       </div>

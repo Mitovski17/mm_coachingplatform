@@ -419,7 +419,7 @@ function SessionInner() {
   const templateNameParam = params.get('templateName') ?? ''
 
   // Persistent session state via context
-  const { session, elapsed, startSession, setExercises, setNotes, setTemplateName, setRest, endSession } = useWorkoutSession()
+  const { session, elapsed, hydrated, startSession, setExercises, setNotes, setTemplateName, setRest, endSession } = useWorkoutSession()
 
   // Derived from context session
   const exercises    = session?.exercises    ?? []
@@ -443,6 +443,14 @@ function SessionInner() {
 
   // ── Load ─────────────────────────────────────────────────────────────────
   useEffect(() => {
+    // Nothing can be decided until localStorage has been read. Child effects
+    // fire before the provider's hydration effect, so on a refresh this would
+    // otherwise see a null session, judge nothing restorable, and start a fresh
+    // workout over the saved sets. `hydrated` is a dependency, so the effect
+    // re-runs once the provider has restored — and because the provider sets
+    // the session and the flag together, `session` below is the restored one.
+    if (!hydrated) return
+
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -464,7 +472,7 @@ function SessionInner() {
         if (cancelled) return
 
         // Check if we can restore an existing in-progress session
-        const existingSession = session  // snapshot from context
+        const existingSession = session
         const isRestorable = existingSession && (
           (isCustom && existingSession.isCustom) ||
           (!isCustom && existingSession.templateDayId === templateDayId)
@@ -527,7 +535,7 @@ function SessionInner() {
     init()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCustom, templateDayId])
+  }, [hydrated, isCustom, templateDayId])
 
   // ── Mutators ─────────────────────────────────────────────────────────────
   const updateSet = useCallback((exerciseId: string, setNumber: number, patch: Partial<SetRow>) => {

@@ -21,6 +21,20 @@ type WorkoutSessionCtx = {
 
 const WorkoutSessionContext = createContext<WorkoutSessionCtx | null>(null)
 
+/** Writes happen from inside setState updaters — a throw here (iOS private
+ *  mode, quota) would tear down the whole session, so never let one escape. */
+function persist(s: ActiveWorkoutSession) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(s))
+  } catch { /* session stays in memory */ }
+}
+
+function clearPersisted() {
+  try {
+    localStorage.removeItem(LS_KEY)
+  } catch { /* nothing to clear */ }
+}
+
 function restoreSecondsleft(rest: RestTimer): RestTimer {
   if (!rest.active || !rest.startedAt) return rest
   const elapsed = Math.floor((Date.now() - new Date(rest.startedAt).getTime()) / 1000)
@@ -47,7 +61,7 @@ export function WorkoutSessionProvider({ children }: { children: React.ReactNode
         setSession(parsed)
       }
     } catch {
-      localStorage.removeItem(LS_KEY)
+      clearPersisted()
     }
     setHydrated(true)
   }, [])
@@ -71,11 +85,11 @@ export function WorkoutSessionProvider({ children }: { children: React.ReactNode
         if (prev.rest.secondsLeft <= 1) {
           try { navigator.vibrate?.([300, 100, 300]) } catch { /* ok */ }
           const updated = { ...prev, rest: { ...prev.rest, active: false, secondsLeft: 0 } }
-          localStorage.setItem(LS_KEY, JSON.stringify(updated))
+          persist(updated)
           return updated
         }
         const updated = { ...prev, rest: { ...prev.rest, secondsLeft: prev.rest.secondsLeft - 1 } }
-        localStorage.setItem(LS_KEY, JSON.stringify(updated))
+        persist(updated)
         return updated
       })
     }, 1000)
@@ -83,12 +97,12 @@ export function WorkoutSessionProvider({ children }: { children: React.ReactNode
   }, [session?.rest.active])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = useCallback((s: ActiveWorkoutSession) => {
-    localStorage.setItem(LS_KEY, JSON.stringify(s))
+    persist(s)
   }, [])
 
   const startSession = useCallback((s: ActiveWorkoutSession) => {
     setSession(s)
-    localStorage.setItem(LS_KEY, JSON.stringify(s))
+    persist(s)
   }, [])
 
   const setExercises = useCallback((updater: Updater<ExerciseState[]>) => {
@@ -132,7 +146,7 @@ export function WorkoutSessionProvider({ children }: { children: React.ReactNode
   const endSession = useCallback(() => {
     setSession(null)
     setElapsed(0)
-    localStorage.removeItem(LS_KEY)
+    clearPersisted()
   }, [])
 
   return (

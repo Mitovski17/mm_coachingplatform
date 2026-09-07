@@ -24,10 +24,11 @@ export default function CheckinWidget({
 
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: '16px',
+        borderRadius: 'var(--cx-r-lg)',
         overflow: 'hidden',
       }}
     >
@@ -44,7 +45,7 @@ export default function CheckinWidget({
       <div style={{ padding: '16px 18px 18px' }}>
         {/* title + badge */}
         <div className="flex items-center gap-2" style={{ marginBottom: '6px' }}>
-          <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+          <span className="cx-display" style={{ fontSize: '16px', fontWeight: 800, color: 'var(--color-text-primary)' }}>
             {t.checkin.title}
           </span>
           {submitted ? (
@@ -85,17 +86,18 @@ export default function CheckinWidget({
               style={{
                 backgroundColor: 'var(--color-surface-2)',
                 border: '1px solid var(--color-border)',
-                borderRadius: '10px',
-                padding: '12px',
+                borderRadius: 'var(--cx-r-sm)',
+                padding: '13px',
                 textAlign: 'center',
               }}
             >
+              {/* Tabular figures: the countdown must not jitter as digits change */}
               <span
+                className="cx-num"
                 style={{
-                  fontSize: '22px',
-                  fontWeight: 700,
+                  fontSize: '23px',
+                  fontWeight: 800,
                   color: 'var(--color-text-primary)',
-                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
                 {formatCountdown(msLeft)}
@@ -109,15 +111,16 @@ export default function CheckinWidget({
             </p>
             <Link
               href="/check-in"
+              className="cx-cta cx-display"
               style={{
                 display: 'block',
                 textAlign: 'center',
                 backgroundColor: 'var(--color-accent)',
                 color: '#ffffff',
-                borderRadius: '10px',
-                padding: '11px',
-                fontSize: '14px',
-                fontWeight: 600,
+                borderRadius: 'var(--cx-r-sm)',
+                padding: '13px',
+                fontSize: '15px',
+                fontWeight: 800,
                 textDecoration: 'none',
               }}
             >

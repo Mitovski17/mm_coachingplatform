@@ -5,16 +5,16 @@ export default function Loading() {
       <div className="flex items-center justify-between" style={{ padding: '52px 20px 20px' }}>
         <div>
           <div
-            className="animate-pulse"
+            className="cx-skel"
             style={{ width: 210, height: 32, backgroundColor: 'var(--color-surface-3)', borderRadius: 8, marginBottom: 8 }}
           />
           <div
-            className="animate-pulse"
+            className="cx-skel"
             style={{ width: 150, height: 14, backgroundColor: 'var(--color-surface-3)', borderRadius: 6 }}
           />
         </div>
         <div
-          className="animate-pulse flex-shrink-0"
+          className="cx-skel flex-shrink-0"
           style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: 'var(--color-surface-3)' }}
         />
       </div>
@@ -23,7 +23,7 @@ export default function Loading() {
       {[80, 80, 100].map((h, i) => (
         <div key={i} style={{ padding: '0 16px 16px' }}>
           <div
-            className="animate-pulse"
+            className="cx-skel"
             style={{
               height: h,
               backgroundColor: 'var(--color-surface-2)',
@@ -37,14 +37,14 @@ export default function Loading() {
       {/* Stats 2×2 grid */}
       <section style={{ padding: '0 16px 16px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ width: 80, height: 12, backgroundColor: 'var(--color-surface-3)', borderRadius: 4, marginBottom: 10 }}
         />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="animate-pulse"
+              className="cx-skel"
               style={{
                 height: 70,
                 backgroundColor: 'var(--color-surface-2)',
@@ -59,14 +59,14 @@ export default function Loading() {
       {/* Recent workouts horizontal scroll */}
       <section style={{ padding: '0 0 16px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ width: 120, height: 12, backgroundColor: 'var(--color-surface-3)', borderRadius: 4, marginBottom: 10, marginLeft: 16 }}
         />
         <div className="flex gap-3" style={{ paddingLeft: 16, paddingRight: 16, overflow: 'hidden' }}>
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="animate-pulse flex-shrink-0"
+              className="cx-skel flex-shrink-0"
               style={{
                 width: 180,
                 height: 90,

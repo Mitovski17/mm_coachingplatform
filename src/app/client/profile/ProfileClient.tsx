@@ -51,8 +51,9 @@ const DEFAULT_NOTIF_PREFS: NotifPrefs = {
 const card: React.CSSProperties = {
   backgroundColor: 'var(--color-surface-1)',
   border: '1px solid var(--color-border)',
-  borderRadius: 14,
+  borderRadius: 'var(--cx-r-md)',
   overflow: 'hidden',
+  boxShadow: 'var(--cx-shadow-sm)',
 }
 
 const rowBase: React.CSSProperties = {
@@ -60,7 +61,7 @@ const rowBase: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 14,
-  padding: '14px 16px',
+  padding: '15px 16px',
   backgroundColor: 'transparent',
   border: 'none',
   borderBottom: '1px solid var(--color-border)',
@@ -70,25 +71,26 @@ const rowBase: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '12px 14px',
+  padding: '13px 14px',
   backgroundColor: 'var(--color-surface-2)',
   border: '1px solid var(--color-border)',
-  borderRadius: 10,
+  borderRadius: 'var(--cx-r-sm)',
   color: 'var(--color-text-primary)',
   fontSize: 15,
   outline: 'none',
   boxSizing: 'border-box',
+  transition: 'border-color 220ms cubic-bezier(0.22,1,0.36,1)',
 }
 
 const primaryBtn: React.CSSProperties = {
   width: '100%',
-  padding: '14px',
+  padding: '15px',
   backgroundColor: 'var(--color-accent)',
   border: 'none',
-  borderRadius: 12,
+  borderRadius: 'var(--cx-r-md)',
   color: '#fff',
-  fontSize: 15,
-  fontWeight: 700,
+  fontSize: 15.5,
+  fontWeight: 800,
   cursor: 'pointer',
 }
 
@@ -108,13 +110,21 @@ function Panel({ open, onBack, title, children }: {
         zIndex: 200,
         backgroundColor: 'var(--color-base)',
         overflowY: 'auto',
-        transform: open ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+        transform: open ? 'translate3d(0,0,0)' : 'translate3d(100%,0,0)',
+        // Nothing offscreen should be reachable by keyboard or screen reader —
+        // but on close, hold visibility until the slide-out has finished,
+        // otherwise the panel vanishes instead of sliding away.
+        visibility: open ? 'visible' : 'hidden',
+        transition: open
+          ? 'transform var(--cx-dur-slow) var(--cx-ease)'
+          : 'transform var(--cx-dur-slow) var(--cx-ease), visibility 0s linear var(--cx-dur-slow)',
         paddingBottom: 80,
       }}
+      aria-hidden={!open}
     >
-      {/* Panel header */}
+      {/* Panel header — translucent, matching the app chrome */}
       <div
+        className="cx-chrome-base"
         style={{
           position: 'sticky',
           top: 0,
@@ -122,21 +132,22 @@ function Panel({ open, onBack, title, children }: {
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          padding: '52px 16px 16px',
-          backgroundColor: 'var(--color-base)',
+          padding: 'calc(52px + env(safe-area-inset-top)) 16px 16px',
           borderBottom: '1px solid var(--color-border)',
         }}
       >
         <button
           type="button"
           onClick={onBack}
+          aria-label={title}
+          className="cx-press cx-tint"
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 34,
-            height: 34,
-            borderRadius: 10,
+            width: 36,
+            height: 36,
+            borderRadius: 'var(--cx-r-sm)',
             backgroundColor: 'var(--color-surface-2)',
             border: 'none',
             cursor: 'pointer',
@@ -146,7 +157,7 @@ function Panel({ open, onBack, title, children }: {
         >
           <ChevronLeft size={18} />
         </button>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+        <h2 className="cx-display" style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
           {title}
         </h2>
       </div>
@@ -165,28 +176,31 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
+      className="cx-press"
       style={{
         position: 'relative',
-        width: 44,
-        height: 26,
-        borderRadius: 13,
+        width: 46,
+        height: 27,
+        borderRadius: 999,
         backgroundColor: checked ? 'var(--color-accent)' : 'var(--color-surface-3)',
         border: 'none',
         cursor: 'pointer',
-        transition: 'background-color 0.2s',
         flexShrink: 0,
       }}
     >
+      {/* Translating the knob keeps the switch off the layout path; a `left`
+          transition would reflow on every frame of the toggle. */}
       <span
         style={{
           position: 'absolute',
-          top: 3,
-          left: checked ? 21 : 3,
+          top: 3.5,
+          left: 3.5,
           width: 20,
           height: 20,
           borderRadius: '50%',
           backgroundColor: '#fff',
-          transition: 'left 0.2s',
+          transform: checked ? 'translate3d(19px,0,0)' : 'translate3d(0,0,0)',
+          transition: 'transform var(--cx-dur) var(--cx-spring)',
           boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
         }}
       />
@@ -441,7 +455,7 @@ function PersonalInfoPanel({ open, onBack, clientId, fullName, email, phone, ava
           />
         </div>
 
-        <button type="button" onClick={handleSave} disabled={saving} style={{ ...primaryBtn, marginTop: 8, opacity: saving ? 0.7 : 1 }}>
+        <button type="button" onClick={handleSave} disabled={saving} className="cx-cta cx-display" style={{ ...primaryBtn, marginTop: 8, opacity: saving ? 0.7 : 1 }}>
           {saving ? t.common.saving : t.common.saveChanges}
         </button>
       </div>
@@ -789,6 +803,7 @@ function PrivacySecurityPanel({ open, onBack, email, t }: { open: boolean; onBac
               type="button"
               onClick={handleChangePassword}
               disabled={saving}
+              className="cx-cta cx-display"
               style={{ ...primaryBtn, opacity: saving ? 0.7 : 1 }}
             >
               {saving ? t.profile.changing : t.profile.changePassword}
@@ -1028,19 +1043,20 @@ export default function ProfileClient({
       <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 32 }}>
 
         {/* Header */}
-        <div style={{ padding: '52px 20px 24px' }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
+        <div className="cx-in" style={{ padding: '52px 20px 24px' }}>
+          <h1 className="cx-display cx-display-lg" style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
             {t.profile.title}
           </h1>
         </div>
 
         {/* Avatar card */}
-        <div style={{ padding: '0 16px 20px' }}>
+        <div className="cx-in" style={{ '--cx-i': 1, padding: '0 16px 20px' } as React.CSSProperties}>
           <div
+            className="cx-card"
             style={{
               backgroundColor: 'var(--color-surface-1)',
               border: '1px solid var(--color-border)',
-              borderRadius: 16,
+              borderRadius: 'var(--cx-r-lg)',
               padding: '20px 18px',
               display: 'flex',
               alignItems: 'center',
@@ -1063,16 +1079,17 @@ export default function ProfileClient({
                 color: '#fff',
                 letterSpacing: '0.02em',
                 overflow: 'hidden',
+                boxShadow: displayAvatar ? 'inset 0 0 0 1px var(--color-border-strong)' : 'var(--cx-shadow-cta)',
               }}
             >
               {displayAvatar
-                ? <img src={displayAvatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <img src={displayAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : initials}
             </div>
 
             {/* Info */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <p className="cx-display" style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {displayName}
               </p>
               <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: '0 0 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1098,22 +1115,23 @@ export default function ProfileClient({
         </div>
 
         {/* Progress button */}
-        <div style={{ padding: '0 16px 16px' }}>
+        <div className="cx-in" style={{ '--cx-i': 2, padding: '0 16px 16px' } as React.CSSProperties}>
           <Link
             href="/client/progress"
+            className="cx-card-flat cx-press cx-tint"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 14,
-              padding: '14px 16px',
+              padding: '15px 16px',
               backgroundColor: 'var(--color-surface-1)',
               border: '1px solid var(--color-border)',
-              borderRadius: 14,
+              borderRadius: 'var(--cx-r-md)',
               textDecoration: 'none',
             }}
           >
             <div style={{
-              width: 36, height: 36, borderRadius: 10,
+              width: 36, height: 36, borderRadius: 'var(--cx-r-sm)',
               backgroundColor: 'var(--color-accent-dim)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}>
@@ -1142,6 +1160,7 @@ export default function ProfileClient({
                     key={item.label}
                     type="button"
                     onClick={() => setActivePanel(item.panel)}
+                    className="cx-press-sm cx-tint"
                     style={{ ...rowBase, borderBottom: isLast ? 'none' : '1px solid var(--color-border)' }}
                   >
                     <div
@@ -1175,19 +1194,20 @@ export default function ProfileClient({
           <button
             type="button"
             onClick={() => setShowSignOutConfirm(true)}
+            className="cx-press"
             style={{
               width: '100%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              padding: '15px',
+              padding: '16px',
               backgroundColor: 'rgba(239,68,68,0.08)',
-              border: '1px solid rgba(239,68,68,0.2)',
-              borderRadius: 14,
+              border: '1px solid rgba(239,68,68,0.22)',
+              borderRadius: 'var(--cx-r-md)',
               cursor: 'pointer',
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: 700,
               color: '#ef4444',
             }}
           >
@@ -1200,10 +1220,14 @@ export default function ProfileClient({
       {/* ── Sign out confirmation modal ── */}
       {showSignOutConfirm && (
         <div
+          className="cx-backdrop"
+          role="dialog"
+          aria-modal="true"
           style={{
             position: 'fixed', inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            backgroundColor: 'rgba(0,0,0,0.55)',
             backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
             zIndex: 1000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 20,
@@ -1211,14 +1235,16 @@ export default function ProfileClient({
           onClick={() => setShowSignOutConfirm(false)}
         >
           <div
+            className="cx-pop"
             style={{
               backgroundColor: 'var(--color-surface-1)',
               border: '1px solid var(--color-border)',
-              borderRadius: 20,
+              borderRadius: 'var(--cx-r-xl)',
               padding: '28px 24px',
               width: '100%', maxWidth: 340,
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
               textAlign: 'center',
+              boxShadow: 'var(--cx-shadow-lg)',
             }}
             onClick={(e) => e.stopPropagation()}
           >

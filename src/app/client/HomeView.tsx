@@ -113,17 +113,17 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 16 }}>
 
-      <div style={{ padding: '52px 20px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div className="cx-in" style={{ padding: '52px 20px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', letterSpacing: '0.06em' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 5px', letterSpacing: '0.08em' }}>
             {dateLine}
           </p>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.15 }}>
+          <h1 className="cx-display cx-display-lg" style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.1 }}>
             {greeting}, {getFirstName(clientName)}
           </h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginTop: 4 }}>
-          <Link href="/client/messages" style={{
+          <Link href="/client/messages" aria-label={t.nav.messages} className="cx-press cx-tint" style={{
             width: 40, height: 40, borderRadius: '50%',
             backgroundColor: 'var(--color-surface-3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -131,37 +131,45 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
           }}>
             <MessageCircle size={20} color="var(--color-text-muted)" />
           </Link>
-          <Link href="/client/profile" style={{
+          <Link href="/client/profile" aria-label={t.nav.profile} className="cx-press" style={{
             width: 40, height: 40, borderRadius: '50%',
             backgroundColor: avatarUrl ? 'transparent' : 'var(--color-surface-3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 13, fontWeight: 700, color: 'var(--color-text-muted)',
             textDecoration: 'none', flexShrink: 0, overflow: 'hidden',
+            boxShadow: 'inset 0 0 0 1px var(--color-border-strong)',
           }}>
             {avatarUrl
-              ? <img src={avatarUrl} alt={t.nav.profile} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : initials}
           </Link>
         </div>
       </div>
 
-      <div style={{ padding: '0 20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="cx-in" style={{ '--cx-i': 1, padding: '0 20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } as React.CSSProperties}>
         {strip.map((date, i) => {
           const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}`
           const isToday     = i === 6
           const isCompleted = completedSet.has(key) && !isToday
           const letter      = DAY_LETTERS[dayIdx(date)]
           return (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-              <p style={{ fontSize: 10, fontWeight: 600, color: isToday ? 'var(--color-accent)' : 'var(--color-text-hint)', margin: 0, letterSpacing: '0.04em' }}>
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: isToday ? 'var(--color-accent)' : 'var(--color-text-hint)', margin: 0, letterSpacing: '0.06em' }}>
                 {letter}
               </p>
-              <div style={{
-                width: 36, height: 36, borderRadius: '50%',
-                backgroundColor: isCompleted ? 'var(--color-accent)' : isToday ? 'transparent' : 'var(--color-surface-2)',
-                border: isToday ? '2px solid var(--color-accent)' : isCompleted ? 'none' : '2px solid var(--color-surface-3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
+              <div
+                className={isCompleted || isToday ? 'cx-pop' : undefined}
+                style={{
+                  '--cx-i': i,
+                  width: 36, height: 36, borderRadius: '50%',
+                  backgroundColor: isCompleted ? 'var(--color-accent)' : isToday ? 'transparent' : 'var(--color-surface-2)',
+                  border: isToday ? '2px solid var(--color-accent)' : isCompleted ? 'none' : '2px solid var(--color-surface-3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  // Only the day that carries meaning gets a shadow
+                  boxShadow: isCompleted ? 'var(--cx-shadow-cta)' : 'none',
+                  animationDelay: `calc(${i} * 40ms)`,
+                } as React.CSSProperties}
+              >
                 {isCompleted ? (
                   <Check size={16} color="#fff" strokeWidth={3} />
                 ) : isToday ? (
@@ -174,101 +182,54 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
       </div>
 
       {!onboardingComplete && (
-        <div style={{ margin: '0 16px 16px' }}>
-          <div style={{
-            backgroundColor: 'var(--color-surface-1)',
-            border: '1px solid var(--color-border)',
-            borderLeft: '3px solid var(--color-accent)',
-            borderRadius: 14,
-            padding: '14px 16px',
-            display: 'flex', alignItems: 'center', gap: 12,
-          }}>
-            <div style={{
-              width: 38, height: 38, borderRadius: 10,
-              backgroundColor: 'rgba(255,92,0,0.12)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <ClipboardList size={18} color="var(--color-accent)" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
-                {t.home.completeProfile}
-              </p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: 0 }}>
-                {t.home.completeProfileSub}
-              </p>
-            </div>
-            <Link href="/onboarding" style={{
-              backgroundColor: 'var(--color-accent)', color: '#fff',
-              fontSize: 14, fontWeight: 700, borderRadius: 10,
-              padding: '9px 18px', textDecoration: 'none', flexShrink: 0,
-            }}>
-              {t.common.finish}
-            </Link>
-          </div>
-        </div>
+        <ActionBanner
+          icon={<ClipboardList size={18} color="var(--color-accent)" />}
+          title={t.home.completeProfile}
+          sub={t.home.completeProfileSub}
+          href="/onboarding"
+          cta={t.common.finish}
+          index={2}
+        />
       )}
 
       {checkinDue && (
-        <div style={{ margin: '0 16px 16px' }}>
-          <div style={{
-            backgroundColor: 'var(--color-surface-1)',
-            border: '1px solid var(--color-border)',
-            borderLeft: '3px solid var(--color-accent)',
-            borderRadius: 14,
-            padding: '14px 16px',
-            display: 'flex', alignItems: 'center', gap: 12,
-          }}>
-            <div style={{
-              width: 38, height: 38, borderRadius: 10,
-              backgroundColor: 'rgba(255,92,0,0.12)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <Bell size={18} color="var(--color-accent)" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
-                {t.home.weeklyCheckinDue}
-              </p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: 0 }}>
-                {t.home.takesAbout3Min}
-              </p>
-            </div>
-            <Link href="/check-in" style={{
-              backgroundColor: 'var(--color-accent)', color: '#fff',
-              fontSize: 14, fontWeight: 700, borderRadius: 10,
-              padding: '9px 18px', textDecoration: 'none', flexShrink: 0,
-            }}>
-              {t.common.start}
-            </Link>
-          </div>
-        </div>
+        <ActionBanner
+          icon={<Bell size={18} color="var(--color-accent)" />}
+          title={t.home.weeklyCheckinDue}
+          sub={t.home.takesAbout3Min}
+          href="/check-in"
+          cta={t.common.start}
+          index={2}
+        />
       )}
 
-      <div style={{ margin: '0 16px 16px' }}>
-        <div style={{
+      <div className="cx-in" style={{ '--cx-i': 3, margin: '0 16px 16px' } as React.CSSProperties}>
+        <div className="cx-card" style={{
           backgroundColor: 'var(--color-surface-1)',
           border: '1px solid var(--color-border)',
-          borderRadius: 16, padding: '18px',
+          borderRadius: 'var(--cx-r-lg)', padding: '18px',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
               {t.home.todaysNutrition}
             </p>
-            <Link href="/client/nutrition" style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, color: 'var(--color-text-muted)', textDecoration: 'none' }}>
+            <Link href="/client/nutrition" className="cx-press" style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', textDecoration: 'none' }}>
               {t.home.logMeal} <ChevronRight size={14} />
             </Link>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <div style={{ flexShrink: 0, position: 'relative' }}>
-              <svg width={CX * 2} height={CY * 2} viewBox={`0 0 ${CX * 2} ${CY * 2}`}>
+              <svg width={CX * 2} height={CY * 2} viewBox={`0 0 ${CX * 2} ${CY * 2}`} aria-hidden="true">
                 <circle cx={CX} cy={CY} r={R} fill="none" stroke="var(--color-surface-3)" strokeWidth={SW} />
+                {/* Draws itself in from empty on mount, then eases to any new value */}
                 <circle cx={CX} cy={CY} r={R} fill="none"
+                  className="cx-ring"
                   stroke="var(--color-accent)" strokeWidth={SW}
                   strokeLinecap="round"
                   strokeDasharray={circ} strokeDashoffset={dash}
                   transform={`rotate(-90 ${CX} ${CY})`}
+                  style={{ '--cx-circ': circ } as React.CSSProperties}
                 />
               </svg>
               <div style={{
@@ -280,16 +241,16 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
                     <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       {t.home.remaining}
                     </p>
-                    <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
+                    <p className="cx-num" style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
                       {remaining.toLocaleString()}
                     </p>
-                    <p style={{ fontSize: 10, color: 'var(--color-text-hint)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.3 }}>
+                    <p className="cx-num" style={{ fontSize: 10, fontWeight: 500, color: 'var(--color-text-hint)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.3 }}>
                       {calConsumed.toLocaleString()} / {CAL_TARGET!.toLocaleString()}<br />{t.home.kcal}
                     </p>
                   </>
                 ) : (
                   <>
-                    <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
+                    <p className="cx-num" style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
                       {calConsumed.toLocaleString()}
                     </p>
                     <p style={{ fontSize: 10, color: 'var(--color-text-hint)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.3 }}>
@@ -309,11 +270,11 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
         </div>
       </div>
 
-      <div style={{ margin: '0 16px 16px' }}>
+      <div className="cx-in" style={{ '--cx-i': 4, margin: '0 16px 16px' } as React.CSSProperties}>
         <WorkoutCard today={today} estimatedDuration={estimatedDuration} todayDone={todayWorkoutDone} />
       </div>
 
-      <div style={{ padding: '0 16px' }}>
+      <div className="cx-in" style={{ '--cx-i': 5, padding: '0 16px' } as React.CSSProperties}>
         <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
           {t.home.thisWeek}
         </p>
@@ -346,14 +307,14 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
       </div>
 
       {stats?.coachNote && (
-        <div style={{ margin: '16px 16px 0' }}>
+        <div className="cx-in" style={{ '--cx-i': 6, margin: '16px 16px 0' } as React.CSSProperties}>
           <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             {t.home.coach}
           </p>
-          <div style={{
+          <div className="cx-card" style={{
             backgroundColor: 'var(--color-surface-1)',
             border: '1px solid var(--color-border)',
-            borderRadius: 14, padding: 16,
+            borderRadius: 'var(--cx-r-md)', padding: 16,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <div style={{
@@ -386,24 +347,74 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
   )
 }
 
+/* A single banner shape shared by every "you have something to do" prompt, so
+   they stay identical instead of drifting apart. */
+function ActionBanner({ icon, title, sub, href, cta, index }: {
+  icon: React.ReactNode; title: string; sub: string; href: string; cta: string; index: number
+}) {
+  return (
+    <div className="cx-in" style={{ '--cx-i': index, margin: '0 16px 16px' } as React.CSSProperties}>
+      <div className="cx-card" style={{
+        backgroundColor: 'var(--color-surface-1)',
+        border: '1px solid var(--color-border)',
+        borderLeft: '3px solid var(--color-accent)',
+        borderRadius: 'var(--cx-r-md)',
+        padding: '14px 16px',
+        display: 'flex', alignItems: 'center', gap: 12,
+      }}>
+        <div style={{
+          width: 38, height: 38, borderRadius: 'var(--cx-r-sm)',
+          backgroundColor: 'var(--color-accent-dim)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          {icon}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="cx-display" style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
+            {title}
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: 0 }}>
+            {sub}
+          </p>
+        </div>
+        <Link href={href} className="cx-cta" style={{
+          backgroundColor: 'var(--color-accent)', color: '#fff',
+          fontSize: 14, fontWeight: 700, borderRadius: 'var(--cx-r-sm)',
+          padding: '10px 18px', textDecoration: 'none', flexShrink: 0,
+        }}>
+          {cta}
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function MacroRow({ label, value, target, color }: { label: string; value: number; target: number | null; color: string }) {
   const pct = target != null ? Math.min(value / target, 1) : 1
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, alignItems: 'baseline' }}>
-        <span style={{ fontSize: 12, color: 'var(--color-text-hint)' }}>{label}</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-          <span style={{ color: 'var(--color-text-primary)' }}>{value}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'baseline' }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-hint)' }}>{label}</span>
+        <span className="cx-num" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+          <span>{value}</span>
           {target != null && (
-            <span style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>/{target}g</span>
+            <span style={{ color: 'var(--color-text-hint)', fontWeight: 500 }}>/{target}g</span>
           )}
           {target == null && (
-            <span style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>g</span>
+            <span style={{ color: 'var(--color-text-hint)', fontWeight: 500 }}>g</span>
           )}
         </span>
       </div>
-      <div style={{ height: 4, backgroundColor: 'var(--color-surface-3)', borderRadius: 999 }}>
-        <div style={{ height: '100%', width: target != null ? `${pct * 100}%` : '100%', backgroundColor: color, borderRadius: 999, opacity: target != null ? 1 : 0.3 }} />
+      {/* Track clips the fill, so scaleX still yields rounded ends */}
+      <div style={{ height: 5, backgroundColor: 'var(--color-surface-3)', borderRadius: 999, overflow: 'hidden' }}>
+        <div
+          className="cx-bar-fill"
+          style={{
+            '--cx-p': target != null ? pct : 1,
+            height: '100%', backgroundColor: color, borderRadius: 999,
+            opacity: target != null ? 1 : 0.3,
+          } as React.CSSProperties}
+        />
       </div>
     </div>
   )
@@ -413,16 +424,16 @@ function StatCard({ label, value, valueColor, trend, trendColor }: {
   label: string; value: string; valueColor?: string; trend?: string; trendColor?: string
 }) {
   return (
-    <div style={{
+    <div className="cx-card-flat" style={{
       backgroundColor: 'var(--color-surface-1)',
       border: '1px solid var(--color-border)',
-      borderRadius: 12, padding: '14px',
+      borderRadius: 'var(--cx-r-md)', padding: '14px',
     }}>
-      <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+      <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
         {label}
       </p>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-        <span style={{ fontSize: 18, fontWeight: 700, color: valueColor ?? 'var(--color-text-primary)', lineHeight: 1 }}>
+        <span className="cx-num" style={{ fontSize: 19, fontWeight: 800, color: valueColor ?? 'var(--color-text-primary)', lineHeight: 1 }}>
           {value}
         </span>
         {trend && trendColor && (
@@ -438,24 +449,26 @@ function WorkoutCard({ today, estimatedDuration, todayDone }: { today: TodayTemp
 
   if (todayDone) {
     return (
-      <div style={{
+      <div className="cx-card" style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: 16, padding: '18px',
+        borderRadius: 'var(--cx-r-lg)', padding: '18px',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             {t.home.todaysWorkout}
           </p>
-          <div style={{
+          {/* The one celebratory beat on this screen — it earns the pop */}
+          <div className="cx-pop" style={{
             width: 28, height: 28, borderRadius: '50%',
             backgroundColor: '#22c55e',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            boxShadow: '0 4px 14px -4px rgba(34,197,94,0.7)',
           }}>
             <Check size={14} color="#fff" strokeWidth={3} />
           </div>
         </div>
-        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 6px', lineHeight: 1.2 }}>
+        <p className="cx-display cx-display-lg" style={{ fontSize: 21, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 6px', lineHeight: 1.2 }}>
           {t.home.workoutDoneTitle}
         </p>
         <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: 0, lineHeight: 1.5 }}>
@@ -467,15 +480,15 @@ function WorkoutCard({ today, estimatedDuration, todayDone }: { today: TodayTemp
 
   if (!today) {
     return (
-      <div style={{
+      <div className="cx-card" style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: 16, padding: '18px',
+        borderRadius: 'var(--cx-r-lg)', padding: '18px',
       }}>
         <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
           {t.home.todaysWorkout}
         </p>
-        <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>{t.home.restDay}</p>
+        <p className="cx-display" style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>{t.home.restDay}</p>
         <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: 0 }}>{t.home.restDaySub}</p>
       </div>
     )
@@ -485,17 +498,17 @@ function WorkoutCard({ today, estimatedDuration, todayDone }: { today: TodayTemp
   const extra   = today.exerciseCount - 3
 
   return (
-    <div style={{
+    <div className="cx-card" style={{
       backgroundColor: 'var(--color-surface-1)',
       border: '1px solid var(--color-border)',
-      borderRadius: 16, padding: '18px',
+      borderRadius: 'var(--cx-r-lg)', padding: '18px',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 5px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             {t.home.todaysWorkout}
           </p>
-          <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 3px', lineHeight: 1.15 }}>
+          <p className="cx-display cx-display-lg" style={{ fontSize: 23, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 3px', lineHeight: 1.15 }}>
             {today.templateDayLabel}
           </p>
           <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: 0 }}>
@@ -503,7 +516,7 @@ function WorkoutCard({ today, estimatedDuration, todayDone }: { today: TodayTemp
           </p>
         </div>
         <div style={{
-          width: 42, height: 42, borderRadius: 12,
+          width: 42, height: 42, borderRadius: 'var(--cx-r-sm)',
           backgroundColor: 'var(--color-surface-3)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
@@ -515,16 +528,16 @@ function WorkoutCard({ today, estimatedDuration, todayDone }: { today: TodayTemp
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
           {visible.map((name, i) => (
             <span key={i} style={{
-              fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)',
-              backgroundColor: 'var(--color-surface-3)', borderRadius: 20, padding: '5px 12px',
+              fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)',
+              backgroundColor: 'var(--color-surface-3)', borderRadius: 999, padding: '6px 12px',
             }}>
               {tx(t.exercises as Record<string, string>, name)}
             </span>
           ))}
           {extra > 0 && (
             <span style={{
-              fontSize: 12, fontWeight: 500, color: 'var(--color-accent)',
-              backgroundColor: 'var(--color-accent-dim)', borderRadius: 20, padding: '5px 12px',
+              fontSize: 12, fontWeight: 600, color: 'var(--color-accent)',
+              backgroundColor: 'var(--color-accent-dim)', borderRadius: 999, padding: '6px 12px',
             }}>
               +{extra} {t.home.moreExercises}
             </span>
@@ -534,12 +547,12 @@ function WorkoutCard({ today, estimatedDuration, todayDone }: { today: TodayTemp
 
       <Link
         href={`/client/workouts/session?templateDayId=${encodeURIComponent(today.templateDayId)}&templateName=${encodeURIComponent(today.templateName)}`}
+        className="cx-cta cx-display"
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
           backgroundColor: 'var(--color-accent)', color: '#fff',
-          borderRadius: 14, padding: '15px',
+          borderRadius: 'var(--cx-r-md)', padding: '16px',
           fontSize: 16, fontWeight: 800, textDecoration: 'none',
-          letterSpacing: '-0.01em',
         }}
       >
         {t.home.startWorkout} →

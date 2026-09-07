@@ -4,11 +4,11 @@ export default function Loading() {
       {/* Header + plan type toggle */}
       <div className="flex items-center justify-between" style={{ padding: '52px 20px 12px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ width: 100, height: 28, backgroundColor: 'var(--color-surface-2)', borderRadius: 6 }}
         />
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ width: 120, height: 30, backgroundColor: 'var(--color-surface-2)', borderRadius: 999 }}
         />
       </div>
@@ -16,7 +16,7 @@ export default function Loading() {
       {/* Week strip */}
       <div style={{ padding: '0 16px 12px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ height: 52, backgroundColor: 'var(--color-surface-2)', borderRadius: 16, border: '1px solid var(--color-border)' }}
         />
       </div>
@@ -24,7 +24,7 @@ export default function Loading() {
       {/* Calories card */}
       <div style={{ padding: '0 16px 10px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ height: 80, backgroundColor: 'var(--color-surface-2)', borderRadius: 16, border: '1px solid var(--color-border)' }}
         />
       </div>
@@ -32,7 +32,7 @@ export default function Loading() {
       {/* Macro bars */}
       <div style={{ padding: '0 16px 16px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ height: 60, backgroundColor: 'var(--color-surface-2)', borderRadius: 16, border: '1px solid var(--color-border)' }}
         />
       </div>
@@ -40,7 +40,7 @@ export default function Loading() {
       {/* Tabs */}
       <div style={{ padding: '0 16px 12px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ width: 120, height: 32, backgroundColor: 'var(--color-surface-2)', borderRadius: 999 }}
         />
       </div>
@@ -50,7 +50,7 @@ export default function Loading() {
         {[1, 2].map((i) => (
           <div
             key={i}
-            className="animate-pulse"
+            className="cx-skel"
             style={{ height: 120, backgroundColor: 'var(--color-surface-2)', borderRadius: 16, border: '1px solid var(--color-border)' }}
           />
         ))}

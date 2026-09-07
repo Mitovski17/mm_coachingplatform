@@ -33,13 +33,15 @@ function Shell({ children }: { children: React.ReactNode }) {
   ] as const
 
   return (
-    <div style={{ minHeight: '100dvh', backgroundColor: 'var(--color-base)' }}>
+    <div className="cx" style={{ minHeight: '100dvh', backgroundColor: 'var(--color-base)' }}>
       <WorkoutFloatingWidget />
+      {/* Translucent header: content scrolling beneath it stays faintly visible,
+          which is what makes the chrome feel like a layer rather than a lid. */}
       <header
-        className="fixed top-0 left-0 right-0 flex items-center justify-between"
+        className="cx-chrome fixed top-0 left-0 right-0 flex items-center justify-between"
         style={{
-          height: 52,
-          backgroundColor: 'var(--color-surface-1)',
+          height: 'calc(52px + env(safe-area-inset-top))',
+          paddingTop: 'env(safe-area-inset-top)',
           borderBottom: '1px solid var(--color-border)',
           paddingLeft: 16,
           paddingRight: 12,
@@ -47,11 +49,11 @@ function Shell({ children }: { children: React.ReactNode }) {
         }}
       >
         <span
+          className="cx-display"
           style={{
-            fontSize: 15,
-            fontWeight: 700,
+            fontSize: 17,
+            fontWeight: 800,
             color: 'var(--color-text-primary)',
-            letterSpacing: '-0.01em',
           }}
         >
           Mitovski
@@ -59,15 +61,20 @@ function Shell({ children }: { children: React.ReactNode }) {
         <ClientNotificationBell />
       </header>
 
-      <main style={{ paddingTop: '12px', paddingBottom: '76px' }}>
+      <main
+        style={{
+          paddingTop: 'calc(12px + env(safe-area-inset-top))',
+          // Clears the nav's full height including the home indicator
+          paddingBottom: 'calc(76px + env(safe-area-inset-bottom))',
+        }}
+      >
         {children}
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 flex items-stretch"
+        className="cx-chrome cx-chrome-nav fixed bottom-0 left-0 right-0 flex items-stretch"
         style={{
-          height: '68px',
-          backgroundColor: 'var(--color-surface-1)',
+          height: 'calc(68px + env(safe-area-inset-bottom))',
           borderTop: '1px solid var(--color-border)',
           paddingBottom: 'env(safe-area-inset-bottom)',
           zIndex: 50,
@@ -79,23 +86,42 @@ function Shell({ children }: { children: React.ReactNode }) {
             <Link
               key={href}
               href={href}
-              className="flex flex-col items-center justify-center flex-1 gap-1 transition-colors"
-              style={{ color: active ? 'var(--color-accent)' : 'var(--color-text-hint)', textDecoration: 'none' }}
+              aria-current={active ? 'page' : undefined}
+              data-active={active}
+              className="cx-nav-item flex flex-col items-center justify-center flex-1"
+              style={{
+                gap: 5,
+                color: active ? 'var(--color-accent)' : 'var(--color-text-hint)',
+                textDecoration: 'none',
+              }}
             >
+              {/* The pill scales in behind the icon when the tab becomes
+                  active — the only thing that moves is a transform. */}
               <div
+                className="cx-nav-pill"
                 style={{
-                  width: 38,
-                  height: 28,
+                  width: 54,
+                  height: 30,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  borderRadius: 8,
+                  borderRadius: 999,
                   backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
+                  transform: active ? 'scale(1)' : 'scale(0.72)',
                 }}
               >
-                <Icon size={20} />
+                <Icon size={20} strokeWidth={active ? 2.4 : 2} />
               </div>
-              <span style={{ fontSize: '10px', fontWeight: active ? 600 : 400, lineHeight: 1 }}>{label}</span>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: active ? 700 : 500,
+                  lineHeight: 1,
+                  letterSpacing: '-0.005em',
+                }}
+              >
+                {label}
+              </span>
             </Link>
           )
         })}

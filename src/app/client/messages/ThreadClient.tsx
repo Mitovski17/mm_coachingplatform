@@ -115,7 +115,17 @@ export default function ThreadClient({ conversationId, coachName, initialMessage
   const renderItems = buildRenderItems(messages, t.common.today, t.common.yesterday, lang === 'bg' ? 'bg-BG' : 'en-US')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 68px)', backgroundColor: 'var(--color-base)' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        // The shell's <main> already reserves 12px + inset at the top and
+        // 76px + inset at the bottom; subtract exactly that. `dvh` keeps the
+        // thread from being clipped by iOS Safari's collapsing chrome.
+        height: 'calc(100dvh - 88px - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
+        backgroundColor: 'var(--color-base)',
+      }}
+    >
 
       {/* Header */}
       <div
@@ -132,23 +142,24 @@ export default function ThreadClient({ conversationId, coachName, initialMessage
       >
         <div
           style={{
-            width: 36,
-            height: 36,
+            width: 38,
+            height: 38,
             borderRadius: '50%',
-            backgroundColor: '#f97316',
+            backgroundColor: 'var(--color-accent)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: 13,
-            fontWeight: 600,
+            fontWeight: 800,
             color: '#fff',
             flexShrink: 0,
+            boxShadow: 'var(--cx-shadow-cta)',
           }}
         >
           {coachInitials}
         </div>
         <div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
+          <p className="cx-display" style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
             {coachName}
           </p>
           <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>{t.messages.yourCoach}</p>

@@ -16,6 +16,7 @@ import {
   type LibraryExercise,
 } from '../actions'
 import { useLanguage, tx, type Translations } from '@/lib/i18n'
+import WorkoutInstructions from '../WorkoutInstructions'
 import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 import type { SetRow, ExerciseState, RestTimer } from '@/lib/workout-session-types'
 import { normalizeDecimalInput } from '@/lib/numeric-input'
@@ -54,13 +55,23 @@ type ModalState = { title: string; body: string; onConfirm: () => void }
 
 function ConfirmModal({ modal, onClose, t }: { modal: ModalState; onClose: () => void; t: Translations }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.6)' }}>
+    <div
+      className="cx-backdrop"
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+      }}
+    >
       <div style={{
-        backgroundColor: 'var(--color-surface-1)', borderRadius: 16, padding: 28,
+        backgroundColor: 'var(--color-surface-1)', borderRadius: 'var(--cx-r-xl)', padding: 28,
         maxWidth: 320, width: 'calc(100% - 40px)', margin: 'auto',
         position: 'relative', top: '50%', transform: 'translateY(-50%)',
+        boxShadow: 'var(--cx-shadow-lg)',
       }}>
-        <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 8px' }}>
+        <h2 className="cx-display" style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 8px' }}>
           {modal.title}
         </h2>
         <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: '0 0 24px', lineHeight: 1.5 }}>
@@ -70,9 +81,10 @@ function ConfirmModal({ modal, onClose, t }: { modal: ModalState; onClose: () =>
           <button
             type="button"
             onClick={onClose}
+            className="cx-press"
             style={{
               flex: 1, backgroundColor: 'var(--color-surface-3)', color: 'var(--color-text-secondary)',
-              borderRadius: 10, padding: 12, fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer',
+              borderRadius: 'var(--cx-r-sm)', padding: 13, fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer',
             }}
           >
             {t.common.cancel}
@@ -80,9 +92,10 @@ function ConfirmModal({ modal, onClose, t }: { modal: ModalState; onClose: () =>
           <button
             type="button"
             onClick={() => { modal.onConfirm(); onClose() }}
+            className="cx-press"
             style={{
               flex: 1, backgroundColor: '#ef4444', color: '#fff',
-              borderRadius: 10, padding: 12, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer',
+              borderRadius: 'var(--cx-r-sm)', padding: 13, fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer',
             }}
           >
             {t.common.confirm}
@@ -134,17 +147,24 @@ function ExercisePicker({
   return (
     <div
       onClick={onClose}
+      className="cx-backdrop"
+      role="dialog"
+      aria-modal="true"
       style={{
         position: 'fixed', inset: 0, zIndex: 60,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
         display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className="cx-sheet"
         style={{
           backgroundColor: 'var(--color-surface-1)',
-          borderRadius: '20px 20px 0 0',
+          boxShadow: 'var(--cx-shadow-lg)',
+          borderRadius: '28px 28px 0 0',
           padding: '20px 20px 40px',
           maxHeight: '80vh',
           display: 'flex',
@@ -279,17 +299,24 @@ function CustomExerciseCreator({
   return (
     <div
       onClick={onClose}
+      className="cx-backdrop"
+      role="dialog"
+      aria-modal="true"
       style={{
         position: 'fixed', inset: 0, zIndex: 60,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
         display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className="cx-sheet"
         style={{
           backgroundColor: 'var(--color-surface-1)',
-          borderRadius: '20px 20px 0 0',
+          boxShadow: 'var(--cx-shadow-lg)',
+          borderRadius: '28px 28px 0 0',
           padding: '20px 20px 40px',
         }}
       >
@@ -351,13 +378,13 @@ function CustomExerciseCreator({
           type="button"
           onClick={handleCreate}
           disabled={!name.trim() || saving}
+          className={name.trim() && !saving ? 'cx-cta cx-display' : 'cx-press'}
           style={{
-            width: '100%', padding: '14px 0',
+            width: '100%', padding: '15px 0',
             backgroundColor: name.trim() && !saving ? 'var(--color-accent)' : 'var(--color-surface-3)',
             color: name.trim() && !saving ? '#fff' : 'var(--color-text-hint)',
-            border: 'none', borderRadius: 14,
-            fontSize: 15, fontWeight: 700, cursor: name.trim() && !saving ? 'pointer' : 'default',
-            transition: 'background-color 0.15s',
+            border: 'none', borderRadius: 'var(--cx-r-md)',
+            fontSize: 15.5, fontWeight: 800, cursor: name.trim() && !saving ? 'pointer' : 'default',
           }}
         >
           {saving ? t.common.saving : t.workouts.createExercise}
@@ -484,6 +511,8 @@ function SessionInner() {
           templateDayId,
           isCustom: false,
           templateName: template.name,
+          dayLabel: template.dayLabel,
+          templateNotes: template.templateNotes,
           clientInfo: client,
           exercises: buildStates(template.exercises, last),
           sessionNotes: '',
@@ -647,6 +676,10 @@ function SessionInner() {
   if (loadError) return <div style={{ padding: 24, color: '#ef4444', fontSize: 14, textAlign: 'center' }}>{loadError}</div>
 
   const templateName = session?.templateName ?? templateNameParam
+  // The client already knows which program they're on — show only the day.
+  // Falls back to the full "<template> — <day>" name for custom workouts and
+  // for sessions stored before dayLabel existed.
+  const headerName = session?.dayLabel?.trim() || templateName
   const progPct = exercises.length > 0 ? (completedExercises / exercises.length) * 100 : 0
 
   return (
@@ -681,10 +714,11 @@ function SessionInner() {
             type="button"
             onClick={handleFinishClick}
             disabled={saving}
+            className={saving ? 'cx-press' : 'cx-cta cx-display'}
             style={{
               backgroundColor: saving ? 'var(--color-surface-3)' : 'var(--color-accent)',
               color: saving ? 'var(--color-text-muted)' : '#fff',
-              borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+              borderRadius: 999, padding: '11px 18px', fontSize: 13.5, fontWeight: 800,
               border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
             }}
           >
@@ -702,18 +736,19 @@ function SessionInner() {
             onBlur={() => setTitleEditing(false)}
             onKeyDown={(e) => { if (e.key === 'Enter') setTitleEditing(false) }}
             style={{
-              fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)',
+              fontSize: 29, fontWeight: 800, color: 'var(--color-text-primary)',
               background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
-              borderRadius: 10, padding: '4px 10px', margin: '0 0 6px',
-              lineHeight: 1.1, width: '100%', outline: 'none', fontFamily: 'inherit',
+              borderRadius: 'var(--cx-r-sm)', padding: '4px 10px', margin: '0 0 6px',
+              lineHeight: 1.1, width: '100%', outline: 'none',
+              fontFamily: 'var(--font-display)', letterSpacing: '-0.032em',
               boxSizing: 'border-box',
             }}
             autoFocus
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.1, flex: 1 }}>
-              {templateName}
+            <h1 className="cx-display cx-display-lg" style={{ fontSize: 29, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.1, flex: 1 }}>
+              {headerName}
             </h1>
             {isCustom && (
               <button
@@ -732,14 +767,20 @@ function SessionInner() {
         )}
 
         {/* Elapsed + exercise count */}
-        <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: '0 0 10px', fontVariantNumeric: 'tabular-nums' }}>
+        <p className="cx-num" style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 10px' }}>
           {fmt(elapsed)} · {completedExercises} / {exercises.length} {t.workouts.exercises}
         </p>
 
         {/* Progress bar */}
-        <div style={{ height: 3, backgroundColor: 'var(--color-surface-3)', borderRadius: 999 }}>
-          <div style={{ height: '100%', width: `${progPct}%`, backgroundColor: 'var(--color-accent)', borderRadius: 999, transition: 'width 0.4s ease' }} />
+        <div style={{ height: 4, backgroundColor: 'var(--color-surface-3)', borderRadius: 999, overflow: 'hidden' }}>
+          <div
+            className="cx-bar-fill"
+            style={{ '--cx-p': progPct / 100, height: '100%', backgroundColor: 'var(--color-accent)' } as React.CSSProperties}
+          />
         </div>
+
+        {/* Coach's overall notes for this template */}
+        <WorkoutInstructions notes={session?.templateNotes} style={{ marginTop: 14 }} />
       </div>
 
       {/* ── Exercise cards ── */}
@@ -887,10 +928,10 @@ function ExerciseCard({
   const isResting   = restTimer.active && restTimer.exerciseId === exercise.exerciseId
 
   return (
-    <div style={{
+    <div className="cx-card" style={{
       backgroundColor: 'var(--color-surface-1)',
       border: '1px solid var(--color-border)',
-      borderRadius: 20, marginBottom: 12, overflow: 'hidden',
+      borderRadius: 'var(--cx-r-lg)', marginBottom: 12, overflow: 'hidden',
     }}>
       <div style={{ padding: '16px 16px 4px' }}>
         {/* Title row */}
@@ -987,7 +1028,7 @@ function ExerciseCard({
           <RestRing pct={restTimer.secondsLeft / (restTimer.totalSeconds || 1)} />
           <div>
             <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t.workouts.rest}</p>
-            <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+            <p className="cx-num" style={{ fontSize: 23, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
               {fmt(restTimer.secondsLeft)}
             </p>
           </div>

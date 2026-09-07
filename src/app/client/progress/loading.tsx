@@ -4,7 +4,7 @@ export default function Loading() {
       {/* Header */}
       <div style={{ padding: '52px 20px 16px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ width: 140, height: 28, backgroundColor: '#1A1A1A', borderRadius: 8 }}
         />
       </div>
@@ -12,7 +12,7 @@ export default function Loading() {
       {/* Chart area */}
       <div style={{ padding: '0 16px 16px' }}>
         <div
-          className="animate-pulse rounded-xl"
+          className="cx-skel rounded-xl"
           style={{ height: 220, backgroundColor: '#1A1A1A', border: '1px solid var(--color-border)' }}
         />
       </div>
@@ -20,14 +20,14 @@ export default function Loading() {
       {/* Stats grid */}
       <div style={{ padding: '0 16px 16px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ width: 100, height: 12, backgroundColor: '#1A1A1A', borderRadius: 4, marginBottom: 12 }}
         />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="animate-pulse rounded-xl"
+              className="cx-skel rounded-xl"
               style={{ height: 80, backgroundColor: '#1A1A1A', border: '1px solid var(--color-border)' }}
             />
           ))}
@@ -39,7 +39,7 @@ export default function Loading() {
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="animate-pulse rounded-xl"
+            className="cx-skel rounded-xl"
             style={{ height: 64, backgroundColor: '#1A1A1A', border: '1px solid var(--color-border)' }}
           />
         ))}

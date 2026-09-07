@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
-import { ChevronRight, Dumbbell } from 'lucide-react'
+import { ChevronRight, Dumbbell, X } from 'lucide-react'
 import type { TodayTemplate, HistorySession, ProgramWorkoutDay } from './actions'
 import { getProgramWorkoutDays } from './actions'
 import { useLanguage, tx, type Translations } from '@/lib/i18n'
+import WorkoutInstructions from './WorkoutInstructions'
 import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 
 const MUSCLE_COLORS: Record<string, string> = {
@@ -75,68 +76,57 @@ export default function WorkoutsClient({
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
       <div
-        className="flex items-center justify-between"
-        style={{ padding: '52px 20px 20px' }}
+        className="cx-in flex items-center justify-between"
+        style={{ padding: '52px 20px 18px' }}
       >
-        <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+        <h1 className="cx-display cx-display-lg" style={{ fontSize: '28px', fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
           {t.workouts.title}
         </h1>
       </div>
 
-      {/* Tab bar */}
-      <div
-        style={{
-          display: 'flex',
-          borderBottom: '1px solid var(--color-border)',
-          margin: '0 16px',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveTab('today')}
-          style={{
-            flex: 1,
-            padding: '10px 0',
-            background: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'today' ? '2px solid #ffffff' : '2px solid transparent',
-            color: activeTab === 'today' ? '#ffffff' : 'var(--color-text-muted)',
-            fontSize: '14px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            marginBottom: -1,
-          }}
+      {/* Segmented control — the thumb slides between options rather than an
+          underline snapping across, which reads as one control, not two. */}
+      <div className="cx-in" style={{ '--cx-i': 1, margin: '0 16px' } as React.CSSProperties}>
+        <div
+          className="cx-seg"
+          role="tablist"
+          aria-label={t.workouts.title}
+          style={{ '--cx-seg-n': 2, '--cx-seg-i': activeTab === 'today' ? 0 : 1 } as React.CSSProperties}
         >
-          {t.workouts.today}
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('history')}
-          style={{
-            flex: 1,
-            padding: '10px 0',
-            background: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'history' ? '2px solid #ffffff' : '2px solid transparent',
-            color: activeTab === 'history' ? '#ffffff' : 'var(--color-text-muted)',
-            fontSize: '14px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            marginBottom: -1,
-          }}
-        >
-          {t.workouts.history}
-        </button>
+          <div className="cx-seg-thumb" aria-hidden="true" />
+          {(['today', 'history'] as const).map((key) => {
+            const active = activeTab === key
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveTab(key)}
+                className="cx-seg-btn"
+                style={{
+                  // 44px min touch target
+                  padding: '11px 0',
+                  fontSize: 14,
+                  fontWeight: active ? 700 : 600,
+                  color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                }}
+              >
+                {key === 'today' ? t.workouts.today : t.workouts.history}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {activeTab === 'today' && (
-        <div style={{ padding: '16px 16px 16px' }}>
+        <div key="today" className="cx-in" style={{ '--cx-i': 2, padding: '16px 16px 16px' } as React.CSSProperties}>
           <TodayWorkoutCard today={todayTemplate} hasPlan={hasPlan} onSwitch={openPicker} t={t} />
         </div>
       )}
 
       {activeTab === 'history' && (
-        <div style={{ padding: '16px 16px 8px' }}>
+        <div key="history" className="cx-in" style={{ '--cx-i': 2, padding: '16px 16px 8px' } as React.CSSProperties}>
           <HistoryList sessions={history} t={t} />
         </div>
       )}
@@ -145,21 +135,29 @@ export default function WorkoutsClient({
       {pickerOpen && (
         <div
           onClick={() => setPickerOpen(false)}
+          className="cx-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t.workouts.chooseWorkout}
           style={{
             position: 'fixed', inset: 0, zIndex: 200,
-            backgroundColor: 'rgba(0,0,0,0.65)',
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
             display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
+            className="cx-sheet"
             style={{
               backgroundColor: 'var(--color-surface-1)',
-              borderRadius: '24px 24px 0 0',
+              borderRadius: '28px 28px 0 0',
               minHeight: '70vh',
               maxHeight: '88vh',
               display: 'flex',
               flexDirection: 'column',
+              boxShadow: 'var(--cx-shadow-lg)',
             }}
           >
             {/* Drag handle */}
@@ -175,7 +173,7 @@ export default function WorkoutsClient({
               flexShrink: 0,
             }}>
               <div>
-                <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+                <p className="cx-display" style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
                   {t.workouts.chooseWorkout}
                 </p>
                 <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>
@@ -185,16 +183,18 @@ export default function WorkoutsClient({
               <button
                 type="button"
                 onClick={() => setPickerOpen(false)}
+                aria-label={t.common.close}
+                className="cx-press"
                 style={{
-                  width: 32, height: 32, borderRadius: '50%',
+                  width: 34, height: 34, borderRadius: '50%',
                   backgroundColor: 'var(--color-surface-3)',
                   border: 'none', color: 'var(--color-text-hint)',
-                  cursor: 'pointer', fontSize: 20, fontWeight: 700,
+                  cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}
               >
-                ×
+                <X size={17} />
               </button>
             </div>
 
@@ -226,16 +226,16 @@ export default function WorkoutsClient({
                       onClick={() => setPickerOpen(false)}
                       style={{ display: 'block', textDecoration: 'none' }}
                     >
-                      <div style={{
+                      <div className="cx-press cx-tint" style={{
                         padding: '14px 16px',
                         backgroundColor: 'var(--color-surface-2)',
                         border: '1px solid var(--color-border)',
-                        borderRadius: 16,
+                        borderRadius: 'var(--cx-r-md)',
                         display: 'flex', alignItems: 'center', gap: 14,
                       }}>
                         {/* Icon circle */}
                         <div style={{
-                          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                          width: 44, height: 44, borderRadius: 'var(--cx-r-sm)', flexShrink: 0,
                           backgroundColor: 'var(--color-surface-3)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
@@ -290,12 +290,13 @@ export default function WorkoutsClient({
                   // can silently drop when the sheet unmounts in the same tick.
                   window.location.href = '/client/workouts/session?custom=true'
                 }}
+                className="cx-press cx-tint"
                 style={{
                   width: '100%',
                   padding: '14px 16px',
                   backgroundColor: 'var(--color-surface-2)',
-                  border: '1px dashed var(--color-border)',
-                  borderRadius: 16,
+                  border: '1px dashed var(--color-border-strong)',
+                  borderRadius: 'var(--cx-r-md)',
                   color: 'var(--color-text-muted)',
                   fontSize: 15,
                   fontWeight: 600,
@@ -304,7 +305,7 @@ export default function WorkoutsClient({
                 }}
               >
                 <div style={{
-                  width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                  width: 44, height: 44, borderRadius: 'var(--cx-r-sm)', flexShrink: 0,
                   backgroundColor: 'var(--color-surface-3)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
@@ -330,10 +331,11 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
   if (!today && !hasPlan) {
     return (
       <div
+        className="cx-card"
         style={{
           backgroundColor: 'var(--color-surface-1)',
           border: '1px solid var(--color-border)',
-          borderRadius: '20px',
+          borderRadius: 'var(--cx-r-lg)',
           padding: '20px',
         }}
       >
@@ -358,16 +360,17 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
         <button
           type="button"
           onClick={onSwitch}
+          className="cx-cta cx-display"
           style={{
-            marginTop: 14,
+            marginTop: 16,
             width: '100%',
-            padding: '13px',
-            backgroundColor: '#ffffff',
+            padding: '15px',
+            backgroundColor: 'var(--color-accent)',
             border: 'none',
-            borderRadius: 12,
-            color: '#000000',
-            fontSize: 15,
-            fontWeight: 700,
+            borderRadius: 'var(--cx-r-md)',
+            color: '#ffffff',
+            fontSize: 16,
+            fontWeight: 800,
             cursor: 'pointer',
           }}
         >
@@ -380,10 +383,11 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
   if (!today) {
     return (
       <div
+        className="cx-card"
         style={{
           backgroundColor: 'var(--color-surface-1)',
           border: '1px solid var(--color-border)',
-          borderRadius: '20px',
+          borderRadius: 'var(--cx-r-lg)',
           padding: '20px',
         }}
       >
@@ -408,16 +412,17 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
         <button
           type="button"
           onClick={onSwitch}
+          className="cx-press cx-tint"
           style={{
-            marginTop: 12,
+            marginTop: 14,
             width: '100%',
-            padding: '11px',
+            padding: '13px',
             backgroundColor: 'transparent',
-            border: '1px solid var(--color-border)',
-            borderRadius: 12,
-            color: 'var(--color-text-muted)',
-            fontSize: 14,
-            fontWeight: 600,
+            border: '1px solid var(--color-border-strong)',
+            borderRadius: 'var(--cx-r-md)',
+            color: 'var(--color-text-secondary)',
+            fontSize: 14.5,
+            fontWeight: 700,
             cursor: 'pointer',
           }}
         >
@@ -429,17 +434,18 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
 
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: '20px',
+        borderRadius: 'var(--cx-r-lg)',
         padding: '20px',
       }}
     >
       <p
         style={{
           fontSize: '11px',
-          fontWeight: 600,
+          fontWeight: 700,
           color: 'var(--color-text-muted)',
           margin: '0 0 6px',
           textTransform: 'uppercase',
@@ -449,9 +455,10 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
         {t.workouts.todaysWorkout}
       </p>
       <p
+        className="cx-display cx-display-lg"
         style={{
-          fontSize: '24px',
-          fontWeight: 700,
+          fontSize: '25px',
+          fontWeight: 800,
           color: 'var(--color-text-primary)',
           margin: '0 0 4px',
           lineHeight: 1.2,
@@ -462,6 +469,8 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
       <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '0 0 14px' }}>
         {today.exerciseCount} {today.exerciseCount === 1 ? t.workouts.exercise : t.workouts.exercises}
       </p>
+      {/* Coach's overall notes for this template */}
+      <WorkoutInstructions notes={today.templateNotes} style={{ marginBottom: 14 }} />
       {today.muscleGroups.length > 0 && (
         <div className="flex flex-wrap gap-1.5" style={{ marginBottom: '16px' }}>
           {today.muscleGroups.map((g) => (
@@ -481,17 +490,19 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
           ))}
         </div>
       )}
+      {/* Same action as the home card, so it wears the same accent CTA */}
       <Link
         href={`/client/workouts/session?templateDayId=${encodeURIComponent(today.templateDayId)}&templateName=${encodeURIComponent(today.templateName)}`}
+        className="cx-cta cx-display"
         style={{
           display: 'block',
           textAlign: 'center',
-          backgroundColor: '#ffffff',
-          color: '#000000',
-          borderRadius: '12px',
-          padding: '13px',
-          fontSize: '15px',
-          fontWeight: 700,
+          backgroundColor: 'var(--color-accent)',
+          color: '#ffffff',
+          borderRadius: 'var(--cx-r-md)',
+          padding: '15px',
+          fontSize: '16px',
+          fontWeight: 800,
           textDecoration: 'none',
         }}
       >
@@ -500,15 +511,17 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
       <button
         type="button"
         onClick={onSwitch}
+        className="cx-press"
         style={{
-          marginTop: 10,
+          marginTop: 8,
           width: '100%',
-          padding: '9px',
+          padding: '12px',
           backgroundColor: 'transparent',
           border: 'none',
+          borderRadius: 'var(--cx-r-sm)',
           color: 'var(--color-text-hint)',
           fontSize: 13,
-          fontWeight: 500,
+          fontWeight: 600,
           cursor: 'pointer',
           textAlign: 'center',
         }}
@@ -526,8 +539,8 @@ function HistoryList({ sessions, t }: { sessions: HistorySession[]; t: Translati
         className="flex flex-col items-center justify-center"
         style={{
           backgroundColor: 'var(--color-surface-1)',
-          border: '1px dashed var(--color-border)',
-          borderRadius: '14px',
+          border: '1px dashed var(--color-border-strong)',
+          borderRadius: 'var(--cx-r-lg)',
           padding: '40px 24px',
           textAlign: 'center',
         }}
@@ -555,10 +568,11 @@ function HistoryList({ sessions, t }: { sessions: HistorySession[]; t: Translati
 
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: '14px',
+        borderRadius: 'var(--cx-r-md)',
         overflow: 'hidden',
       }}
     >
@@ -574,18 +588,19 @@ function HistoryList({ sessions, t }: { sessions: HistorySession[]; t: Translati
           <Link
             key={s.id}
             href={`/client/workouts/history/${s.id}`}
-            className="flex items-center gap-3"
+            className="cx-press-sm cx-tint flex items-center gap-3"
             style={{
-              padding: '14px 16px',
+              padding: '15px 16px',
               borderBottom: i < sessions.length - 1 ? '1px solid var(--color-border)' : 'none',
               textDecoration: 'none',
             }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
               <p
+                className="cx-display"
                 style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
+                  fontSize: '14.5px',
+                  fontWeight: 700,
                   color: 'var(--color-text-primary)',
                   margin: '0 0 2px',
                 }}

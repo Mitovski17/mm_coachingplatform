@@ -29,7 +29,12 @@ export type RestTimer = {
 export type ActiveWorkoutSession = {
   templateDayId: string   // '' for custom workouts
   isCustom: boolean
-  templateName: string
+  templateName: string    // saved as the session name — "<template> — <day>"
+  /** The day on its own, shown in the header. Optional: sessions stored before
+   *  this existed restore without it and fall back to templateName. */
+  dayLabel?: string
+  /** Coach's overall template notes, shown behind the "workout instructions" button. */
+  templateNotes?: string | null
   clientInfo: { id: string; workspace_id: string }
   exercises: ExerciseState[]
   sessionNotes: string

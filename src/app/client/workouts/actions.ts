@@ -15,6 +15,8 @@ export type TodayTemplate = {
   templateDayId: string
   templateDayLabel: string
   templateName: string
+  /** Coach's overall notes on the parent template — shown as "workout instructions". */
+  templateNotes: string | null
   exerciseCount: number
   muscleGroups: string[]
   exerciseNames: string[]
@@ -33,7 +35,12 @@ export type TemplateExercise = {
 
 export type TemplateWithExercises = {
   id: string
+  /** "<template> — <day>". Persisted as the session name, so history keeps matching. */
   name: string
+  /** Just the day, e.g. "Day 1 — Full Body (Chest Focus)" — what the client sees. */
+  dayLabel: string
+  /** Coach's overall notes on the parent template — shown as "workout instructions". */
+  templateNotes: string | null
   exercises: TemplateExercise[]
 }
 
@@ -128,11 +135,11 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
     if (!override.template_day_id) return null // explicit rest day override
     const { data: day } = await admin
       .from('workout_template_days')
-      .select(`id, label, workout_templates(name), workout_template_exercises(exercises(name, muscle_group))`)
+      .select(`id, label, workout_templates(name, notes), workout_template_exercises(exercises(name, muscle_group))`)
       .eq('id', override.template_day_id)
       .maybeSingle()
     if (!day) return null
-    const tpl = day.workout_templates as unknown as { name: string } | null
+    const tpl = day.workout_templates as unknown as { name: string; notes: string | null } | null
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const exRows = (day.workout_template_exercises as unknown as { exercises: any }[]) ?? []
     const muscleSet = new Set<string>()
@@ -146,6 +153,7 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
       templateDayId: day.id,
       templateDayLabel: day.label,
       templateName: tpl?.name ?? day.label,
+      templateNotes: tpl?.notes ?? null,
       exerciseCount: exRows.length,
       muscleGroups: Array.from(muscleSet),
       exerciseNames: names,
@@ -205,7 +213,7 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
     .from('workout_template_days')
     .select(`
       id, label,
-      workout_templates(name),
+      workout_templates(name, notes),
       workout_template_exercises(exercises(name, muscle_group))
     `)
     .eq('id', templateDayId)
@@ -213,7 +221,7 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
 
   if (!day) return null
 
-  const tpl = day.workout_templates as unknown as { name: string } | null
+  const tpl = day.workout_templates as unknown as { name: string; notes: string | null } | null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const exRows = (day.workout_template_exercises as unknown as { exercises: any }[]) ?? []
   const muscleSet = new Set<string>()
@@ -228,6 +236,7 @@ export async function getTodayTemplate(clientId: string): Promise<TodayTemplate 
     templateDayId: day.id,
     templateDayLabel: day.label,
     templateName: tpl?.name ?? day.label,
+    templateNotes: tpl?.notes ?? null,
     exerciseCount: exRows.length,
     muscleGroups: Array.from(muscleSet),
     exerciseNames: names,
@@ -241,14 +250,14 @@ export async function getTemplateDayWithExercises(templateDayId: string): Promis
     .from('workout_template_days')
     .select(`
       id, label,
-      workout_templates(name),
+      workout_templates(name, notes),
       workout_template_exercises(id, exercise_id, sort_order, target_sets, target_reps, rest_seconds, notes, exercises(name, muscle_group))
     `)
     .eq('id', templateDayId)
     .single()
   if (error || !day) throw new Error(error?.message ?? 'Template day not found')
 
-  const tpl = day.workout_templates as unknown as { name: string } | null
+  const tpl = day.workout_templates as unknown as { name: string; notes: string | null } | null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = ((day.workout_template_exercises as unknown as any[]) ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order)
@@ -268,7 +277,13 @@ export async function getTemplateDayWithExercises(templateDayId: string): Promis
     }
   })
 
-  return { id: day.id, name: tpl?.name ? `${tpl.name} — ${day.label}` : day.label, exercises }
+  return {
+    id: day.id,
+    name: tpl?.name ? `${tpl.name} — ${day.label}` : day.label,
+    dayLabel: day.label,
+    templateNotes: tpl?.notes ?? null,
+    exercises,
+  }
 }
 
 export async function getLastSessionForTemplateDay(

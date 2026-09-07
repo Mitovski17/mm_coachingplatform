@@ -24,7 +24,11 @@ export default async function CheckInPage() {
   const lang = await resolveLang()
   return (
     <LanguageProvider initialLang={lang}>
-      <CheckInForm />
+      {/* Reached from the client home, so it opts into the same client-view
+          layer: design tokens, focus rings and reduced-motion handling. */}
+      <div className="cx">
+        <CheckInForm />
+      </div>
     </LanguageProvider>
   )
 }

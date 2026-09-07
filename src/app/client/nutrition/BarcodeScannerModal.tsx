@@ -35,6 +35,7 @@ export default function BarcodeScannerModal({
   const [result, setResult] = useState<FoodSearchResult | null>(null)
   const [quantity, setQuantity] = useState('100')
   const [logging, setLogging] = useState(false)
+  const [logError, setLogError] = useState<string | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
   const [torchAvailable, setTorchAvailable] = useState(false)
   const [torchOn, setTorchOn] = useState(false)
@@ -190,10 +191,11 @@ export default function BarcodeScannerModal({
   }
 
   const handleConfirm = async () => {
-    if (!result) return
+    if (!result || logging) return
     const q = parseFloat(quantity) || 0
     if (q <= 0) return
     setLogging(true)
+    setLogError(null)
     try {
       const ratio = q / 100
       await logCustomFood({
@@ -211,6 +213,9 @@ export default function BarcodeScannerModal({
       })
       onLogged()
       onClose()
+    } catch {
+      // Stay open with the scanned product intact so it can be retried.
+      setLogError(t.nutrition.saveFailed)
     } finally {
       setLogging(false)
     }
@@ -468,6 +473,24 @@ export default function BarcodeScannerModal({
               />
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>g</span>
             </div>
+
+            {logError && (
+              <p
+                role="status"
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: '#f87171',
+                  backgroundColor: 'rgba(239,68,68,0.12)',
+                  border: '1px solid rgba(239,68,68,0.35)',
+                  borderRadius: 12,
+                  padding: '9px 12px',
+                  margin: '0 0 12px',
+                }}
+              >
+                {logError}
+              </p>
+            )}
 
             <button
               type="button"

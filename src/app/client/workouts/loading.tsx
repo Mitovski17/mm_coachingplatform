@@ -4,7 +4,7 @@ export default function Loading() {
       {/* Top card */}
       <div style={{ padding: '52px 20px 16px' }}>
         <div
-          className="animate-pulse rounded-xl"
+          className="cx-skel rounded-xl"
           style={{ height: 100, backgroundColor: '#1A1A1A', border: '1px solid var(--color-border)' }}
         />
       </div>
@@ -12,7 +12,7 @@ export default function Loading() {
       {/* Section label */}
       <div style={{ padding: '0 20px 10px' }}>
         <div
-          className="animate-pulse"
+          className="cx-skel"
           style={{ width: 120, height: 12, backgroundColor: '#1A1A1A', borderRadius: 4 }}
         />
       </div>
@@ -22,7 +22,7 @@ export default function Loading() {
         {[1, 2, 3, 4, 5].map((i) => (
           <div
             key={i}
-            className="animate-pulse rounded-xl"
+            className="cx-skel rounded-xl"
             style={{ height: 72, backgroundColor: '#1A1A1A', border: '1px solid var(--color-border)' }}
           />
         ))}

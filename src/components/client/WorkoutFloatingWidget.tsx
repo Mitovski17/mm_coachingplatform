@@ -30,24 +30,24 @@ export default function WorkoutFloatingWidget() {
     <button
       type="button"
       onClick={() => router.push(sessionUrl)}
+      className="cx-fab"
       style={{
         position: 'fixed',
         bottom: 'calc(68px + env(safe-area-inset-bottom) + 10px)',
         left: '50%',
-        transform: 'translateX(-50%)',
         zIndex: 55,
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        padding: '10px 18px',
+        padding: '11px 18px',
         backgroundColor: 'var(--color-accent)',
         color: '#fff',
         borderRadius: 999,
         border: 'none',
         cursor: 'pointer',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+        boxShadow: '0 8px 28px -6px rgba(255,92,0,0.55), 0 2px 8px rgba(0,0,0,0.3)',
         fontSize: 13,
-        fontWeight: 600,
+        fontWeight: 700,
         fontFamily: 'inherit',
         whiteSpace: 'nowrap',
         maxWidth: 'calc(100vw - 32px)',
@@ -57,13 +57,14 @@ export default function WorkoutFloatingWidget() {
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
         {session.templateName}
       </span>
-      <span style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.85 }}>
+      {/* Tabular figures keep the pill from resizing every second */}
+      <span className="cx-num" style={{ fontWeight: 700, opacity: 0.9 }}>
         {fmt(elapsed)}
       </span>
       {rest.active && (
         <>
           <span style={{ opacity: 0.5, marginLeft: 2 }}>·</span>
-          <span style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.85 }}>
+          <span className="cx-num" style={{ fontWeight: 700, opacity: 0.9 }}>
             REST {fmt(rest.secondsLeft)}
           </span>
         </>

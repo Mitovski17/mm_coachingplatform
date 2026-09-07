@@ -1,22 +1,25 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, Manrope } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "./ThemeProvider";
 import { ServiceWorkerRegistrar } from "./ServiceWorkerRegistrar";
 
+// Variable axes (no `weight` array) — one file per subset covers 100-900, so
+// 700/800 headings render as real cut weights instead of browser-synthesised
+// fake bold. Cyrillic is listed because the UI ships bg translations.
 const inter = Inter({
   variable: "--font-inter",
-  subsets: ["latin"],
+  subsets: ["latin", "cyrillic"],
   display: "swap",
-  weight: ["400", "500", "600"],
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
+// Display face for headings and figures in the client view — geometric with a
+// tall x-height, which is what gives Klarna-style headers their weight.
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin", "cyrillic"],
   display: "swap",
-  weight: ["400", "500"],
 });
 
 const themeInitScript = "try{var t=localStorage.getItem('theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}";
@@ -52,7 +55,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${manrope.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />

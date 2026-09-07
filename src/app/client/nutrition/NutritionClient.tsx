@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Search, Loader2, Check, X, Plus, Pencil, Scan, Camera } from 'lucide-react'
+import { Search, Loader2, Check, X, Plus, Pencil, Scan, Camera, RefreshCcw, Undo2, AlertCircle } from 'lucide-react'
 import {
   getDayLogs,
+  getMealPlansForDate,
   logMealOption,
   removeOptionLog,
   logCustomFood,
@@ -15,11 +16,12 @@ import {
   type DayLog,
   type Meal,
   type Option,
+  type FoodItem,
 } from './actions'
 import type { FoodSearchResult } from '@/lib/food-search'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import FoodScannerModal from './FoodScannerModal'
-import { useLanguage, tx } from '@/lib/i18n'
+import { useLanguage, tx, type Translations } from '@/lib/i18n'
 import { normalizeDecimalInput } from '@/lib/numeric-input'
 
 const COLOR_PROTEIN = '#3b82f6'
@@ -46,6 +48,123 @@ function round1(n: number) {
   return Math.round(n * 10) / 10
 }
 
+/** Scale factor for a plan food shown at `qty` instead of its prescribed amount. */
+function portionRatio(baseQuantity: number, qty: number) {
+  return baseQuantity > 0 ? qty / baseQuantity : 1
+}
+
+function omitKey<T>(obj: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in obj)) return obj
+  const next = { ...obj }
+  delete next[key]
+  return next
+}
+
+// ── Per-day client-side meal state ────────────────────────────────────────────
+// The choices a client makes on top of their plan — which pre-filled foods they
+// removed, which portions they resized, and which meals they marked as eaten
+// when nothing from the plan is left — are theirs alone and never written to the
+// coach's template, so they live in localStorage keyed by client + date.
+
+type DayUiState = {
+  /**
+   * Template food ids the client removed from their plan for this day, mapped to
+   * a 1-based removal sequence. The order is what lets undo put back the last
+   * food removed rather than an arbitrary one.
+   */
+  removed: Record<string, number>
+  /** Meal names the client marked as eaten while no plan food remained in them. */
+  confirmed: Record<string, boolean>
+  /** Template food id → the quantity the client resized it to. */
+  portions: Record<string, number>
+}
+
+const EMPTY_DAY_UI: DayUiState = { removed: {}, confirmed: {}, portions: {} }
+
+/** Next removal sequence, so the newest removal always sorts highest. */
+function nextRemovalSeq(removed: Record<string, number>): number {
+  let max = 0
+  for (const seq of Object.values(removed)) if (seq > max) max = seq
+  return max + 1
+}
+
+/** The most recently removed of `ids`, or null if none of them are removed. */
+function lastRemovedOf(removed: Record<string, number>, ids: string[]): string | null {
+  let best: string | null = null
+  let bestSeq = -Infinity
+  for (const id of ids) {
+    const seq = removed[id]
+    if (seq != null && seq > bestSeq) {
+      bestSeq = seq
+      best = id
+    }
+  }
+  return best
+}
+
+/**
+ * Earlier builds stored `true` per removed id (and, before that, a plain array of
+ * ids). Neither carried an explicit order, so fall back to key order — which is
+ * insertion order for these uuid keys — and number them from there.
+ */
+function normalizeRemoved(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, number> = {}
+  let fallback = 0
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    fallback++
+    out[id] = typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback
+  }
+  return out
+}
+
+function dayUiKey(clientId: string, date: string) {
+  return `nutriDay_${clientId}_${date}`
+}
+
+function loadDayUiState(clientId: string, date: string): DayUiState {
+  if (typeof window === 'undefined') return EMPTY_DAY_UI
+  try {
+    const raw = window.localStorage.getItem(dayUiKey(clientId, date))
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<DayUiState>
+      return {
+        removed: normalizeRemoved(parsed.removed),
+        confirmed: parsed.confirmed ?? {},
+        portions: parsed.portions ?? {},
+      }
+    }
+    // Older builds stored removals alone under `excl_<client>_<date>`; keep them.
+    const legacy = window.localStorage.getItem(`excl_${clientId}_${date}`)
+    if (legacy) {
+      const ids = JSON.parse(legacy) as string[]
+      return {
+        removed: Object.fromEntries(ids.map((id, i) => [id, i + 1])),
+        confirmed: {},
+        portions: {},
+      }
+    }
+  } catch {
+    // Unreadable or blocked storage — start this day from a clean slate.
+  }
+  return EMPTY_DAY_UI
+}
+
+function saveDayUiState(clientId: string, date: string, state: DayUiState) {
+  if (typeof window === 'undefined') return
+  try {
+    const isEmpty =
+      Object.keys(state.removed).length === 0 &&
+      Object.keys(state.confirmed).length === 0 &&
+      Object.keys(state.portions).length === 0
+    if (isEmpty) window.localStorage.removeItem(dayUiKey(clientId, date))
+    else window.localStorage.setItem(dayUiKey(clientId, date), JSON.stringify(state))
+    window.localStorage.removeItem(`excl_${clientId}_${date}`)
+  } catch {
+    // Storage full or blocked — the in-memory state still carries this session.
+  }
+}
+
 // ── Nutritional insight badges ────────────────────────────────────────────────
 
 type InsightTier = 'green' | 'orange' | 'red'
@@ -58,7 +177,8 @@ type NutritionInsight = {
 function getNutritionInsights(
   food: FoodSearchResult,
   quantity: number,
-  dailyGoal: { calories: number; fatG: number; proteinG: number } | null
+  dailyGoal: { calories: number; fatG: number; proteinG: number } | null,
+  copy: Translations['nutrition']['insights']
 ): NutritionInsight[] {
   if (quantity <= 0) return []
   const cal  = (food.caloriesPer100g * quantity) / 100
@@ -69,35 +189,35 @@ function getNutritionInsights(
 
   // Green — protein
   if (prot >= 15) {
-    insights.push({ tier: 'green', label: `High in protein (${Math.round(prot)}g)` })
+    insights.push({ tier: 'green', label: copy.highProtein(Math.round(prot)) })
   } else if (prot >= 8) {
-    insights.push({ tier: 'green', label: `Good protein source (${Math.round(prot)}g)` })
+    insights.push({ tier: 'green', label: copy.goodProtein(Math.round(prot)) })
   }
 
   // Calories vs goal
   if (dailyGoal && dailyGoal.calories > 0) {
     const pct = cal / dailyGoal.calories
     if (pct >= 0.5) {
-      insights.push({ tier: 'red', label: `Very high calorie — ${Math.round(pct * 100)}% of daily goal` })
+      insights.push({ tier: 'red', label: copy.veryHighCaloriePct(Math.round(pct * 100)) })
     } else if (pct >= 0.25) {
-      insights.push({ tier: 'orange', label: `Covers ${Math.round(pct * 100)}% of your daily calories` })
+      insights.push({ tier: 'orange', label: copy.highCaloriePct(Math.round(pct * 100)) })
     }
   } else {
-    if (cal >= 600)      insights.push({ tier: 'red',    label: `Very high calorie (${Math.round(cal)} kcal)` })
-    else if (cal >= 350) insights.push({ tier: 'orange', label: `High calorie (${Math.round(cal)} kcal)` })
+    if (cal >= 600)      insights.push({ tier: 'red',    label: copy.veryHighCalorie(Math.round(cal)) })
+    else if (cal >= 350) insights.push({ tier: 'orange', label: copy.highCalorie(Math.round(cal)) })
   }
 
   // Fat vs goal
   if (dailyGoal && dailyGoal.fatG > 0) {
     const pct = fat / dailyGoal.fatG
     if (pct >= 0.5) {
-      insights.push({ tier: 'red',    label: `Very high in fat — ${Math.round(pct * 100)}% of daily fat goal` })
+      insights.push({ tier: 'red',    label: copy.veryHighFatPct(Math.round(pct * 100)) })
     } else if (pct >= 0.25) {
-      insights.push({ tier: 'orange', label: `High in fat — ${Math.round(pct * 100)}% of daily fat goal` })
+      insights.push({ tier: 'orange', label: copy.highFatPct(Math.round(pct * 100)) })
     }
   } else {
-    if (fat >= 25)      insights.push({ tier: 'red',    label: `Very high in fat (${Math.round(fat)}g)` })
-    else if (fat >= 15) insights.push({ tier: 'orange', label: `High in fat (${Math.round(fat)}g)` })
+    if (fat >= 25)      insights.push({ tier: 'red',    label: copy.veryHighFat(Math.round(fat)) })
+    else if (fat >= 15) insights.push({ tier: 'orange', label: copy.highFat(Math.round(fat)) })
   }
 
   return insights
@@ -127,21 +247,29 @@ export default function NutritionClient({
   const [workspaceId] = useState(initialWorkspaceId)
   const [selectedDate, setSelectedDate] = useState<string>(initialDate)
   const [planType, setPlanType] = useState<'training' | 'rest'>(initialPlanType)
-  const [planTypeUserSet, setPlanTypeUserSet] = useState(false)
-  const [mealPlanTraining] = useState(initialMealPlanTraining)
-  const [mealPlanRest] = useState(initialMealPlanRest)
+  const [mealPlanTraining, setMealPlanTraining] = useState(initialMealPlanTraining)
+  const [mealPlanRest, setMealPlanRest] = useState(initialMealPlanRest)
   const mealPlan = planType === 'training' ? mealPlanTraining : mealPlanRest
   // Hide the toggle when both slots resolve to the same plan (overall-only clients).
   // Switching would show identical content, so the toggle is meaningless.
-  const showPlanTypeToggle = initialMealPlanTraining?.id !== initialMealPlanRest?.id
+  const showPlanTypeToggle = mealPlanTraining?.id !== mealPlanRest?.id
   const [dayLogs, setDayLogs] = useState<DayLog[]>(initialDayLogs)
   const [loading, setLoading] = useState(false)
   const [activeAddFoodMeal, setActiveAddFoodMeal] = useState<string | null>(null)
   const [selectedOption, setSelectedOption] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<'diary' | 'notes'>('diary')
-  const [portionOverrides, setPortionOverrides] = useState<Record<string, number>>({})
-  const [deletedFoodIds, setDeletedFoodIds] = useState<Record<string, boolean>>({})
-  const [deletionHistory, setDeletionHistory] = useState<string[]>([])
+  const [errKey, setErrKey] = useState<'save' | 'load' | 'nameTaken' | null>(null)
+
+  // Day state is stamped with the date it belongs to so a pending save can never
+  // land under the wrong day while the client is flicking through the week.
+  const [dayUi, setDayUi] = useState<{ date: string; state: DayUiState }>({
+    date: initialDate,
+    state: EMPTY_DAY_UI,
+  })
+  const [hydrated, setHydrated] = useState(false)
+  const removedFoodIds = dayUi.state.removed
+  const confirmedMeals = dayUi.state.confirmed
+  const portionOverrides = dayUi.state.portions
 
   const [customMealNames, setCustomMealNames] = useState<string[]>([])
 
@@ -167,9 +295,44 @@ export default function NutritionClient({
     if (!clientId) return
     const logs = await getDayLogs(clientId, selectedDate)
     setDayLogs(logs)
-    setLoading(false)
   }, [clientId, selectedDate])
 
+  const updateUi = useCallback((fn: (s: DayUiState) => DayUiState) => {
+    setDayUi((prev) => {
+      const next = fn(prev.state)
+      return next === prev.state ? prev : { date: prev.date, state: next }
+    })
+  }, [])
+
+  // Restore this client's saved choices for the initial day. Storage is
+  // browser-only, so it can't be read during the server render — and the read
+  // must land before the first save effect, or an empty state would overwrite
+  // what was stored.
+  useEffect(() => {
+    if (!clientId) return
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      setDayUi((prev) =>
+        prev.date === initialDate && prev.state === EMPTY_DAY_UI
+          ? { date: initialDate, state: loadDayUiState(clientId, initialDate) }
+          : prev
+      )
+      setHydrated(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [clientId, initialDate])
+
+  useEffect(() => {
+    if (!clientId || !hydrated) return
+    saveDayUiState(clientId, dayUi.date, dayUi.state)
+  }, [clientId, hydrated, dayUi])
+
+  // Moving to another day reloads that day's logs *and* its plan: a date override
+  // or a carb-cycle day can put an entirely different plan on that date, and the
+  // server render only ever resolved today's.
   const isInitialMount = useRef(true)
   useEffect(() => {
     if (!clientId) return
@@ -177,43 +340,43 @@ export default function NutritionClient({
       isInitialMount.current = false
       return
     }
+    let cancelled = false
     setLoading(true)
     setCustomMealNames([])
-    setPortionOverrides({})
-    // Load persisted food exclusions for this client+date from localStorage
-    try {
-      const stored = localStorage.getItem(`excl_${clientId}_${selectedDate}`)
-      const ids: string[] = stored ? JSON.parse(stored) : []
-      setDeletedFoodIds(Object.fromEntries(ids.map(id => [id, true as const])))
-      setDeletionHistory(ids)
-    } catch {
-      setDeletedFoodIds({})
-      setDeletionHistory([])
-    }
-    reloadDayLogs()
-  }, [clientId, selectedDate, reloadDayLogs])
-
-  // Persist food exclusions to localStorage whenever they change
-  useEffect(() => {
-    if (!clientId) return
-    const ids = Object.keys(deletedFoodIds).filter(id => deletedFoodIds[id])
-    const key = `excl_${clientId}_${selectedDate}`
-    if (ids.length > 0) {
-      localStorage.setItem(key, JSON.stringify(ids))
-    } else {
-      localStorage.removeItem(key)
-    }
-  }, [deletedFoodIds, clientId, selectedDate])
-
-  useEffect(() => {
-    const overrides: Record<string, number> = {}
-    for (const log of dayLogs) {
-      if (log.templateFoodId) {
-        overrides[log.templateFoodId] = log.quantity
+    setActiveAddFoodMeal(null)
+    setErrKey(null)
+    ;(async () => {
+      try {
+        const [plans, logs] = await Promise.all([
+          getMealPlansForDate(selectedDate),
+          getDayLogs(clientId, selectedDate),
+        ])
+        if (cancelled) return
+        setMealPlanTraining(plans.training)
+        setMealPlanRest(plans.rest)
+        setDayLogs(logs)
+      } catch {
+        if (!cancelled) setErrKey('load')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
+    })()
+    return () => {
+      cancelled = true
     }
-    setPortionOverrides(overrides)
-  }, [dayLogs])
+  }, [clientId, selectedDate])
+
+  const handleSelectDate = useCallback(
+    (d: string) => {
+      if (d === selectedDate) return
+      // Swap in that day's saved choices synchronously so removed foods don't
+      // flash back into view for a frame before storage is read.
+      if (clientId) setDayUi({ date: d, state: loadDayUiState(clientId, d) })
+      else setDayUi({ date: d, state: EMPTY_DAY_UI })
+      setSelectedDate(d)
+    },
+    [clientId, selectedDate]
+  )
 
   const logsByMealType = useMemo(() => {
     const m = new Map<string, DayLog[]>()
@@ -259,85 +422,216 @@ export default function NutritionClient({
   }, [dayLogs])
 
   const handleSetPlanType = (t: 'training' | 'rest') => {
-    setPlanTypeUserSet(true)
     setPlanType(t)
   }
 
-  const handleLogMeal = async (meal: Meal, option: Option) => {
-    if (!clientId || !workspaceId) return
-    const activeFoods = option.foods.filter((f) => !deletedFoodIds[f.id])
-    await logMealOption({
-      clientId,
-      workspaceId,
-      loggedDate: selectedDate,
-      mealType: meal.name,
-      mealOptionId: option.id,
-      foods: activeFoods.map((f) => {
-        const qty = portionOverrides[f.id] ?? f.quantity
-        const ratio = qty / f.quantity
-        return {
-          templateFoodId: f.id,
-          foodName: f.foodName,
-          quantity: qty,
-          unit: f.unit,
-          calories: round1(f.calories * ratio),
-          proteinG: round1(f.proteinG * ratio),
-          carbsG: round1(f.carbsG * ratio),
-          fatG: round1(f.fatG * ratio),
-        }
-      }),
-    })
-    await reloadDayLogs()
-  }
+  /**
+   * The amount of a plan food that should be treated as eaten: an explicit resize
+   * by the client wins, then whatever is already logged, then the plan's own
+   * portion. Deriving it per food (rather than rebuilding one map from the logs)
+   * is what keeps an unsaved portion edit alive while other meals are saved.
+   */
+  const resolveQty = useCallback(
+    (mealName: string, food: FoodItem) => {
+      const override = portionOverrides[food.id]
+      if (override != null && override > 0) return override
+      const log = (logsByMealType.get(mealName) ?? []).find((l) => l.templateFoodId === food.id)
+      return log?.quantity ?? food.quantity
+    },
+    [portionOverrides, logsByMealType]
+  )
 
-  const handleRemoveMeal = async (mealName: string) => {
-    if (!clientId) return
-    await removeOptionLog(clientId, selectedDate, mealName)
-    await reloadDayLogs()
-  }
-
-  // Clears every log under a meal name, plan foods and client-added custom foods
-  // alike. Used when unchecking a plan meal the client has fully replaced with
-  // their own foods.
-  const handleRemoveMealFully = async (mealName: string) => {
-    if (!clientId) return
-    await removeOptionLog(clientId, selectedDate, mealName, false)
-    await reloadDayLogs()
-  }
-
-  const handleDeleteFood = async (foodId: string, loggedFoodId?: string | null) => {
-    setDeletedFoodIds(prev => ({ ...prev, [foodId]: true }))
-    setDeletionHistory(prev => [...prev, foodId])
-    if (loggedFoodId) {
-      await deleteNutritionLog(loggedFoodId)
+  const logMealFoods = useCallback(
+    async (meal: Meal, option: Option, foods: FoodItem[]) => {
+      if (!clientId || !workspaceId || foods.length === 0) return
+      await logMealOption({
+        clientId,
+        workspaceId,
+        loggedDate: selectedDate,
+        mealType: meal.name,
+        mealOptionId: option.id,
+        foods: foods.map((f) => {
+          const qty = resolveQty(meal.name, f)
+          const ratio = portionRatio(f.quantity, qty)
+          return {
+            templateFoodId: f.id,
+            foodName: f.foodName,
+            quantity: qty,
+            unit: f.unit,
+            calories: round1(f.calories * ratio),
+            proteinG: round1(f.proteinG * ratio),
+            carbsG: round1(f.carbsG * ratio),
+            fatG: round1(f.fatG * ratio),
+          }
+        }),
+      })
+      // Real plan logs now carry this meal, so the custom-only marker is spent.
+      updateUi((s) => ({ ...s, confirmed: omitKey(s.confirmed, meal.name) }))
       await reloadDayLogs()
+    },
+    [clientId, workspaceId, selectedDate, resolveQty, updateUi, reloadDayLogs]
+  )
+
+  const handleLogMeal = async (meal: Meal, option: Option) => {
+    setErrKey(null)
+    try {
+      await logMealFoods(meal, option, option.foods.filter((f) => removedFoodIds[f.id] == null))
+    } catch {
+      setErrKey('save')
+      throw new Error('log-failed')
     }
   }
 
-  const handleUndoDelete = (mealFoodIds: Set<string>) => {
-    // Walk history newest-first and restore the last deleted food from this meal
-    for (let i = deletionHistory.length - 1; i >= 0; i--) {
-      const foodId = deletionHistory[i]
-      if (mealFoodIds.has(foodId) && deletedFoodIds[foodId]) {
-        const newDeleted = { ...deletedFoodIds }
-        delete newDeleted[foodId]
-        setDeletedFoodIds(newDeleted)
-        setDeletionHistory(prev => [...prev.slice(0, i), ...prev.slice(i + 1)])
-        return
+  /**
+   * Unchecking a meal only ever clears the foods that came from the plan. Foods
+   * the client added themselves stay put — they disappear only when the client
+   * removes them by hand.
+   */
+  const handleUnlogMeal = async (mealName: string, hadPlanLogs: boolean) => {
+    setErrKey(null)
+    updateUi((s) => ({ ...s, confirmed: omitKey(s.confirmed, mealName) }))
+    if (!clientId || !hadPlanLogs) return
+    try {
+      await removeOptionLog(clientId, selectedDate, mealName)
+      await reloadDayLogs()
+    } catch {
+      setErrKey('save')
+      throw new Error('unlog-failed')
+    }
+  }
+
+  /** Marks a meal as eaten when nothing from the plan is left in it. */
+  const handleConfirmMeal = (mealName: string, value: boolean) => {
+    updateUi((s) => ({
+      ...s,
+      confirmed: value ? { ...s.confirmed, [mealName]: true } : omitKey(s.confirmed, mealName),
+    }))
+  }
+
+  const handleDeleteFood = async (
+    mealName: string,
+    foodId: string,
+    loggedFoodId?: string | null
+  ) => {
+    setErrKey(null)
+    const logs = logsByMealType.get(mealName) ?? []
+    const planLogsLeft = logs.filter((l) => l.templateFoodId !== null && l.id !== loggedFoodId)
+    const hasCustomLogs = logs.some((l) => l.templateFoodId === null)
+    updateUi((s) => ({
+      ...s,
+      removed: { ...s.removed, [foodId]: nextRemovalSeq(s.removed) },
+      // Removing the last logged plan food would otherwise silently uncheck a
+      // meal the client already marked as eaten; the custom foods still standing
+      // in for it keep it checked.
+      confirmed:
+        loggedFoodId && planLogsLeft.length === 0 && hasCustomLogs
+          ? { ...s.confirmed, [mealName]: true }
+          : s.confirmed,
+    }))
+    if (!loggedFoodId) return
+    try {
+      await deleteNutritionLog(loggedFoodId)
+      await reloadDayLogs()
+    } catch {
+      setErrKey('save')
+    }
+  }
+
+  /**
+   * Brings back every pre-filled food the client removed from this option. Foods
+   * they added themselves are untouched — restoring the plan is additive, it
+   * never clears their own entries.
+   */
+  const handleRestorePlanFoods = async (meal: Meal, option: Option, relog: boolean) => {
+    setErrKey(null)
+    updateUi((s) => {
+      const removed = { ...s.removed }
+      let changed = false
+      for (const f of option.foods) {
+        if (removed[f.id] != null) {
+          delete removed[f.id]
+          changed = true
+        }
       }
+      if (!changed) return s
+      return { ...s, removed, confirmed: omitKey(s.confirmed, meal.name) }
+    })
+    // A meal that is already checked has to stay accurate: the foods coming back
+    // belong in its log too. A meal that was only marked eaten through custom
+    // foods stays unchecked, so the client submits the restored plan themselves.
+    if (!relog) return
+    try {
+      await logMealFoods(meal, option, option.foods)
+    } catch {
+      setErrKey('save')
+    }
+  }
+
+  /**
+   * Puts back only the food removed most recently from this option — the
+   * step-by-step counterpart to restoring the whole option at once.
+   */
+  const handleUndoRemoval = async (meal: Meal, option: Option, relog: boolean) => {
+    setErrKey(null)
+    const target = lastRemovedOf(removedFoodIds, option.foods.map((f) => f.id))
+    if (!target) return
+    updateUi((s) => ({
+      ...s,
+      removed: omitKey(s.removed, target),
+      confirmed: omitKey(s.confirmed, meal.name),
+    }))
+    if (!relog) return
+    try {
+      await logMealFoods(
+        meal,
+        option,
+        option.foods.filter((f) => f.id === target || removedFoodIds[f.id] == null)
+      )
+    } catch {
+      setErrKey('save')
     }
   }
 
   const handleDeleteCustom = async (logId: string) => {
-    await deleteNutritionLog(logId)
-    await reloadDayLogs()
+    setErrKey(null)
+    try {
+      await deleteNutritionLog(logId)
+      await reloadDayLogs()
+    } catch {
+      setErrKey('save')
+    }
   }
 
   const handleUpdateCustomQty = async (logId: string, newQty: number) => {
-    // Macros are recomputed server-side from the stored row, so only the new
-    // quantity needs to be sent.
-    await updateNutritionLogQuantity(logId, newQty)
-    await reloadDayLogs()
+    if (!(newQty > 0)) return
+    setErrKey(null)
+    try {
+      // Macros are recomputed server-side from the stored row, so only the new
+      // quantity needs to be sent.
+      await updateNutritionLogQuantity(logId, newQty)
+      await reloadDayLogs()
+    } catch {
+      setErrKey('save')
+    }
+  }
+
+  /**
+   * Resizing a plan portion. When the meal is already logged the change is
+   * pushed to that log immediately, so the day's totals match what the card
+   * shows instead of drifting until the client happens to re-submit.
+   */
+  const handlePortionOverride = async (mealName: string, foodId: string, qty: number) => {
+    if (!(qty > 0)) return
+    setErrKey(null)
+    updateUi((s) => ({ ...s, portions: { ...s.portions, [foodId]: qty } }))
+    const log = (logsByMealType.get(mealName) ?? []).find((l) => l.templateFoodId === foodId)
+    if (!log) return
+    try {
+      await updateNutritionLogQuantity(log.id, qty)
+      await reloadDayLogs()
+    } catch {
+      setErrKey('save')
+    }
   }
 
   const handleAddCustomFood = async (
@@ -353,15 +647,21 @@ export default function NutritionClient({
     }
   ) => {
     if (!clientId || !workspaceId) return
-    await logCustomFood({
-      clientId,
-      workspaceId,
-      loggedDate: selectedDate,
-      mealType: mealName,
-      ...payload,
-    })
-    await reloadDayLogs()
-    setActiveAddFoodMeal(null)
+    setErrKey(null)
+    try {
+      await logCustomFood({
+        clientId,
+        workspaceId,
+        loggedDate: selectedDate,
+        mealType: mealName,
+        ...payload,
+      })
+      await reloadDayLogs()
+      setActiveAddFoodMeal(null)
+    } catch {
+      // Leave the panel open so the entry isn't lost and can be retried.
+      setErrKey('save')
+    }
   }
 
   const handleAddCustomMeal = () => {
@@ -375,37 +675,62 @@ export default function NutritionClient({
     setCustomMealNames((prev) => [...prev, candidate])
   }
 
-  const handleRenameCustomMeal = async (oldName: string, newName: string) => {
+  const handleRenameCustomMeal = async (oldName: string, newName: string): Promise<boolean> => {
     const trimmed = newName.trim()
-    if (!trimmed || trimmed === oldName) return
+    if (!trimmed) return false
+    if (trimmed === oldName) return true
+    // Reusing a plan meal's name would silently merge these foods into it.
+    if (templateMealNames.has(trimmed) || allCustomMealNames.includes(trimmed)) {
+      setErrKey('nameTaken')
+      return false
+    }
+    setErrKey(null)
     const hasLogs = (logsByMealType.get(oldName) ?? []).length > 0
     if (hasLogs && clientId) {
-      await renameCustomMealLogs(clientId, selectedDate, oldName, trimmed)
-      await reloadDayLogs()
+      try {
+        await renameCustomMealLogs(clientId, selectedDate, oldName, trimmed)
+        await reloadDayLogs()
+      } catch {
+        setErrKey('save')
+        return false
+      }
     }
     setCustomMealNames((prev) => prev.map((n) => (n === oldName ? trimmed : n)))
+    return true
   }
 
   const handleRemoveCustomMeal = async (mealName: string) => {
+    setErrKey(null)
     if (clientId) {
-      // A custom meal is entirely client-added, so clear all of its logs.
-      await removeOptionLog(clientId, selectedDate, mealName, false)
-      await reloadDayLogs()
+      try {
+        // A custom meal is entirely client-added, so clear all of its logs.
+        await removeOptionLog(clientId, selectedDate, mealName, false)
+        await reloadDayLogs()
+      } catch {
+        setErrKey('save')
+        return
+      }
     }
+    updateUi((s) => ({ ...s, confirmed: omitKey(s.confirmed, mealName) }))
     setCustomMealNames((prev) => prev.filter((n) => n !== mealName))
   }
 
-  void planTypeUserSet
+  const errorText =
+    errKey === 'nameTaken'
+      ? t.nutrition.nameTaken
+      : errKey
+        ? t.nutrition.saveFailed
+        : null
 
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
-      <div style={{ padding: '52px 20px 10px' }}>
+      <div className="cx-in" style={{ padding: '52px 20px 10px' }}>
         <div className="flex items-start justify-between">
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-hint)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()}
             </p>
-            <h1 style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-text-primary)', margin: '1px 0 0', lineHeight: 1.1 }}>
+            <h1 className="cx-display cx-display-lg" style={{ fontSize: '30px', fontWeight: 800, color: 'var(--color-text-primary)', margin: '2px 0 0', lineHeight: 1.1 }}>
               {t.nutrition.title}
             </h1>
           </div>
@@ -415,19 +740,54 @@ export default function NutritionClient({
         </div>
       </div>
 
-      <div style={{ padding: '0 16px 12px' }}>
-        <WeekStrip selectedDate={selectedDate} onSelect={setSelectedDate} todayISO={initialDate} />
+      <div className="cx-in" style={{ '--cx-i': 1, padding: '0 16px 12px' } as React.CSSProperties}>
+        <WeekStrip selectedDate={selectedDate} onSelect={handleSelectDate} todayISO={initialDate} />
       </div>
 
-      <div style={{ padding: '0 16px 10px' }}>
+      {errorText && (
+        <div style={{ padding: '0 16px 10px' }}>
+          <div
+            className="flex items-center gap-2"
+            role="status"
+            style={{
+              backgroundColor: 'rgba(239,68,68,0.10)',
+              border: '1px solid rgba(239,68,68,0.35)',
+              borderRadius: 12,
+              padding: '9px 12px',
+            }}
+          >
+            <AlertCircle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
+            <span style={{ fontSize: 12.5, color: '#ef4444', fontWeight: 500, flex: 1 }}>
+              {errorText}
+            </span>
+            <button
+              type="button"
+              onClick={() => setErrKey(null)}
+              aria-label={t.common.close}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#ef4444',
+                display: 'inline-flex',
+                padding: 0,
+              }}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="cx-in" style={{ '--cx-i': 2, padding: '0 16px 10px' } as React.CSSProperties}>
         <CaloriesCard current={totals.calories} goal={goal?.calories ?? null} />
       </div>
 
-      <div style={{ padding: '0 16px 16px' }}>
+      <div className="cx-in" style={{ '--cx-i': 3, padding: '0 16px 16px' } as React.CSSProperties}>
         <MacrosCard totals={totals} goal={goal} />
       </div>
 
-      <div style={{ padding: '0 16px 12px' }}>
+      <div className="cx-in" style={{ '--cx-i': 4, padding: '0 16px 12px' } as React.CSSProperties}>
         <DiaryNotesTabs tab={tab} onChange={setTab} />
       </div>
 
@@ -449,7 +809,6 @@ export default function NutritionClient({
               const planLogs = logs.filter((l) => l.templateFoodId !== null)
               const customLogs = logs.filter((l) => l.templateFoodId === null)
               const loggedOptionId = planLogs[0]?.mealOptionId ?? null
-              const isLogged = planLogs.length > 0
               const optKey = meal.id
               const userSelectedOption =
                 selectedOption[optKey] ??
@@ -462,25 +821,31 @@ export default function NutritionClient({
                   key={meal.id}
                   meal={meal}
                   activeOption={activeOption}
-                  isLogged={isLogged}
-                  loggedOptionId={loggedOptionId}
                   customLogs={customLogs}
                   planLogs={planLogs}
                   portionOverrides={portionOverrides}
-                  deletedFoodIds={deletedFoodIds}
+                  removedFoodIds={removedFoodIds}
+                  confirmed={!!confirmedMeals[meal.name]}
                   onSelectOption={(optId) =>
                     setSelectedOption((prev) => ({ ...prev, [optKey]: optId }))
                   }
                   onLogMeal={async () => { if (activeOption) await handleLogMeal(meal, activeOption) }}
-                  onRemoveMeal={async () => handleRemoveMeal(meal.name)}
-                  onRemoveMealFully={async () => handleRemoveMealFully(meal.name)}
+                  onUnlogMeal={(hadPlanLogs) => handleUnlogMeal(meal.name, hadPlanLogs)}
+                  onConfirmMeal={(v) => handleConfirmMeal(meal.name, v)}
+                  onRestorePlanFoods={async (relog) => {
+                    if (activeOption) await handleRestorePlanFoods(meal, activeOption, relog)
+                  }}
+                  onUndoRemoval={async (relog) => {
+                    if (activeOption) await handleUndoRemoval(meal, activeOption, relog)
+                  }}
                   onDeleteCustom={handleDeleteCustom}
                   onUpdateCustomQty={handleUpdateCustomQty}
                   onPortionOverride={(foodId, qty) =>
-                    setPortionOverrides((prev) => ({ ...prev, [foodId]: qty }))
+                    handlePortionOverride(meal.name, foodId, qty)
                   }
-                  onDeleteFood={handleDeleteFood}
-                  onUndoDelete={handleUndoDelete}
+                  onDeleteFood={(foodId, loggedFoodId) =>
+                    handleDeleteFood(meal.name, foodId, loggedFoodId)
+                  }
                   addFoodOpen={activeAddFoodMeal === meal.name}
                   onToggleAddFood={() =>
                     setActiveAddFoodMeal(activeAddFoodMeal === meal.name ? null : meal.name)
@@ -518,20 +883,21 @@ export default function NutritionClient({
             <button
               type="button"
               onClick={handleAddCustomMeal}
+              className="cx-press cx-tint"
               style={{
                 width: '100%',
                 color: 'var(--color-text-muted)',
                 backgroundColor: 'transparent',
-                border: '1px dashed var(--color-border)',
-                borderRadius: 12,
+                border: '1px dashed var(--color-border-strong)',
+                borderRadius: 'var(--cx-r-md)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6,
-                padding: '11px 0',
+                padding: '13px 0',
                 fontSize: 14,
-                fontWeight: 600,
+                fontWeight: 700,
               }}
             >
               <Plus size={15} />
@@ -556,31 +922,36 @@ function PlanTypeToggle({
   onChange: (v: 'training' | 'rest') => void
 }) {
   const { t } = useLanguage()
+  const activeIdx = value === 'training' ? 0 : 1
+  const accent = value === 'training' ? '#3b82f6' : '#22c55e'
   return (
     <div
-      className="flex p-0.5"
+      className="cx-seg"
+      role="group"
       style={{
-        backgroundColor: 'var(--color-surface-2)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 999,
         display: 'inline-flex',
-      }}
+        '--cx-seg-n': 2,
+        '--cx-seg-i': activeIdx,
+      } as React.CSSProperties}
     >
+      {/* Thumb carries the state colour, so switching plan types slides
+          rather than repainting two separate buttons. */}
+      <div className="cx-seg-thumb" aria-hidden="true" style={{ backgroundColor: accent }} />
       {(['training', 'rest'] as const).map((planKey) => {
         const active = value === planKey
-        const accent = planKey === 'training' ? '#3b82f6' : '#22c55e'
         return (
           <button
             key={planKey}
             type="button"
+            aria-pressed={active}
             onClick={() => onChange(planKey)}
-            className="px-2.5 py-1 text-xs font-semibold"
+            className="cx-seg-btn"
             style={{
-              backgroundColor: active ? accent : 'transparent',
+              padding: '5px 11px',
+              fontSize: 12,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
               color: active ? '#fff' : 'var(--color-text-muted)',
-              borderRadius: 999,
-              border: 'none',
-              cursor: 'pointer',
             }}
           >
             {planKey === 'training' ? t.nutrition.planTraining : t.nutrition.planRest}
@@ -625,25 +996,29 @@ function WeekStrip({
             key={d.iso}
             type="button"
             onClick={() => onSelect(d.iso)}
-            className="flex flex-col items-center justify-center"
+            aria-pressed={active}
+            className="cx-press cx-tint flex flex-col items-center justify-center"
             style={{
               flex: 1,
               padding: '10px 4px',
               backgroundColor: active ? 'var(--color-accent)' : 'var(--color-surface-1)',
               border: '1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-border)'),
-              borderRadius: 14,
+              borderRadius: 'var(--cx-r-md)',
               cursor: 'pointer',
               gap: 5,
               position: 'relative',
+              // Only the selected day lifts off the page
+              boxShadow: active ? 'var(--cx-shadow-cta)' : 'var(--cx-shadow-sm)',
             }}
           >
-            <span style={{ fontSize: 10, color: active ? 'rgba(255,255,255,0.8)' : 'var(--color-text-hint)', fontWeight: 700, letterSpacing: '0.04em' }}>
+            <span style={{ fontSize: 10, color: active ? 'rgba(255,255,255,0.85)' : 'var(--color-text-hint)', fontWeight: 700, letterSpacing: '0.04em' }}>
               {d.label}
             </span>
             <span
+              className="cx-num"
               style={{
-                fontSize: 15,
-                fontWeight: 700,
+                fontSize: 15.5,
+                fontWeight: 800,
                 color: active ? '#fff' : 'var(--color-text-primary)',
                 lineHeight: 1,
               }}
@@ -681,24 +1056,25 @@ function CaloriesCard({
   const pct = goal ? Math.min(1, current / goal) : 0
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: 16,
+        borderRadius: 'var(--cx-r-lg)',
         padding: '16px 18px 18px',
       }}
     >
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 5px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             {t.nutrition.calories}
           </p>
           <div className="flex items-baseline gap-1.5">
-            <span style={{ fontSize: 36, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
+            <span className="cx-num" style={{ fontSize: 38, fontWeight: 800, color: 'var(--color-text-primary)', lineHeight: 1 }}>
               {Math.round(current)}
             </span>
             {goal !== null && (
-              <span style={{ fontSize: 14, color: 'var(--color-text-hint)' }}>
+              <span className="cx-num" style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-hint)' }}>
                 / {Math.round(goal)}
               </span>
             )}
@@ -706,10 +1082,10 @@ function CaloriesCard({
         </div>
         {remaining !== null && (
           <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 5px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               {t.nutrition.remaining}
             </p>
-            <span style={{ fontSize: 25, fontWeight: 700, color: 'var(--color-accent)', lineHeight: 1 }}>
+            <span className="cx-num" style={{ fontSize: 26, fontWeight: 800, color: 'var(--color-accent)', lineHeight: 1 }}>
               {Math.round(remaining)}
             </span>
           </div>
@@ -725,12 +1101,12 @@ function CaloriesCard({
           }}
         >
           <div
+            className="cx-bar-fill"
             style={{
+              '--cx-p': pct,
               height: '100%',
-              width: `${pct * 100}%`,
               backgroundColor: 'var(--color-accent)',
-              transition: 'width 0.2s ease',
-            }}
+            } as React.CSSProperties}
           />
         </div>
       )}
@@ -748,11 +1124,12 @@ function MacrosCard({
   const { t } = useLanguage()
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: 16,
-        padding: '14px 16px',
+        borderRadius: 'var(--cx-r-lg)',
+        padding: '15px 16px',
       }}
     >
       <div className="grid grid-cols-3 gap-3">
@@ -778,32 +1155,32 @@ function MacroCol({
   const pct = goal ? Math.min(1, current / goal) : 0
   return (
     <div className="flex flex-col">
-      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500, marginBottom: 4 }}>
+      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 5 }}>
         {label}
       </span>
-      <div className="flex items-baseline gap-1 mb-1.5">
-        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+      <div className="flex items-baseline gap-1 mb-2">
+        <span className="cx-num" style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-text-primary)' }}>
           {Math.round(current)}g
         </span>
         {goal !== null && (
-          <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>/ {Math.round(goal)}g</span>
+          <span className="cx-num" style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-hint)' }}>/ {Math.round(goal)}g</span>
         )}
       </div>
       <div
         style={{
-          height: 4,
+          height: 5,
           backgroundColor: 'var(--color-surface-3)',
           borderRadius: 999,
           overflow: 'hidden',
         }}
       >
         <div
+          className="cx-bar-fill"
           style={{
+            '--cx-p': pct,
             height: '100%',
-            width: `${pct * 100}%`,
             backgroundColor: color,
-            transition: 'width 0.2s ease',
-          }}
+          } as React.CSSProperties}
         />
       </div>
     </div>
@@ -819,21 +1196,32 @@ function DiaryNotesTabs({
 }) {
   const { t: tr } = useLanguage()
   return (
-    <div className="flex items-center gap-2">
+    <div
+      className="cx-seg"
+      role="tablist"
+      style={{
+        display: 'inline-flex',
+        '--cx-seg-n': 2,
+        '--cx-seg-i': tab === 'diary' ? 0 : 1,
+      } as React.CSSProperties}
+    >
+      <div className="cx-seg-thumb" aria-hidden="true" />
       {(['diary', 'notes'] as const).map((tab2) => {
         const active = tab === tab2
         return (
           <button
             key={tab2}
             type="button"
+            role="tab"
+            aria-selected={active}
             onClick={() => onChange(tab2)}
-            className="px-3 py-1.5 text-sm font-semibold"
+            className="cx-seg-btn"
             style={{
-              backgroundColor: active ? 'var(--color-surface-3)' : 'transparent',
+              padding: '8px 18px',
+              fontSize: 13.5,
+              fontWeight: active ? 700 : 600,
+              whiteSpace: 'nowrap',
               color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-              border: 'none',
-              borderRadius: 999,
-              cursor: 'pointer',
             }}
           >
             {tab2 === 'diary' ? tr.nutrition.title : tr.workouts.notes}
@@ -851,8 +1239,8 @@ function NoPlanCard({ planType }: { planType: 'training' | 'rest' }) {
     <div
       style={{
         backgroundColor: 'var(--color-surface-1)',
-        border: '1px dashed var(--color-border)',
-        borderRadius: 16,
+        border: '1px dashed var(--color-border-strong)',
+        borderRadius: 'var(--cx-r-lg)',
         padding: '24px 16px',
         textAlign: 'center',
       }}
@@ -895,18 +1283,10 @@ function CustomMealCard({
     proteinG: number
     carbsG: number
     fatG: number
-  }) => void
+  }) => Promise<void> | void
   onDeleteCustom: (logId: string) => void
-  onUpdateCustomQty: (
-    logId: string,
-    newQty: number,
-    origQty: number,
-    origCal: number,
-    origP: number,
-    origC: number,
-    origF: number
-  ) => Promise<void>
-  onRename: (newName: string) => void
+  onUpdateCustomQty: (logId: string, newQty: number) => Promise<void>
+  onRename: (newName: string) => Promise<boolean>
   onRemove: () => void
   clientId?: string | null
   workspaceId?: string | null
@@ -921,6 +1301,7 @@ function CustomMealCard({
   const [nameInput, setNameInput] = useState(mealName)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
   const [customEditQty, setCustomEditQty] = useState('')
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
 
   const totals = useMemo(
     () =>
@@ -936,25 +1317,37 @@ function CustomMealCard({
     [logs]
   )
 
-  const handleConfirmRename = () => {
-    setEditingName(false)
-    onRename(nameInput)
+  const handleConfirmRename = async () => {
+    // Keep the field open on a rejected name (blank or already taken) so the
+    // client can correct it instead of silently losing what they typed.
+    const ok = await onRename(nameInput)
+    if (ok) setEditingName(false)
   }
 
   const handleConfirmCustomEdit = async (log: DayLog) => {
     const qty = parseFloat(customEditQty)
-    if (qty > 0) {
-      await onUpdateCustomQty(log.id, qty, log.quantity, log.calories, log.proteinG, log.carbsG, log.fatG)
-    }
+    if (qty > 0) await onUpdateCustomQty(log.id, qty)
     setEditingCustomId(null)
+  }
+
+  // Deleting a custom meal throws away every food in it, so it takes two taps.
+  const handleRemoveTap = () => {
+    if (logs.length === 0 || confirmingRemove) {
+      onRemove()
+      setConfirmingRemove(false)
+      return
+    }
+    setConfirmingRemove(true)
+    setTimeout(() => setConfirmingRemove(false), 3000)
   }
 
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: 16,
+        borderRadius: 'var(--cx-r-lg)',
         padding: '14px 16px',
       }}
     >
@@ -1007,7 +1400,8 @@ function CustomMealCard({
               <button
                 type="button"
                 onClick={() => { setEditingName(true); setNameInput(mealName) }}
-                title="Rename"
+                title={t.common.edit}
+                aria-label={t.common.edit}
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, flexShrink: 0 }}
               >
                 <Pencil size={12} />
@@ -1026,80 +1420,49 @@ function CustomMealCard({
         {!editingName && (
           <button
             type="button"
-            onClick={onRemove}
-            title={t.common.delete}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, flexShrink: 0 }}
+            onClick={handleRemoveTap}
+            title={confirmingRemove ? t.nutrition.confirmRemoveMeal : t.nutrition.removeMeal}
+            aria-label={confirmingRemove ? t.nutrition.confirmRemoveMeal : t.nutrition.removeMeal}
+            className="flex items-center justify-center"
+            style={{
+              background: confirmingRemove ? 'rgba(239,68,68,0.12)' : 'transparent',
+              border: confirmingRemove ? '1px solid rgba(239,68,68,0.4)' : 'none',
+              borderRadius: 999,
+              cursor: 'pointer',
+              color: confirmingRemove ? '#ef4444' : 'var(--color-text-hint)',
+              padding: confirmingRemove ? '3px 9px' : 0,
+              width: confirmingRemove ? 'auto' : 24,
+              height: 24,
+              fontSize: 11,
+              fontWeight: 700,
+              gap: 4,
+              flexShrink: 0,
+            }}
           >
             <X size={15} />
+            {confirmingRemove && <span>{t.common.confirm}</span>}
           </button>
         )}
       </div>
 
       {logs.length > 0 && (
         <div className="flex flex-col gap-1.5 mt-2">
-          {logs.map((l) => {
-            if (editingCustomId === l.id) {
-              const qty = parseFloat(customEditQty) || 0
-              const ratio = l.quantity > 0 ? qty / l.quantity : 0
-              return (
-                <div
-                  key={l.id}
-                  style={{ backgroundColor: 'var(--color-surface-2)', borderRadius: 10, padding: '6px 10px' }}
-                >
-                  <p className="truncate" style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 500, margin: '0 0 4px' }}>
-                    {l.foodName}
-                  </p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={customEditQty}
-                      onChange={(e) => setCustomEditQty(normalizeDecimalInput(e.target.value))}
-                      autoFocus
-                      style={{ width: 60, padding: '3px 6px', fontSize: 12, backgroundColor: 'var(--color-surface-3)', border: '1px solid var(--color-accent)', borderRadius: 6, color: 'var(--color-text-primary)', outline: 'none' }}
-                    />
-                    <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>{l.unit}</span>
-                    <button type="button" onClick={() => handleConfirmCustomEdit(l)} style={{ width: 22, height: 22, background: 'transparent', border: 'none', cursor: 'pointer', color: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Check size={13} strokeWidth={3} />
-                    </button>
-                    <button type="button" onClick={() => setEditingCustomId(null)} style={{ width: 22, height: 22, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <X size={13} />
-                    </button>
-                    <Pill value={Math.round(l.calories * ratio)} color="var(--color-text-primary)" bg="var(--color-surface-3)" />
-                    <Pill value={Math.round(l.proteinG * ratio)} color={COLOR_PROTEIN} bg="rgba(59,130,246,0.12)" />
-                    <Pill value={Math.round(l.carbsG * ratio)} color={COLOR_CARBS} bg="rgba(249,115,22,0.12)" />
-                    <Pill value={Math.round(l.fatG * ratio)} color={COLOR_FAT} bg="rgba(239,68,68,0.12)" />
-                  </div>
-                </div>
-              )
-            }
-            return (
-              <div
-                key={l.id}
-                className="flex items-center"
-                style={{ backgroundColor: 'var(--color-surface-2)', borderRadius: 10, padding: '10px 12px' }}
-              >
-                <FoodInner name={l.foodName} quantity={l.quantity} unit={l.unit} calories={l.calories} p={l.proteinG} c={l.carbsG} fat={l.fatG} />
-                <button
-                  type="button"
-                  onClick={() => { setEditingCustomId(l.id); setCustomEditQty(String(l.quantity)) }}
-                  title={t.common.edit}
-                  style={{ width: 22, height: 22, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Pencil size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDeleteCustom(l.id)}
-                  title="Remove"
-                  className="ml-1 inline-flex items-center justify-center"
-                  style={{ width: 22, height: 22, color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                >
-                  <X size={13} />
-                </button>
-              </div>
-            )
-          })}
+          {logs.map((l) => (
+            <CustomFoodRow
+              key={l.id}
+              log={l}
+              editing={editingCustomId === l.id}
+              editQty={customEditQty}
+              onEditQtyChange={setCustomEditQty}
+              onStartEdit={() => {
+                setEditingCustomId(l.id)
+                setCustomEditQty(String(l.quantity))
+              }}
+              onCancelEdit={() => setEditingCustomId(null)}
+              onConfirmEdit={() => handleConfirmCustomEdit(l)}
+              onDelete={() => onDeleteCustom(l.id)}
+            />
+          ))}
         </div>
       )}
 
@@ -1145,21 +1508,21 @@ function CustomMealCard({
 function MealCard({
   meal,
   activeOption,
-  isLogged,
-  loggedOptionId,
   customLogs,
   planLogs,
   portionOverrides,
-  deletedFoodIds,
+  removedFoodIds,
+  confirmed,
   onSelectOption,
   onLogMeal,
-  onRemoveMeal,
-  onRemoveMealFully,
+  onUnlogMeal,
+  onConfirmMeal,
+  onRestorePlanFoods,
+  onUndoRemoval,
   onDeleteCustom,
   onUpdateCustomQty,
   onPortionOverride,
   onDeleteFood,
-  onUndoDelete,
   addFoodOpen,
   onToggleAddFood,
   onAddCustomFood,
@@ -1171,29 +1534,21 @@ function MealCard({
 }: {
   meal: Meal
   activeOption: Option | undefined
-  isLogged: boolean
-  loggedOptionId: string | null
   customLogs: DayLog[]
   planLogs: DayLog[]
   portionOverrides: Record<string, number>
-  deletedFoodIds: Record<string, boolean>
+  removedFoodIds: Record<string, number>
+  confirmed: boolean
   onSelectOption: (id: string) => void
   onLogMeal: () => Promise<void>
-  onRemoveMeal: () => Promise<void>
-  onRemoveMealFully: () => Promise<void>
+  onUnlogMeal: (hadPlanLogs: boolean) => Promise<void>
+  onConfirmMeal: (value: boolean) => void
+  onRestorePlanFoods: (relog: boolean) => Promise<void>
+  onUndoRemoval: (relog: boolean) => Promise<void>
   onDeleteCustom: (logId: string) => void
-  onUpdateCustomQty: (
-    logId: string,
-    newQty: number,
-    origQty: number,
-    origCal: number,
-    origP: number,
-    origC: number,
-    origF: number
-  ) => Promise<void>
+  onUpdateCustomQty: (logId: string, newQty: number) => Promise<void>
   onPortionOverride: (foodId: string, qty: number) => void
   onDeleteFood: (foodId: string, loggedFoodId?: string | null) => Promise<void>
-  onUndoDelete: (mealFoodIds: Set<string>) => void
   addFoodOpen: boolean
   onToggleAddFood: () => void
   onAddCustomFood: (p: {
@@ -1204,7 +1559,7 @@ function MealCard({
     proteinG: number
     carbsG: number
     fatG: number
-  }) => void
+  }) => Promise<void> | void
   clientId?: string | null
   workspaceId?: string | null
   logDate?: string
@@ -1217,31 +1572,64 @@ function MealCard({
   const [circleLoading, setCircleLoading] = useState(false)
   const [optimisticLogged, setOptimisticLogged] = useState<boolean | null>(null)
   const [circleError, setCircleError] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const [undoing, setUndoing] = useState(false)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
   const [customEditQty, setCustomEditQty] = useState('')
 
-  // The circle marks the meal as eaten. A plain plan meal is "logged" when its
-  // plan foods have been logged. A meal the client has fully replaced with custom
-  // foods (every pre-filled food removed) has no plan logs, but the custom foods
-  // are saved the moment they're added — so it still counts as logged/eaten.
-  const hasActivePlanFood =
-    !!activeOption && activeOption.foods.some((f) => !deletedFoodIds[f.id])
-  const hasCustomLogs = customLogs.length > 0
-  const customOnlyLogged = !isLogged && !hasActivePlanFood && hasCustomLogs
+  const hasPlanLogs = planLogs.length > 0
 
-  const effectiveLogged =
-    optimisticLogged !== null ? optimisticLogged : isLogged || customOnlyLogged
-
-  // Enable the circle whenever the meal has something to record: active plan
-  // foods, already-logged plan foods, or custom foods the client added. Without
-  // the custom-foods case, a fully-customized meal could never be checked.
-  const canLog = isLogged || hasActivePlanFood || hasCustomLogs
-
-  const mealFoodIds = useMemo(
-    () => new Set((activeOption?.foods ?? []).map(f => f.id)),
-    [activeOption]
+  // Which option the logs belong to matters: while previewing a different option
+  // the card must show that option's foods, not hide them because *some* other
+  // option happens to be logged. Matching on the logged foods rather than on
+  // meal_option_id also survives a coach edit that clears that column.
+  const loggedFoodIds = useMemo(
+    () => new Set(planLogs.map((l) => l.templateFoodId).filter((id): id is string => !!id)),
+    [planLogs]
   )
-  const hasDeletions = (activeOption?.foods ?? []).some(f => deletedFoodIds[f.id])
+  const optionIsLogged = useCallback(
+    (o: Option) => o.foods.some((f) => loggedFoodIds.has(f.id)),
+    [loggedFoodIds]
+  )
+  const activeOptionIsLogged = !!activeOption && optionIsLogged(activeOption)
+
+  // A plan food is out of this meal if the client removed it here, or — once the
+  // option is logged — if it simply isn't in the log. The second case covers a
+  // removal made on another device, where only the log tells the story, and
+  // keeps the card's numbers equal to the day's totals.
+  const visibleFoods = useMemo(
+    () =>
+      (activeOption?.foods ?? []).filter(
+        (f) => removedFoodIds[f.id] == null && (!activeOptionIsLogged || loggedFoodIds.has(f.id))
+      ),
+    [activeOption, removedFoodIds, activeOptionIsLogged, loggedFoodIds]
+  )
+  const removedCount = (activeOption?.foods ?? []).length - visibleFoods.length
+
+  // Undo steps back through this option's own removals. A food hidden only
+  // because it isn't in the log has no removal to step back through, so undo
+  // stays out of the way there and the restore button covers it.
+  const canUndo = (activeOption?.foods ?? []).some((f) => removedFoodIds[f.id] != null)
+  const hasCustomLogs = customLogs.length > 0
+
+  // The circle is the client's own statement that they ate this meal — adding or
+  // removing foods never ticks it on their behalf. It is on when the option in
+  // view is logged, or when they confirmed a meal that has no plan foods left.
+  const baseLogged = activeOptionIsLogged || confirmed
+  const effectiveLogged = optimisticLogged !== null ? optimisticLogged : baseLogged
+
+  // Enable the circle whenever there is something to record or undo.
+  const canLog = visibleFoods.length > 0 || hasCustomLogs || baseLogged
+
+  const resolveQty = useCallback(
+    (f: FoodItem) => {
+      const override = portionOverrides[f.id]
+      if (override != null && override > 0) return override
+      const log = planLogs.find((l) => l.templateFoodId === f.id)
+      return log?.quantity ?? f.quantity
+    },
+    [portionOverrides, planLogs]
+  )
 
   const handleCircleTap = async () => {
     if (circleLoading || !canLog) return
@@ -1251,46 +1639,57 @@ function MealCard({
     setCircleError(false)
     try {
       if (next) {
-        await onLogMeal()
-      } else if (customOnlyLogged) {
-        // No plan foods remain — unchecking clears the custom foods the client
-        // added under this meal (mirrors unchecking a plan meal, which drops its
-        // plan logs).
-        await onRemoveMealFully()
+        if (visibleFoods.length > 0) await onLogMeal()
+        // Nothing from the plan is left, so there is nothing to write: the meal
+        // is carried by the client's own foods, which are already saved.
+        else onConfirmMeal(true)
       } else {
-        await onRemoveMeal()
+        await onUnlogMeal(hasPlanLogs)
       }
     } catch {
       setOptimisticLogged(!next)
       setCircleError(true)
       setTimeout(() => setCircleError(false), 2000)
+      return
     } finally {
       setCircleLoading(false)
-      setOptimisticLogged(null)
+    }
+    setOptimisticLogged(null)
+  }
+
+  const handleRestore = async () => {
+    if (restoring || undoing) return
+    setRestoring(true)
+    try {
+      await onRestorePlanFoods(activeOptionIsLogged)
+    } finally {
+      setRestoring(false)
+    }
+  }
+
+  const handleUndo = async () => {
+    if (undoing || restoring) return
+    setUndoing(true)
+    try {
+      await onUndoRemoval(activeOptionIsLogged)
+    } finally {
+      setUndoing(false)
     }
   }
 
   const totals = useMemo(() => {
-    const base = !activeOption
-      ? { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
-      : activeOption.foods.reduce(
-          (acc, f) => {
-            const isDeleted = isLogged
-              ? planLogs.every((l) => l.templateFoodId !== f.id)
-              : !!deletedFoodIds[f.id]
-            if (isDeleted) return acc
-
-            const qty = portionOverrides[f.id] ?? f.quantity
-            const ratio = qty / f.quantity
-            return {
-              calories: round1(acc.calories + f.calories * ratio),
-              proteinG: round1(acc.proteinG + f.proteinG * ratio),
-              carbsG: round1(acc.carbsG + f.carbsG * ratio),
-              fatG: round1(acc.fatG + f.fatG * ratio),
-            }
-          },
-          { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
-        )
+    const base = visibleFoods.reduce(
+      (acc, f) => {
+        const ratio = portionRatio(f.quantity, resolveQty(f))
+        return {
+          calories: round1(acc.calories + f.calories * ratio),
+          proteinG: round1(acc.proteinG + f.proteinG * ratio),
+          carbsG: round1(acc.carbsG + f.carbsG * ratio),
+          fatG: round1(acc.fatG + f.fatG * ratio),
+        }
+      },
+      { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+    )
 
     return customLogs.reduce(
       (acc, l) => ({
@@ -1301,22 +1700,21 @@ function MealCard({
       }),
       base
     )
-  }, [activeOption, portionOverrides, customLogs, planLogs, isLogged, deletedFoodIds])
+  }, [visibleFoods, resolveQty, customLogs])
 
   const handleConfirmCustomEdit = async (log: DayLog) => {
     const qty = parseFloat(customEditQty)
-    if (qty > 0) {
-      await onUpdateCustomQty(log.id, qty, log.quantity, log.calories, log.proteinG, log.carbsG, log.fatG)
-    }
+    if (qty > 0) await onUpdateCustomQty(log.id, qty)
     setEditingCustomId(null)
   }
 
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: circleError ? '1px solid #ef4444' : '1px solid var(--color-border)',
-        borderRadius: 16,
+        borderRadius: 'var(--cx-r-lg)',
         padding: '14px 16px',
         transition: 'border-color 0.2s',
       }}
@@ -1344,11 +1742,13 @@ function MealCard({
             <Pill value={Math.round(totals.fatG)} color={COLOR_FAT} bg="rgba(239,68,68,0.12)" />
           </div>
         </div>
-        {hasDeletions && (
+        {canUndo && (
           <button
             type="button"
-            onClick={() => onUndoDelete(mealFoodIds)}
-            title="Undo last removal"
+            onClick={handleUndo}
+            disabled={undoing || restoring}
+            title={t.nutrition.undoRemoval}
+            aria-label={t.nutrition.undoRemoval}
             className="flex items-center justify-center"
             style={{
               width: 28,
@@ -1357,23 +1757,78 @@ function MealCard({
               backgroundColor: 'transparent',
               border: '2px solid var(--color-text-hint)',
               color: 'var(--color-text-hint)',
-              cursor: 'pointer',
+              cursor: undoing || restoring ? 'default' : 'pointer',
+              opacity: undoing || restoring ? 0.5 : 1,
               touchAction: 'manipulation',
               flexShrink: 0,
               padding: 0,
             }}
           >
-            {/* Undo / rotate-back arrows */}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-            </svg>
+            {undoing ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Undo2 size={14} strokeWidth={2.5} />
+            )}
+          </button>
+        )}
+        {removedCount > 0 && (
+          <button
+            type="button"
+            onClick={handleRestore}
+            disabled={restoring || undoing}
+            title={t.nutrition.restorePlanFoods}
+            aria-label={t.nutrition.restorePlanFoods}
+            className="flex items-center justify-center"
+            style={{
+              position: 'relative',
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              backgroundColor: 'transparent',
+              border: '2px solid var(--color-accent)',
+              color: 'var(--color-accent)',
+              cursor: restoring ? 'default' : 'pointer',
+              opacity: restoring ? 0.5 : 1,
+              touchAction: 'manipulation',
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            {restoring || undoing ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <RefreshCcw size={13} strokeWidth={2.5} />
+            )}
+            {!restoring && !undoing && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -5,
+                  right: -5,
+                  minWidth: 14,
+                  height: 14,
+                  borderRadius: 999,
+                  backgroundColor: 'var(--color-accent)',
+                  color: '#fff',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  lineHeight: '14px',
+                  textAlign: 'center',
+                  padding: '0 3px',
+                }}
+              >
+                {removedCount}
+              </span>
+            )}
           </button>
         )}
         <button
           type="button"
           onClick={handleCircleTap}
           disabled={!canLog}
+          title={effectiveLogged ? t.nutrition.markNotEaten : t.nutrition.markEaten}
+          aria-label={effectiveLogged ? t.nutrition.markNotEaten : t.nutrition.markEaten}
+          aria-pressed={effectiveLogged}
           className="flex items-center justify-center"
           style={{
             width: 28,
@@ -1398,19 +1853,20 @@ function MealCard({
       </div>
 
       {meal.options.length > 1 && (
-        <div className="flex items-center gap-1 mb-2">
+        <div className="flex items-center gap-1 mb-2 flex-wrap">
           {meal.options.map((o) => {
             const active = activeOption?.id === o.id
-            const wasLogged = o.id === loggedOptionId
+            const wasLogged = optionIsLogged(o)
             return (
               <button
                 key={o.id}
                 type="button"
                 onClick={() => onSelectOption(o.id)}
+                aria-pressed={active}
                 className="px-2.5 py-1 text-xs font-semibold"
                 style={{
-                  backgroundColor: active ? '#fff' : 'var(--color-surface-2)',
-                  color: active ? '#000' : 'var(--color-text-muted)',
+                  backgroundColor: active ? 'var(--color-accent)' : 'var(--color-surface-2)',
+                  color: active ? '#fff' : 'var(--color-text-muted)',
                   border: 'none',
                   borderRadius: 999,
                   cursor: 'pointer',
@@ -1420,188 +1876,85 @@ function MealCard({
                 }}
               >
                 {t.nutrition.option} {o.label}
-                {wasLogged && (
-                  <Check size={10} strokeWidth={3} color={active ? '#22c55e' : '#22c55e'} />
-                )}
+                {wasLogged && <Check size={10} strokeWidth={3} color={active ? '#fff' : '#22c55e'} />}
               </button>
             )
           })}
         </div>
       )}
 
-      {activeOption && (
+      {/* Every pre-filled food in this option was removed — say so, rather than
+          leaving a blank card that looks broken. */}
+      {activeOption && visibleFoods.length === 0 && removedCount > 0 && (
+        <div
+          className="flex items-center gap-2 mb-2"
+          style={{
+            backgroundColor: 'var(--color-surface-2)',
+            border: '1px dashed var(--color-border)',
+            borderRadius: 10,
+            padding: '9px 11px',
+          }}
+        >
+          <RefreshCcw size={13} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.35 }}>
+            {t.nutrition.restorePlanFoods}
+          </span>
+        </div>
+      )}
+
+      {visibleFoods.length > 0 && (
         <div className="flex flex-col gap-1.5 mb-2">
-          {activeOption.foods
-            .filter((f) => {
-              const isDeleted = isLogged
-                ? planLogs.every((l) => l.templateFoodId !== f.id)
-                : !!deletedFoodIds[f.id]
-              return !isDeleted
-            })
-            .map((f) => {
-              const matchingLog = planLogs.find((l) => l.templateFoodId === f.id)
-              return (
-                <FoodRow
-                  key={f.id}
-                  foodId={f.id}
-                  name={tx(t.foods as Record<string, string>, f.foodName)}
-                  quantity={f.quantity}
-                  unit={f.unit}
-                  calories={f.calories}
-                  p={f.proteinG}
-                  c={f.carbsG}
-                  fat={f.fatG}
-                  portionOverride={portionOverrides[f.id]}
-                  onPortionOverride={(qty) => onPortionOverride(f.id, qty)}
-                  onDelete={() => onDeleteFood(f.id, matchingLog?.id)}
-                />
-              )
-            })}
+          {visibleFoods.map((f) => {
+            const matchingLog = planLogs.find((l) => l.templateFoodId === f.id)
+            return (
+              <FoodRow
+                key={f.id}
+                name={tx(t.foods as Record<string, string>, f.foodName)}
+                quantity={f.quantity}
+                unit={f.unit}
+                calories={f.calories}
+                p={f.proteinG}
+                c={f.carbsG}
+                fat={f.fatG}
+                displayQuantity={resolveQty(f)}
+                onPortionOverride={(qty) => onPortionOverride(f.id, qty)}
+                onDelete={() => onDeleteFood(f.id, matchingLog?.id)}
+              />
+            )
+          })}
         </div>
       )}
 
       {customLogs.length > 0 && (
         <div className="flex flex-col gap-1.5 mt-2">
-          {customLogs.map((l) => {
-            if (editingCustomId === l.id) {
-              const qty = parseFloat(customEditQty) || 0
-              const ratio = l.quantity > 0 ? qty / l.quantity : 0
-              return (
-                <div
-                  key={l.id}
-                  style={{
-                    backgroundColor: 'var(--color-surface-2)',
-                    borderRadius: 10,
-                    padding: '6px 10px',
-                  }}
-                >
-                  <p
-                    className="truncate"
-                    style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 500, margin: '0 0 4px' }}
-                  >
-                    {l.foodName}
-                  </p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={customEditQty}
-                      onChange={(e) => setCustomEditQty(normalizeDecimalInput(e.target.value))}
-                      autoFocus
-                      style={{
-                        width: 60,
-                        padding: '3px 6px',
-                        fontSize: 12,
-                        backgroundColor: 'var(--color-surface-3)',
-                        border: '1px solid var(--color-accent)',
-                        borderRadius: 6,
-                        color: 'var(--color-text-primary)',
-                        outline: 'none',
-                      }}
-                    />
-                    <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>{l.unit}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleConfirmCustomEdit(l)}
-                      style={{
-                        width: 22,
-                        height: 22,
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#22c55e',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Check size={13} strokeWidth={3} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingCustomId(null)}
-                      style={{
-                        width: 22,
-                        height: 22,
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--color-text-hint)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <X size={13} />
-                    </button>
-                    <Pill value={Math.round(l.calories * ratio)} color="var(--color-text-primary)" bg="var(--color-surface-3)" />
-                    <Pill value={Math.round(l.proteinG * ratio)} color={COLOR_PROTEIN} bg="rgba(59,130,246,0.12)" />
-                    <Pill value={Math.round(l.carbsG * ratio)} color={COLOR_CARBS} bg="rgba(249,115,22,0.12)" />
-                    <Pill value={Math.round(l.fatG * ratio)} color={COLOR_FAT} bg="rgba(239,68,68,0.12)" />
-                  </div>
-                </div>
-              )
-            }
-
-            return (
-              <div
-                key={l.id}
-                className="flex items-center"
-                style={{
-                  backgroundColor: 'var(--color-surface-2)',
-                  borderRadius: 10,
-                  padding: '10px 12px',
-                }}
-              >
-                <FoodInner
-                  name={l.foodName}
-                  quantity={l.quantity}
-                  unit={l.unit}
-                  calories={l.calories}
-                  p={l.proteinG}
-                  c={l.carbsG}
-                  fat={l.fatG}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingCustomId(l.id)
-                    setCustomEditQty(String(l.quantity))
-                  }}
-                  title={t.common.edit}
-                  style={{
-                    width: 22,
-                    height: 22,
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--color-text-hint)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Pencil size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDeleteCustom(l.id)}
-                  title="Remove"
-                  className="ml-1 inline-flex items-center justify-center"
-                  style={{
-                    width: 22,
-                    height: 22,
-                    color: '#ef4444',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <X size={13} />
-                </button>
-              </div>
-            )
-          })}
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-hint)',
+              margin: 0,
+            }}
+          >
+            {t.nutrition.yourFoods}
+          </p>
+          {customLogs.map((l) => (
+            <CustomFoodRow
+              key={l.id}
+              log={l}
+              editing={editingCustomId === l.id}
+              editQty={customEditQty}
+              onEditQtyChange={setCustomEditQty}
+              onStartEdit={() => {
+                setEditingCustomId(l.id)
+                setCustomEditQty(String(l.quantity))
+              }}
+              onCancelEdit={() => setEditingCustomId(null)}
+              onConfirmEdit={() => handleConfirmCustomEdit(l)}
+              onDelete={() => onDeleteCustom(l.id)}
+            />
+          ))}
         </div>
       )}
 
@@ -1644,8 +1997,163 @@ function MealCard({
   )
 }
 
+/**
+ * One food the client logged themselves — searched, scanned or typed in. Shared
+ * by plan meals and custom meals so both behave identically.
+ */
+function CustomFoodRow({
+  log,
+  editing,
+  editQty,
+  onEditQtyChange,
+  onStartEdit,
+  onCancelEdit,
+  onConfirmEdit,
+  onDelete,
+}: {
+  log: DayLog
+  editing: boolean
+  editQty: string
+  onEditQtyChange: (v: string) => void
+  onStartEdit: () => void
+  onCancelEdit: () => void
+  onConfirmEdit: () => void
+  onDelete: () => void
+}) {
+  const { t } = useLanguage()
+  const name = tx(t.foods as Record<string, string>, log.foodName)
+
+  if (editing) {
+    const qty = parseFloat(editQty) || 0
+    const ratio = portionRatio(log.quantity, qty) * (log.quantity > 0 ? 1 : 0)
+    const valid = qty > 0
+    return (
+      <div style={{ backgroundColor: 'var(--color-surface-2)', borderRadius: 10, padding: '6px 10px' }}>
+        <p
+          className="truncate"
+          style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 500, margin: '0 0 4px' }}
+        >
+          {name}
+        </p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={editQty}
+            onChange={(e) => onEditQtyChange(normalizeDecimalInput(e.target.value))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && valid) onConfirmEdit()
+              if (e.key === 'Escape') onCancelEdit()
+            }}
+            autoFocus
+            aria-label={t.nutrition.quantity}
+            style={{
+              width: 60,
+              padding: '3px 6px',
+              fontSize: 12,
+              backgroundColor: 'var(--color-surface-3)',
+              border: '1px solid ' + (valid ? 'var(--color-accent)' : 'rgba(239,68,68,0.6)'),
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              outline: 'none',
+            }}
+          />
+          <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>{log.unit}</span>
+          <button
+            type="button"
+            onClick={onConfirmEdit}
+            disabled={!valid}
+            aria-label={t.common.confirm}
+            style={{
+              width: 22,
+              height: 22,
+              background: 'transparent',
+              border: 'none',
+              cursor: valid ? 'pointer' : 'default',
+              opacity: valid ? 1 : 0.35,
+              color: '#22c55e',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Check size={13} strokeWidth={3} />
+          </button>
+          <button
+            type="button"
+            onClick={onCancelEdit}
+            aria-label={t.common.cancel}
+            style={{
+              width: 22,
+              height: 22,
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--color-text-hint)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <X size={13} />
+          </button>
+          <Pill value={Math.round(log.calories * ratio)} color="var(--color-text-primary)" bg="var(--color-surface-3)" />
+          <Pill value={Math.round(log.proteinG * ratio)} color={COLOR_PROTEIN} bg="rgba(59,130,246,0.12)" />
+          <Pill value={Math.round(log.carbsG * ratio)} color={COLOR_CARBS} bg="rgba(249,115,22,0.12)" />
+          <Pill value={Math.round(log.fatG * ratio)} color={COLOR_FAT} bg="rgba(239,68,68,0.12)" />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="flex items-center"
+      style={{ backgroundColor: 'var(--color-surface-2)', borderRadius: 10, padding: '10px 12px' }}
+    >
+      <FoodInner
+        name={name}
+        quantity={log.quantity}
+        unit={log.unit}
+        calories={log.calories}
+        p={log.proteinG}
+        c={log.carbsG}
+        fat={log.fatG}
+      />
+      <button
+        type="button"
+        onClick={onStartEdit}
+        title={t.common.edit}
+        aria-label={t.common.edit}
+        style={{
+          width: 22,
+          height: 22,
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'var(--color-text-hint)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Pencil size={12} />
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        title={t.common.delete}
+        aria-label={t.common.delete}
+        className="ml-1 inline-flex items-center justify-center"
+        style={{ width: 22, height: 22, color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer' }}
+      >
+        <X size={13} />
+      </button>
+    </div>
+  )
+}
+
 function FoodRow({
-  foodId,
   name,
   quantity,
   unit,
@@ -1653,11 +2161,10 @@ function FoodRow({
   p,
   c,
   fat,
-  portionOverride,
+  displayQuantity,
   onPortionOverride,
   onDelete,
 }: {
-  foodId: string
   name: string
   quantity: number
   unit: string
@@ -1665,7 +2172,8 @@ function FoodRow({
   p: number
   c: number
   fat: number
-  portionOverride: number | undefined
+  /** What the client is actually eating: their own resize, or what's logged. */
+  displayQuantity: number
   onPortionOverride: (qty: number) => void
   onDelete?: () => void
 }) {
@@ -1673,16 +2181,16 @@ function FoodRow({
   const [editing, setEditing] = useState(false)
   const [editQty, setEditQty] = useState('')
 
-  void foodId
+  const displayQty = displayQuantity
+  const displayRatio = portionRatio(quantity, displayQty)
 
-  const displayQty = portionOverride ?? quantity
-  const displayRatio = quantity > 0 ? displayQty / quantity : 1
-
-  const editRatio = quantity > 0 ? (parseFloat(editQty) || 0) / quantity : 0
+  const parsedEditQty = parseFloat(editQty) || 0
+  const editValid = parsedEditQty > 0
+  const editRatio = quantity > 0 ? parsedEditQty / quantity : 0
 
   const handleConfirm = () => {
-    const qty = parseFloat(editQty)
-    if (qty > 0) onPortionOverride(qty)
+    if (!editValid) return
+    onPortionOverride(parsedEditQty)
     setEditing(false)
   }
 
@@ -1712,13 +2220,18 @@ function FoodRow({
             inputMode="decimal"
             value={editQty}
             onChange={(e) => setEditQty(normalizeDecimalInput(e.target.value))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleConfirm()
+              if (e.key === 'Escape') setEditing(false)
+            }}
             autoFocus
+            aria-label={t.nutrition.quantity}
             style={{
               width: 60,
               padding: '3px 6px',
               fontSize: 12,
               backgroundColor: 'var(--color-surface-3)',
-              border: '1px solid var(--color-accent)',
+              border: '1px solid ' + (editValid ? 'var(--color-accent)' : 'rgba(239,68,68,0.6)'),
               borderRadius: 6,
               color: 'var(--color-text-primary)',
               outline: 'none',
@@ -1728,12 +2241,15 @@ function FoodRow({
           <button
             type="button"
             onClick={handleConfirm}
+            disabled={!editValid}
+            aria-label={t.common.confirm}
             style={{
               width: 22,
               height: 22,
               background: 'transparent',
               border: 'none',
-              cursor: 'pointer',
+              cursor: editValid ? 'pointer' : 'default',
+              opacity: editValid ? 1 : 0.35,
               color: '#22c55e',
               display: 'inline-flex',
               alignItems: 'center',
@@ -1745,6 +2261,7 @@ function FoodRow({
           <button
             type="button"
             onClick={() => setEditing(false)}
+            aria-label={t.common.cancel}
             style={{
               width: 22,
               height: 22,
@@ -1790,6 +2307,7 @@ function FoodRow({
         type="button"
         onClick={handleEdit}
         title={t.common.edit}
+        aria-label={t.common.edit}
         style={{
           width: 22,
           height: 22,
@@ -1808,7 +2326,8 @@ function FoodRow({
         <button
           type="button"
           onClick={onDelete}
-          title={t.common.delete}
+          title={t.nutrition.removeFood}
+          aria-label={t.nutrition.removeFood}
           className="ml-1 inline-flex items-center justify-center"
           style={{
             width: 22,
@@ -1931,7 +2450,7 @@ function AddCustomFood({
     proteinG: number
     carbsG: number
     fatG: number
-  }) => void
+  }) => Promise<void> | void
   clientId?: string | null
   workspaceId?: string | null
   logDate?: string
@@ -1942,46 +2461,76 @@ function AddCustomFood({
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FoodSearchResult[]>([])
   const [searching, setSearching] = useState(false)
+  /** The last query that actually reached the server, so "no results" is only
+   *  shown once a search for what's typed has finished. */
+  const [searchedQuery, setSearchedQuery] = useState<string | null>(null)
   const [selected, setSelected] = useState<FoodSearchResult | null>(null)
   const [quantity, setQuantity] = useState('100')
   const [manualOpen, setManualOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [showFoodScanner, setShowFoodScanner] = useState(false)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  // Only the newest search may write results; a slow earlier request that lands
+  // afterwards would otherwise overwrite them with stale matches.
+  const searchSeqRef = useRef(0)
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (query.trim().length < 2) {
-      setResults([])
-      return
-    }
-    setSearching(true)
+    const trimmed = query.trim()
+    const seq = ++searchSeqRef.current
     debounceRef.current = setTimeout(async () => {
-      try {
-        const r = await searchFoodsForClient(query)
-        setResults(r)
-      } finally {
-        setSearching(false)
+      if (trimmed.length < 2) {
+        if (seq === searchSeqRef.current) {
+          setResults([])
+          setSearching(false)
+          setSearchedQuery(null)
+        }
+        return
       }
-    }, 400)
+      setSearching(true)
+      try {
+        const r = await searchFoodsForClient(trimmed)
+        if (seq !== searchSeqRef.current) return
+        setResults(r)
+      } catch {
+        if (seq === searchSeqRef.current) setResults([])
+      } finally {
+        if (seq === searchSeqRef.current) {
+          setSearching(false)
+          setSearchedQuery(trimmed)
+        }
+      }
+    }, trimmed.length < 2 ? 0 : 400)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [query])
 
-  const handleAddFromResult = () => {
-    if (!selected) return
-    const q = parseFloat(quantity) || 0
-    if (q <= 0) return
-    onAdd({
-      foodName: selected.brand ? `${selected.name} (${selected.brand})` : selected.name,
-      quantity: q,
-      unit: 'g',
-      calories: round1((selected.caloriesPer100g * q) / 100),
-      proteinG: round1((selected.proteinPer100g * q) / 100),
-      carbsG: round1((selected.carbsPer100g * q) / 100),
-      fatG: round1((selected.fatPer100g * q) / 100),
-    })
+  const trimmedQuery = query.trim()
+  // Typing counts as "in progress" until the search for exactly this text lands,
+  // so the spinner appears immediately rather than after the debounce.
+  const searchPending = trimmedQuery.length >= 2 && (searching || searchedQuery !== trimmedQuery)
+
+  const parsedQty = parseFloat(quantity) || 0
+  const qtyValid = parsedQty > 0
+
+  const handleAddFromResult = async () => {
+    if (!selected || !qtyValid || submitting) return
+    setSubmitting(true)
+    try {
+      await onAdd({
+        foodName: selected.brand ? `${selected.name} (${selected.brand})` : selected.name,
+        quantity: parsedQty,
+        unit: 'g',
+        calories: round1((selected.caloriesPer100g * parsedQty) / 100),
+        proteinG: round1((selected.proteinPer100g * parsedQty) / 100),
+        carbsG: round1((selected.carbsPer100g * parsedQty) / 100),
+        fatG: round1((selected.fatPer100g * parsedQty) / 100),
+      })
+    } finally {
+      setSubmitting(false)
+    }
     setQuery('')
     setResults([])
     setSelected(null)
@@ -1989,7 +2538,7 @@ function AddCustomFood({
   }
 
   const selectedInsights: NutritionInsight[] = selected
-    ? getNutritionInsights(selected, parseFloat(quantity) || 0, dailyGoal ?? null)
+    ? getNutritionInsights(selected, parsedQty, dailyGoal ?? null, t.nutrition.insights)
     : []
 
   return (
@@ -2026,7 +2575,7 @@ function AddCustomFood({
                 fontSize: 13,
               }}
             />
-            {searching && <Loader2 size={12} className="animate-spin" style={{ color: 'var(--color-text-hint)' }} />}
+            {searchPending && <Loader2 size={12} className="animate-spin" style={{ color: 'var(--color-text-hint)' }} />}
             {clientId && workspaceId && logDate && (
               <>
                 <button
@@ -2070,6 +2619,18 @@ function AddCustomFood({
               </>
             )}
           </div>
+
+          {!searchPending && results.length === 0 && searchedQuery === trimmedQuery && trimmedQuery.length >= 2 && (
+            <p
+              style={{
+                fontSize: 12,
+                color: 'var(--color-text-hint)',
+                margin: '8px 2px 0',
+              }}
+            >
+              {t.nutrition.noFoodsFound}
+            </p>
+          )}
 
           {results.length > 0 && (
             <div className="flex flex-col mt-2">
@@ -2137,12 +2698,18 @@ function AddCustomFood({
               inputMode="decimal"
               value={quantity}
               onChange={(e) => setQuantity(normalizeDecimalInput(e.target.value))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddFromResult()
+                if (e.key === 'Escape') setSelected(null)
+              }}
+              autoFocus
+              aria-label={t.nutrition.quantity}
               style={{
                 width: 70,
                 padding: '6px 8px',
                 fontSize: 13,
                 backgroundColor: 'var(--color-surface-3)',
-                border: '1px solid var(--color-border)',
+                border: '1px solid ' + (qtyValid ? 'var(--color-border)' : 'rgba(239,68,68,0.6)'),
                 borderRadius: 8,
                 color: 'var(--color-text-primary)',
               }}
@@ -2151,26 +2718,34 @@ function AddCustomFood({
             <button
               type="button"
               onClick={handleAddFromResult}
+              disabled={!qtyValid || submitting}
               className="px-3 py-1.5 text-xs font-semibold"
               style={{
                 backgroundColor: 'var(--color-accent)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 8,
-                cursor: 'pointer',
+                cursor: !qtyValid || submitting ? 'default' : 'pointer',
+                opacity: !qtyValid || submitting ? 0.5 : 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
               }}
             >
-              {t.nutrition.addToMeal}
+              {submitting && <Loader2 size={12} className="animate-spin" />}
+              {submitting ? t.nutrition.adding : t.nutrition.addToMeal}
             </button>
             <button
               type="button"
               onClick={() => setSelected(null)}
+              disabled={submitting}
               className="text-xs"
               style={{
                 color: 'var(--color-text-hint)',
                 background: 'transparent',
                 border: 'none',
-                cursor: 'pointer',
+                cursor: submitting ? 'default' : 'pointer',
+                opacity: submitting ? 0.5 : 1,
               }}
             >
               {t.common.cancel}
@@ -2194,11 +2769,7 @@ function AddCustomFood({
       )}
 
       {manualOpen && (
-        <ManualEntryForm
-          mealName={mealName}
-          onAdd={onAdd}
-          onCancel={() => setManualOpen(false)}
-        />
+        <ManualEntryForm onAdd={onAdd} onCancel={() => setManualOpen(false)} />
       )}
 
       {showBarcodeScanner && clientId && workspaceId && logDate && (
@@ -2233,11 +2804,9 @@ function AddCustomFood({
 }
 
 function ManualEntryForm({
-  mealName,
   onAdd,
   onCancel,
 }: {
-  mealName: string
   onAdd: (p: {
     foodName: string
     quantity: number
@@ -2246,7 +2815,7 @@ function ManualEntryForm({
     proteinG: number
     carbsG: number
     fatG: number
-  }) => void
+  }) => Promise<void> | void
   onCancel: () => void
 }) {
   const { t } = useLanguage()
@@ -2256,18 +2825,29 @@ function ManualEntryForm({
   const [c, setC] = useState('')
   const [f, setF] = useState('')
   const [q, setQ] = useState('100')
+  const [submitting, setSubmitting] = useState(false)
 
-  const handle = () => {
-    if (!name.trim()) return
-    onAdd({
-      foodName: name.trim(),
-      quantity: parseFloat(q) || 0,
-      unit: 'g',
-      calories: parseFloat(cal) || 0,
-      proteinG: parseFloat(p) || 0,
-      carbsG: parseFloat(c) || 0,
-      fatG: parseFloat(f) || 0,
-    })
+  const parsedQ = parseFloat(q) || 0
+  // A zero quantity makes the entry impossible to resize later (every macro
+  // would scale from nothing), so require a real amount up front.
+  const canSubmit = name.trim().length > 0 && parsedQ > 0 && !submitting
+
+  const handle = async () => {
+    if (!canSubmit) return
+    setSubmitting(true)
+    try {
+      await onAdd({
+        foodName: name.trim(),
+        quantity: parsedQ,
+        unit: 'g',
+        calories: parseFloat(cal) || 0,
+        proteinG: parseFloat(p) || 0,
+        carbsG: parseFloat(c) || 0,
+        fatG: parseFloat(f) || 0,
+      })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const inputStyle: React.CSSProperties = {
@@ -2300,26 +2880,34 @@ function ManualEntryForm({
         <button
           type="button"
           onClick={handle}
+          disabled={!canSubmit}
           className="px-3 py-1.5 text-xs font-semibold"
           style={{
             backgroundColor: 'var(--color-accent)',
             color: '#fff',
             border: 'none',
             borderRadius: 8,
-            cursor: 'pointer',
+            cursor: canSubmit ? 'pointer' : 'default',
+            opacity: canSubmit ? 1 : 0.5,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
           }}
         >
-          {t.nutrition.addToMeal}
+          {submitting && <Loader2 size={12} className="animate-spin" />}
+          {submitting ? t.nutrition.adding : t.nutrition.addToMeal}
         </button>
         <button
           type="button"
           onClick={onCancel}
+          disabled={submitting}
           className="text-xs"
           style={{
             color: 'var(--color-text-hint)',
             background: 'transparent',
             border: 'none',
-            cursor: 'pointer',
+            cursor: submitting ? 'default' : 'pointer',
+            opacity: submitting ? 0.5 : 1,
           }}
         >
           {t.common.cancel}
@@ -2335,8 +2923,8 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
       <div
         style={{
           backgroundColor: 'var(--color-surface-1)',
-          border: '1px dashed var(--color-border)',
-          borderRadius: 16,
+          border: '1px dashed var(--color-border-strong)',
+          borderRadius: 'var(--cx-r-lg)',
           padding: '24px 16px',
           textAlign: 'center',
         }}
@@ -2357,10 +2945,11 @@ function NotesCard({ plan }: { plan: FullMealPlan | null }) {
 
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: 16,
+        borderRadius: 'var(--cx-r-lg)',
         padding: '16px',
       }}
     >

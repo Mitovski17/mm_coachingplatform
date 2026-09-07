@@ -8,8 +8,9 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), monospace;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   --font-heading: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-manrope), var(--font-inter), system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -679,4 +680,289 @@
   .coach-editor-right {
     display: none !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CLIENT VIEW — premium UI layer
+   ---------------------------------------------------------------------------
+   Everything here is scoped under `.cx`, the wrapper ClientShell renders, so
+   the coach and admin shells are untouched.
+
+   Performance contract: every animation moves only `transform` and `opacity`
+   (compositor-only — no layout, no paint), runs once on mount or on
+   interaction, and is capped at 400ms. No animation library, no JS frame
+   loop; this is all CSS.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cx {
+  /* ── Elevation ────────────────────────────────────────────────────────────
+     Soft and tinted rather than a hard grey drop. On a near-black base a
+     shadow only reads as depth when it is wide and low-opacity. */
+  --cx-shadow-sm:  0 1px 2px rgba(0,0,0,0.30);
+  --cx-shadow-md:  0 4px 14px -4px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.24);
+  --cx-shadow-lg:  0 16px 40px -12px rgba(0,0,0,0.60), 0 4px 12px -6px rgba(0,0,0,0.35);
+  --cx-shadow-cta: 0 6px 20px -6px rgba(255,92,0,0.50);
+
+  /* Hairline that reads as a lifted edge rather than a drawn box */
+  --cx-hairline: rgba(255,255,255,0.06);
+
+  /* ── Shape ────────────────────────────────────────────────────────────────
+     Generous, consistent radii — the single biggest lever on "premium". */
+  --cx-r-xs: 8px;
+  --cx-r-sm: 12px;
+  --cx-r-md: 16px;
+  --cx-r-lg: 20px;
+  --cx-r-xl: 26px;
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  --cx-dur-fast: 130ms;
+  --cx-dur:      220ms;
+  --cx-dur-slow: 380ms;
+  /* Decisive ease-out: fast start, long settle. Reads as responsive. */
+  --cx-ease:     cubic-bezier(0.22, 1, 0.36, 1);
+  /* Restrained overshoot for things that "arrive" (nav pill, badges) */
+  --cx-spring:   cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.light .cx {
+  /* Warm-tinted so shadows sit in the cream ground instead of dirtying it */
+  --cx-shadow-sm:  0 1px 2px rgba(72,60,30,0.07);
+  --cx-shadow-md:  0 4px 14px -4px rgba(72,60,30,0.13), 0 1px 3px rgba(72,60,30,0.06);
+  --cx-shadow-lg:  0 16px 40px -12px rgba(72,60,30,0.20), 0 4px 12px -6px rgba(72,60,30,0.10);
+  --cx-shadow-cta: 0 6px 20px -6px rgba(255,92,0,0.38);
+  --cx-hairline:   rgba(255,255,255,0.85);
+}
+
+/* ── Typography ────────────────────────────────────────────────────────────
+   Manrope for headings and figures. Optical tracking: large type needs
+   negative tracking or it looks loose; small type is left alone. */
+.cx-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.021em;
+}
+.cx-display-lg { letter-spacing: -0.032em; }
+
+/* Figures that change in place must not reflow their neighbours */
+.cx-num {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.028em;
+}
+
+/* ── Surfaces ─────────────────────────────────────────────────────────────
+   Only shadow + transition live here; background/border/radius stay inline so
+   this layers onto existing markup without specificity fights. */
+.cx-card {
+  box-shadow: var(--cx-shadow-md);
+  transition: box-shadow var(--cx-dur) var(--cx-ease),
+              transform var(--cx-dur) var(--cx-ease);
+}
+.cx-card-flat { box-shadow: var(--cx-shadow-sm); }
+
+/* ── Interaction feedback ─────────────────────────────────────────────────
+   Touch has no hover, so the press state is the primary affordance. */
+.cx-press {
+  transition: transform var(--cx-dur-fast) var(--cx-ease),
+              box-shadow var(--cx-dur) var(--cx-ease),
+              background-color var(--cx-dur) var(--cx-ease),
+              border-color var(--cx-dur) var(--cx-ease),
+              color var(--cx-dur) var(--cx-ease),
+              opacity var(--cx-dur) var(--cx-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.cx-press:active    { transform: scale(0.965); }
+.cx-press-sm:active { transform: scale(0.99); }
+
+@media (hover: hover) and (pointer: fine) {
+  .cx-lift:hover {
+    transform: translate3d(0, -2px, 0);
+    box-shadow: var(--cx-shadow-lg);
+  }
+  .cx-lift:active { transform: translate3d(0, 0, 0) scale(0.99); }
+  .cx-tint:hover  { background-color: var(--color-surface-2); }
+}
+
+/* Primary CTA — a coloured shadow makes the button look lit, not stuck on */
+.cx-cta {
+  box-shadow: var(--cx-shadow-cta);
+  transition: transform var(--cx-dur-fast) var(--cx-ease),
+              box-shadow var(--cx-dur) var(--cx-ease),
+              filter var(--cx-dur) var(--cx-ease);
+}
+.cx-cta:active { transform: scale(0.975); box-shadow: var(--cx-shadow-sm); }
+@media (hover: hover) and (pointer: fine) {
+  .cx-cta:hover { filter: brightness(1.07); box-shadow: var(--cx-shadow-lg), var(--cx-shadow-cta); }
+}
+
+/* ── Entrance ─────────────────────────────────────────────────────────────
+   One pass on mount. `--cx-i` is the stagger index; the delay is capped so a
+   long list never leaves its last card waiting. */
+@keyframes cx-rise {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+.cx-in {
+  animation: cx-rise var(--cx-dur-slow) var(--cx-ease) both;
+  animation-delay: calc(min(var(--cx-i, 0), 8) * 45ms);
+}
+
+@keyframes cx-pop {
+  from { opacity: 0; transform: scale(0.86); }
+  to   { opacity: 1; transform: none; }
+}
+.cx-pop { animation: cx-pop var(--cx-dur) var(--cx-spring) both; }
+
+/* ── Segmented control ────────────────────────────────────────────────────
+   A thumb that slides between options instead of an underline that jumps. The
+   thumb is translated, never resized, so the move is compositor-only. */
+.cx-seg {
+  position: relative;
+  display: flex;
+  padding: 3px;
+  border-radius: 999px;
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  isolation: isolate;
+}
+.cx-seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--cx-seg-n, 2));
+  border-radius: 999px;
+  background-color: var(--color-surface-3);
+  box-shadow: var(--cx-shadow-sm);
+  transform: translate3d(calc(var(--cx-seg-i, 0) * 100%), 0, 0);
+  transition: transform var(--cx-dur) var(--cx-spring),
+              background-color var(--cx-dur) var(--cx-ease);
+  z-index: -1;
+}
+.cx-seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 999px;
+  font: inherit;
+  transition: color var(--cx-dur) var(--cx-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Translucent chrome ───────────────────────────────────────────────────
+   Opaque by default so the header/nav are never see-through; the frosted
+   treatment is layered on only where `color-mix` is actually supported. */
+.cx-chrome { background-color: var(--color-surface-1); }
+.cx-chrome-base { background-color: var(--color-base); }
+
+@supports (background-color: color-mix(in srgb, red 50%, transparent)) {
+  .cx-chrome {
+    background-color: color-mix(in srgb, var(--color-surface-1) 82%, transparent);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+  }
+  .cx-chrome-nav {
+    background-color: color-mix(in srgb, var(--color-surface-1) 86%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+  }
+  .cx-chrome-base {
+    background-color: color-mix(in srgb, var(--color-base) 85%, transparent);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+  }
+}
+
+/* ── Bottom navigation ────────────────────────────────────────────────────
+   Klarna's pattern: a pill grows in behind the active icon. */
+.cx-nav-pill {
+  transition: background-color var(--cx-dur) var(--cx-ease),
+              transform var(--cx-dur) var(--cx-spring);
+}
+.cx-nav-item {
+  transition: color var(--cx-dur) var(--cx-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.cx-nav-item:active .cx-nav-pill { transform: scale(0.9); }
+
+/* ── Skeletons ────────────────────────────────────────────────────────────
+   A sweeping highlight reads as "loading" far better than a pulsing block,
+   and translating a pseudo-element costs nothing. */
+@keyframes cx-shimmer { to { transform: translateX(100%); } }
+.cx-skel {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-surface-2);
+}
+.cx-skel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  /* Literal fallbacks so skeletons also work on routes outside the `.cx`
+     wrapper, such as the standalone /check-in screen. */
+  background: linear-gradient(90deg, transparent, var(--cx-hairline, rgba(255,255,255,0.06)), transparent);
+  animation: cx-shimmer 1.6s var(--cx-ease, cubic-bezier(0.22,1,0.36,1)) infinite;
+}
+
+/* ── Progress ─────────────────────────────────────────────────────────────
+   scaleX instead of width: no layout pass on every value change. The track
+   clips with overflow:hidden, so the fill still gets rounded ends. */
+.cx-bar-fill {
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(var(--cx-p, 0));
+  transition: transform var(--cx-dur-slow) var(--cx-ease);
+}
+
+/* Ring gauges draw themselves in once, then track their value */
+@keyframes cx-ring-draw { from { stroke-dashoffset: var(--cx-circ); } }
+.cx-ring {
+  animation: cx-ring-draw 900ms var(--cx-ease) both;
+  transition: stroke-dashoffset var(--cx-dur-slow) var(--cx-ease);
+}
+
+/* ── Floating session pill ────────────────────────────────────────────────
+   It centres itself with a translate, so it cannot borrow `.cx-press` — every
+   state here has to restate the -50% or the pill jumps to the right. */
+@keyframes cx-fab-in {
+  from { opacity: 0; transform: translate3d(-50%, 12px, 0) scale(0.92); }
+  to   { opacity: 1; transform: translate3d(-50%, 0, 0) scale(1); }
+}
+.cx-fab {
+  transform: translate3d(-50%, 0, 0);
+  animation: cx-fab-in var(--cx-dur-slow) var(--cx-spring) both;
+  transition: transform var(--cx-dur-fast) var(--cx-ease),
+              box-shadow var(--cx-dur) var(--cx-ease);
+}
+.cx-fab:active { transform: translate3d(-50%, 0, 0) scale(0.95); }
+
+/* ── Bottom sheets & overlays ─────────────────────────────────────────────── */
+@keyframes cx-fade-in  { from { opacity: 0; } }
+@keyframes cx-sheet-up { from { transform: translate3d(0, 100%, 0); } }
+.cx-backdrop { animation: cx-fade-in var(--cx-dur) var(--cx-ease) both; }
+.cx-sheet    { animation: cx-sheet-up var(--cx-dur-slow) var(--cx-ease) both; }
+
+/* ── Focus ────────────────────────────────────────────────────────────────
+   Never removed, only replaced with something that suits the surface. */
+.cx :focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────
+   Honour the OS setting: content still arrives, it just doesn't travel. */
+@media (prefers-reduced-motion: reduce) {
+  .cx *,
+  .cx *::before,
+  .cx *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .cx-press:active,
+  .cx-cta:active,
+  .cx-lift:hover { transform: none !important; }
 }

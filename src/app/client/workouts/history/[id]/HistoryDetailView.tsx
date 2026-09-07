@@ -102,7 +102,7 @@ function ExercisePicker({
       onClick={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'var(--color-surface-1)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+      <div onClick={(e) => e.stopPropagation()} className="cx-sheet" style={{ backgroundColor: 'var(--color-surface-1)', borderRadius: '28px 28px 0 0', boxShadow: 'var(--cx-shadow-lg)', padding: '20px 20px 40px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0 }}>
           <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>{t.workouts.addExercise}</p>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--color-text-hint)', cursor: 'pointer', fontSize: 22, padding: 4 }}>×</button>
@@ -174,7 +174,7 @@ function EditExerciseCard({
   }
 
   return (
-    <div style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 16, marginBottom: 12, overflow: 'hidden' }}>
+    <div className="cx-card" style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-lg)', marginBottom: 12, overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}>
         <p style={{ flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{tx(t.exercises as Record<string, string>, exercise.exerciseName)}</p>
@@ -371,10 +371,10 @@ export default function HistoryDetailView({ session: initial }: { session: Sessi
             {editing ? (
               <input
                 type="text" value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus
-                style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '4px 10px', margin: '0 0 4px', width: '100%', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                style={{ fontSize: 27, fontWeight: 800, color: 'var(--color-text-primary)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-sm)', padding: '4px 10px', margin: '0 0 4px', width: '100%', outline: 'none', fontFamily: 'var(--font-display)', letterSpacing: '-0.032em', boxSizing: 'border-box' }}
               />
             ) : (
-              <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>{session.name}</h1>
+              <h1 className="cx-display cx-display-lg" style={{ fontSize: 27, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>{session.name}</h1>
             )}
             <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0 }}>{date}</p>
           </div>
@@ -399,7 +399,7 @@ export default function HistoryDetailView({ session: initial }: { session: Sessi
 
       {/* ── Stats card ── */}
       <div style={{ padding: '0 16px', marginTop: 16 }}>
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 14 }}>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-md)', padding: 14 }}>
           {editing ? (
             <div>
               <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t.workouts.duration}</p>
@@ -421,7 +421,7 @@ export default function HistoryDetailView({ session: initial }: { session: Sessi
       {/* ── Notes ── */}
       {(editing || session.notes) && (
         <div style={{ padding: '12px 16px 0' }}>
-          <div style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 14 }}>
+          <div style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-md)', padding: 14 }}>
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t.workouts.notes}</p>
             {editing ? (
               <textarea
@@ -457,7 +457,8 @@ export default function HistoryDetailView({ session: initial }: { session: Sessi
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
-              style={{ width: '100%', padding: '13px 0', marginBottom: 12, backgroundColor: 'transparent', border: '1px dashed var(--color-accent)', borderRadius: 14, color: 'var(--color-accent)', fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              className="cx-press"
+              style={{ width: '100%', padding: '14px 0', marginBottom: 12, backgroundColor: 'transparent', border: '1px dashed var(--color-accent)', borderRadius: 'var(--cx-r-md)', color: 'var(--color-accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
             >
               <Plus size={16} />
               {t.workouts.addExercise}
@@ -467,7 +468,7 @@ export default function HistoryDetailView({ session: initial }: { session: Sessi
           session.exercises.map((ex) => {
             const muscleColor = MUSCLE_COLORS[ex.muscleGroup] ?? '#6b7280'
             return (
-              <div key={ex.exerciseId} style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 16, marginBottom: 12, overflow: 'hidden' }}>
+              <div key={ex.exerciseId} className="cx-card" style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-lg)', marginBottom: 12, overflow: 'hidden' }}>
                 <div className="flex items-center gap-2" style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}>
                   <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, flex: 1 }}>{tx(t.exercises as Record<string, string>, ex.exerciseName)}</p>
                   <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, backgroundColor: 'var(--color-surface-2)', color: muscleColor }}>{tx(t.muscleGroups as Record<string, string>, ex.muscleGroup)}</span>

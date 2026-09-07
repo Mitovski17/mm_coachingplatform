@@ -258,17 +258,17 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 24 }}>
 
       {/* Header */}
-      <div style={{ padding: '52px 20px 16px' }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 4px' }}>
+      <div className="cx-in" style={{ padding: '52px 20px 16px' }}>
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 5px' }}>
           {t.progress.week} {weekNum}
         </p>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
+        <h1 className="cx-display cx-display-lg" style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
           {t.progress.title}
         </h1>
       </div>
 
       {/* Stat chips */}
-      <div style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+      <div className="cx-in" style={{ '--cx-i': 1, padding: '0 16px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 } as React.CSSProperties}>
         {[
           { label: t.progress.starting, value: starting != null ? `${starting}` : t.common.noData, unit: starting != null ? unit : '', color: 'var(--color-text-primary)' },
           { label: t.progress.current,  value: current  != null ? `${current}`  : t.common.noData, unit: current  != null ? unit : '', color: 'var(--color-text-primary)' },
@@ -276,12 +276,13 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
         ].map(({ label, value, unit: u, color }) => (
           <div
             key={label}
-            style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 12px 14px' }}
+            className="cx-card-flat"
+            style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-md)', padding: '12px 12px 14px' }}
           >
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 8px' }}>
               {label}
             </p>
-            <p style={{ fontSize: 24, fontWeight: 800, color, margin: 0, lineHeight: 1 }}>
+            <p className="cx-num" style={{ fontSize: 25, fontWeight: 800, color, margin: 0, lineHeight: 1 }}>
               {value}
               {u && (
                 <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-hint)', marginLeft: 3 }}>
@@ -294,8 +295,8 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
       </div>
 
       {/* Bodyweight chart card */}
-      <div style={{ padding: '0 16px 16px' }}>
-        <div style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 14, padding: '14px 14px 10px' }}>
+      <div className="cx-in" style={{ '--cx-i': 2, padding: '0 16px 16px' } as React.CSSProperties}>
+        <div className="cx-card" style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-lg)', padding: '14px 14px 10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 2px' }}>
@@ -313,35 +314,44 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
-                  padding: '4px 10px',
+                  padding: '6px 11px',
                   fontSize: 11,
-                  fontWeight: 600,
-                  borderRadius: 8,
-                  border: '1px solid var(--color-border)',
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  border: '1px solid var(--color-border-strong)',
                   backgroundColor: 'var(--color-surface-2)',
                   color: 'var(--color-text-secondary)',
                   cursor: 'pointer',
                 }}
+                className="cx-press cx-tint"
               >
                 <Scale size={12} />
                 {t.progress.logWeight}
               </button>
-            <div style={{ display: 'flex', gap: 2, backgroundColor: 'var(--color-surface-3)', borderRadius: 999, padding: 3 }}>
+            <div
+              className="cx-seg"
+              role="group"
+              aria-label={t.progress.bodyWeight}
+              style={{
+                backgroundColor: 'var(--color-surface-3)',
+                border: 'none',
+                '--cx-seg-n': FILTERS.length,
+                '--cx-seg-i': FILTERS.indexOf(filter),
+              } as React.CSSProperties}
+            >
+              <div className="cx-seg-thumb" aria-hidden="true" style={{ backgroundColor: 'var(--color-text-primary)' }} />
               {FILTERS.map((f) => (
                 <button
                   key={f}
                   type="button"
+                  aria-pressed={filter === f}
                   onClick={() => setFilter(f)}
+                  className="cx-seg-btn"
                   style={{
-                    padding: '4px 8px',
+                    padding: '5px 9px',
                     fontSize: 11,
-                    fontWeight: 600,
-                    borderRadius: 999,
-                    border: 'none',
-                    cursor: 'pointer',
-                    backgroundColor: filter === f ? 'var(--color-text-primary)' : 'transparent',
+                    fontWeight: 700,
                     color: filter === f ? 'var(--color-base)' : 'var(--color-text-hint)',
-                    transition: 'all 0.15s ease',
                   }}
                 >
                   {f}
@@ -369,7 +379,8 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
             {weekCards.map((wk) => (
               <div
                 key={wk.week}
-                style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 14px', flexShrink: 0, minWidth: 130 }}
+                className="cx-card-flat"
+                style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-md)', padding: '12px 14px', flexShrink: 0, minWidth: 130 }}
               >
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 10px' }}>
                   {wk.label}
@@ -431,7 +442,8 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
           {photos.map((p, i) => (
             <div
               key={i}
-              style={{ backgroundColor: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 14, aspectRatio: '3 / 4', overflow: 'hidden', position: 'relative' }}
+              className="cx-card-flat"
+              style={{ backgroundColor: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-md)', aspectRatio: '3 / 4', overflow: 'hidden', position: 'relative' }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.url} alt={`Progress photo ${p.date}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -443,7 +455,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
 
           {photos.length === 0 && (
             <div
-              style={{ backgroundColor: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 14, aspectRatio: '3 / 4', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              style={{ backgroundColor: 'var(--color-surface-2)', border: '1px dashed var(--color-border-strong)', borderRadius: 'var(--cx-r-md)', aspectRatio: '3 / 4', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               <Camera size={22} style={{ color: 'var(--color-text-hint)' }} />
               <span style={{ fontSize: 12, color: 'var(--color-text-hint)', fontWeight: 500 }}>
@@ -457,14 +469,18 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
       {/* Add Photo modal */}
       {showUploadModal && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.75)', padding: 24 }}
+          className="cx-backdrop"
+          role="dialog"
+          aria-modal="true"
+          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', padding: 24 }}
           onClick={closeModal}
         >
           <div
-            style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 360 }}
+            className="cx-pop"
+            style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-xl)', padding: 24, width: '100%', maxWidth: 360, boxShadow: 'var(--cx-shadow-lg)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 16px' }}>
+            <h3 className="cx-display" style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 16px' }}>
               {t.progress.addPhoto}
             </h3>
 
@@ -480,6 +496,7 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
             {!uploadFile ? (
               <button
                 type="button"
+                className="cx-press cx-tint"
                 onClick={() => uploadInputRef.current?.click()}
                 style={{
                   width: '100%',
@@ -525,15 +542,16 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button
                 type="button"
+                className="cx-press"
                 onClick={closeModal}
                 disabled={uploading}
                 style={{
                   flex: 1,
                   padding: '13px',
                   fontSize: 14,
-                  fontWeight: 600,
-                  borderRadius: 12,
-                  border: '1px solid var(--color-border)',
+                  fontWeight: 700,
+                  borderRadius: 'var(--cx-r-sm)',
+                  border: '1px solid var(--color-border-strong)',
                   backgroundColor: 'transparent',
                   color: 'var(--color-text-secondary)',
                   cursor: uploading ? 'not-allowed' : 'pointer',
@@ -544,14 +562,15 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
               </button>
               <button
                 type="button"
+                className={uploadFile && !uploading ? 'cx-cta' : 'cx-press'}
                 onClick={handleUpload}
                 disabled={!uploadFile || uploading}
                 style={{
                   flex: 1,
                   padding: '13px',
                   fontSize: 14,
-                  fontWeight: 600,
-                  borderRadius: 12,
+                  fontWeight: 700,
+                  borderRadius: 'var(--cx-r-sm)',
                   border: 'none',
                   backgroundColor: uploadFile && !uploading ? 'var(--color-accent)' : 'var(--color-surface-3)',
                   color: uploadFile && !uploading ? '#fff' : 'var(--color-text-hint)',
@@ -568,14 +587,18 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
       {/* Log Weight modal */}
       {showWeightModal && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.75)', padding: 24 }}
+          className="cx-backdrop"
+          role="dialog"
+          aria-modal="true"
+          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', padding: 24 }}
           onClick={closeWeightModal}
         >
           <div
-            style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 360 }}
+            className="cx-pop"
+            style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--cx-r-xl)', padding: 24, width: '100%', maxWidth: 360, boxShadow: 'var(--cx-shadow-lg)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 20px' }}>
+            <h3 className="cx-display" style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 20px' }}>
               {t.progress.logWeightTitle}
             </h3>
 
@@ -635,15 +658,16 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button
                 type="button"
+                className="cx-press"
                 onClick={closeWeightModal}
                 disabled={savingWeight}
                 style={{
                   flex: 1,
                   padding: '13px',
                   fontSize: 14,
-                  fontWeight: 600,
-                  borderRadius: 12,
-                  border: '1px solid var(--color-border)',
+                  fontWeight: 700,
+                  borderRadius: 'var(--cx-r-sm)',
+                  border: '1px solid var(--color-border-strong)',
                   backgroundColor: 'transparent',
                   color: 'var(--color-text-secondary)',
                   cursor: savingWeight ? 'not-allowed' : 'pointer',
@@ -654,14 +678,15 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
               </button>
               <button
                 type="button"
+                className={weightValue && weightDate && !savingWeight ? 'cx-cta' : 'cx-press'}
                 onClick={handleSaveWeight}
                 disabled={!weightValue || !weightDate || savingWeight}
                 style={{
                   flex: 1,
                   padding: '13px',
                   fontSize: 14,
-                  fontWeight: 600,
-                  borderRadius: 12,
+                  fontWeight: 700,
+                  borderRadius: 'var(--cx-r-sm)',
                   border: 'none',
                   backgroundColor: weightValue && weightDate && !savingWeight ? 'var(--color-accent)' : 'var(--color-surface-3)',
                   color: weightValue && weightDate && !savingWeight ? '#fff' : 'var(--color-text-hint)',

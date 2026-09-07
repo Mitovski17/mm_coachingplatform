@@ -321,6 +321,34 @@ export async function getActiveMealPlan(
   }
 }
 
+/**
+ * Resolves the training/rest meal plans that apply on a specific date, using the
+ * same priority as the initial server render: date override > carb cycle >
+ * training/rest assignment > overall fallback.
+ *
+ * The page only ever renders today's plan, so without this the client would keep
+ * seeing today's meals after moving to another day in the week strip — wrong for
+ * carb-cycling clients and for any date that has a one-off plan override.
+ */
+export async function getMealPlansForDate(date: string): Promise<{
+  training: FullMealPlan | null
+  rest: FullMealPlan | null
+}> {
+  const { clientId } = await requireClient()
+  const [override, carbCycle, training, rest, overall] = await Promise.all([
+    getDateMealOverride(clientId, date),
+    getActiveCarbCyclePlan(clientId, date),
+    getActiveMealPlan(clientId, 'training'),
+    getActiveMealPlan(clientId, 'rest'),
+    getActiveMealPlan(clientId, 'overall'),
+  ])
+  const carbPlan = carbCycle?.plan ?? null
+  return {
+    training: override ?? carbPlan ?? training ?? overall,
+    rest: override ?? carbPlan ?? rest ?? overall,
+  }
+}
+
 export async function getDayLogs(clientId: string, date: string): Promise<DayLog[]> {
   ;({ clientId } = await requireClient())
   const admin = adminClient()

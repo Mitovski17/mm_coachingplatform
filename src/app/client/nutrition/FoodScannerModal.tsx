@@ -97,8 +97,10 @@ export default function FoodScannerModal({
   }
 
   const handleLogSelected = async () => {
-    if (selected.size === 0) return
+    if (selected.size === 0 || logging) return
     setLogging(true)
+    setErrorMsg(null)
+    let saved = 0
     try {
       for (const i of selected) {
         const food = foods[i]
@@ -115,9 +117,15 @@ export default function FoodScannerModal({
           carbsG: Math.round(food.carbsG * 10) / 10,
           fatG: Math.round(food.fatG * 10) / 10,
         })
+        saved++
       }
       onLogged()
       onClose()
+    } catch {
+      // Some foods may already be saved; pull them in and let the client retry
+      // the rest rather than closing over a half-finished save.
+      if (saved > 0) onLogged()
+      setErrorMsg(t.nutrition.saveFailed)
     } finally {
       setLogging(false)
     }
@@ -311,6 +319,23 @@ export default function FoodScannerModal({
                   </button>
                 )
               })}
+              {errorMsg && (
+                <p
+                  role="status"
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: '#f87171',
+                    backgroundColor: 'rgba(239,68,68,0.12)',
+                    border: '1px solid rgba(239,68,68,0.35)',
+                    borderRadius: 12,
+                    padding: '9px 12px',
+                    margin: 0,
+                  }}
+                >
+                  {errorMsg}
+                </p>
+              )}
               <button
                 type="button"
                 onClick={handleLogSelected}

@@ -17,6 +17,7 @@ import {
 } from '../actions'
 import { useLanguage, tx, type Translations } from '@/lib/i18n'
 import WorkoutInstructions from '../WorkoutInstructions'
+import ExerciseGif from '@/components/shared/ExerciseGif'
 import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 import type { SetRow, ExerciseState, RestTimer } from '@/lib/workout-session-types'
 import { normalizeDecimalInput } from '@/lib/numeric-input'
@@ -217,29 +218,46 @@ function ExercisePicker({
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {exList.map((ex) => (
-                    <button
+                    // Row, not a button: the thumbnail is its own button and
+                    // nesting one inside another is invalid.
+                    <div
                       key={ex.id}
-                      type="button"
-                      onClick={() => { onSelect(ex); onClose() }}
                       style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '11px 14px',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '9px 12px',
                         backgroundColor: 'var(--color-surface-2)',
                         border: '1px solid var(--color-border)',
-                        borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                        fontFamily: 'inherit',
+                        borderRadius: 10,
                       }}
                     >
-                      <div>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
-                          {tx(t.exercises as Record<string, string>, ex.name)}
-                        </p>
-                        <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>
-                          {tx(t.equipment as Record<string, string>, ex.equipment)}
-                        </p>
-                      </div>
-                      <Plus size={16} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
-                    </button>
+                      <ExerciseGif
+                        name={ex.name}
+                        label={tx(t.exercises as Record<string, string>, ex.name)}
+                        size={34}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { onSelect(ex); onClose() }}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          flex: 1, minWidth: 0, gap: 8,
+                          padding: '2px 0',
+                          background: 'none', border: 'none',
+                          cursor: 'pointer', textAlign: 'left',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                            {tx(t.exercises as Record<string, string>, ex.name)}
+                          </p>
+                          <p style={{ fontSize: 11, color: 'var(--color-text-hint)', margin: 0 }}>
+                            {tx(t.equipment as Record<string, string>, ex.equipment)}
+                          </p>
+                        </div>
+                        <Plus size={16} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -944,6 +962,13 @@ function ExerciseCard({
       <div style={{ padding: '16px 16px 4px' }}>
         {/* Title row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          {/* Paused demonstration; opens the animation. Renders nothing for an
+              exercise we have no verified GIF for. */}
+          <ExerciseGif
+            name={exercise.exerciseName}
+            label={tx(t.exercises as Record<string, string>, exercise.exerciseName)}
+            size={40}
+          />
           <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, flex: 1 }}>
             {tx(t.exercises as Record<string, string>, exercise.exerciseName)}
           </p>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import Image from 'next/image'
 import { Search, Loader2, Check, X, Plus, Pencil, Scan, Camera, RefreshCcw, Undo2, AlertCircle } from 'lucide-react'
 import {
   getDayLogs,
@@ -21,6 +22,7 @@ import {
 import type { FoodSearchResult } from '@/lib/food-search'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import FoodScannerModal from './FoodScannerModal'
+import ShoppingListModal from './ShoppingListModal'
 import { useLanguage, tx, type Translations } from '@/lib/i18n'
 import { normalizeDecimalInput } from '@/lib/numeric-input'
 
@@ -256,6 +258,7 @@ export default function NutritionClient({
   const [dayLogs, setDayLogs] = useState<DayLog[]>(initialDayLogs)
   const [loading, setLoading] = useState(false)
   const [activeAddFoodMeal, setActiveAddFoodMeal] = useState<string | null>(null)
+  const [shoppingOpen, setShoppingOpen] = useState(false)
   const [selectedOption, setSelectedOption] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<'diary' | 'notes'>('diary')
   const [errKey, setErrKey] = useState<'save' | 'load' | 'nameTaken' | null>(null)
@@ -734,9 +737,14 @@ export default function NutritionClient({
               {t.nutrition.title}
             </h1>
           </div>
-          {showPlanTypeToggle && (
-            <PlanTypeToggle value={planType} onChange={handleSetPlanType} />
-          )}
+          {/* Right-hand controls. Centred against each other and sized to the
+              segmented control's exact height so the pair reads as one unit. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <ShoppingListButton onClick={() => setShoppingOpen(true)} />
+            {showPlanTypeToggle && (
+              <PlanTypeToggle value={planType} onChange={handleSetPlanType} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -910,7 +918,67 @@ export default function NutritionClient({
           <NotesCard plan={mealPlan} />
         </div>
       )}
+
+      <ShoppingListModal
+        open={shoppingOpen}
+        onClose={() => setShoppingOpen(false)}
+        clientId={clientId}
+        startDate={selectedDate}
+      />
     </div>
+  )
+}
+
+/**
+ * Opens the shopping list. Bare artwork, no chrome — 32px against the 33px
+ * segmented control beside it, since a dense colour illustration carries more
+ * visual weight than an outlined pill and would tower over it at matching size.
+ * The tap target is grown to 44px behind the scenes rather than by inflating
+ * the box, so the icon keeps its size without becoming hard to hit.
+ */
+function ShoppingListButton({ onClick }: { onClick: () => void }) {
+  const { t } = useLanguage()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={t.nutrition.shopping.open}
+      title={t.nutrition.shopping.open}
+      className="cx-press cx-hit"
+      style={{
+        position: 'relative',
+        width: 32,
+        height: 32,
+        flexShrink: 0,
+        display: 'block',
+        border: 'none',
+        background: 'transparent',
+        padding: 0,
+        cursor: 'pointer',
+      }}
+    >
+      <Image
+        src="/icons/cart.png"
+        alt=""
+        width={32}
+        height={32}
+        loading="eager"
+        // Served straight from /icons so the service worker's cache-first rule
+        // and the route's cache header both apply. Without chrome behind it a
+        // missing image is an invisible button, so it must survive offline —
+        // and the source is already cut to 128px, so the optimiser adds little.
+        unoptimized
+        style={{
+          display: 'block',
+          width: '100%',
+          height: '100%',
+          // The cart is drawn ~1px low inside its own square canvas; the nudge
+          // lives on the image so `.cx-press` keeps the button's transform for
+          // its tap feedback.
+          transform: 'translateY(-1px)',
+        }}
+      />
+    </button>
   )
 }
 
@@ -926,10 +994,9 @@ function PlanTypeToggle({
   const accent = value === 'training' ? '#3b82f6' : '#22c55e'
   return (
     <div
-      className="cx-seg"
+      className="cx-seg cx-seg--fit"
       role="group"
       style={{
-        display: 'inline-flex',
         '--cx-seg-n': 2,
         '--cx-seg-i': activeIdx,
       } as React.CSSProperties}
@@ -937,7 +1004,7 @@ function PlanTypeToggle({
       {/* Thumb carries the state colour, so switching plan types slides
           rather than repainting two separate buttons. */}
       <div className="cx-seg-thumb" aria-hidden="true" style={{ backgroundColor: accent }} />
-      {(['training', 'rest'] as const).map((planKey) => {
+      {(['training', 'rest'] as const).map((planKey, idx) => {
         const active = value === planKey
         return (
           <button
@@ -947,9 +1014,14 @@ function PlanTypeToggle({
             onClick={() => onChange(planKey)}
             className="cx-seg-btn"
             style={{
-              padding: '5px 11px',
+              // Explicit column keeps each label on its own track; the thumb
+              // shares column 1 and slides by exactly one track width.
+              gridColumn: idx + 1,
+              padding: '5px 14px',
               fontSize: 12,
+              lineHeight: '15px',
               fontWeight: 700,
+              textAlign: 'center',
               whiteSpace: 'nowrap',
               color: active ? '#fff' : 'var(--color-text-muted)',
             }}

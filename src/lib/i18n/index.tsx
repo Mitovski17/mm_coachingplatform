@@ -46,3 +46,14 @@ export function useLanguage(): LanguageContextValue {
   if (!ctx) throw new Error('useLanguage must be used within a LanguageProvider')
   return ctx
 }
+
+/**
+ * Like `useLanguage`, but falls back to English instead of throwing when there
+ * is no provider above. Only the client routes and the check-in page mount
+ * `LanguageProvider`; a component shared with the coach side has to render
+ * there too, and the coach UI is English throughout.
+ */
+export function useLanguageOptional(): LanguageContextValue {
+  const ctx = useContext(LanguageContext)
+  return ctx ?? { lang: 'en', setLang: () => {}, t: en }
+}

@@ -16,6 +16,11 @@ const PRECACHE_URLS = [
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  // Bottom-nav artwork: part of the app shell, so it must not pop in offline
+  '/icons/nav/home.png',
+  '/icons/nav/train.png',
+  '/icons/nav/food.png',
+  '/icons/nav/profile.png',
 ]
 
 // ─── Install: precache critical shell assets ──────────────────────────────────

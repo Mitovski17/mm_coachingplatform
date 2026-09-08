@@ -7,6 +7,7 @@ import type { ProgressData, WeightDataPoint } from './progress-actions'
 import { uploadStandalonePhoto, saveClientWeight } from './progress-actions'
 import { useLanguage, type Translations } from '@/lib/i18n'
 import { normalizeDecimalInput } from '@/lib/numeric-input'
+import HeadlineMark from '@/components/client/HeadlineMark'
 
 type FilterKey = '4W' | '8W' | '12W' | 'All'
 const FILTER_COUNT: Record<FilterKey, number> = { '4W': 4, '8W': 8, '12W': 12, All: 9999 }
@@ -258,13 +259,16 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 24 }}>
 
       {/* Header */}
-      <div className="cx-in" style={{ padding: '52px 20px 16px' }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 5px' }}>
-          {t.progress.week} {weekNum}
-        </p>
-        <h1 className="cx-display cx-display-lg" style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
-          {t.progress.title}
-        </h1>
+      <div className="cx-in" style={{ padding: '52px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 5px' }}>
+            {t.progress.week} {weekNum}
+          </p>
+          <h1 className="cx-display cx-display-lg" style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
+            {t.progress.title}
+          </h1>
+        </div>
+        <HeadlineMark />
       </div>
 
       {/* Stat chips */}

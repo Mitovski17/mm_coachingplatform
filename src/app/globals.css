@@ -773,6 +773,19 @@
 .cx-press:active    { transform: scale(0.965); }
 .cx-press-sm:active { transform: scale(0.99); }
 
+/* Grows a small control's tap target to the 44px minimum without growing the
+   control itself — for icon buttons that have to match a neighbour's height.
+   Requires `position: relative` on the element. */
+.cx-hit::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .cx-lift:hover {
     transform: translate3d(0, -2px, 0);
@@ -850,6 +863,29 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Fit variant: equal grid tracks sized to the *widest* label, with the thumb
+   placed as a track rather than a percentage of the pill. A shrink-to-fit flex
+   row widths itself to the sum of its labels, so `width: 100% / n` lands on the
+   average of them — clipping the long label and over-padding the short one.
+   As a track the thumb matches the label box exactly at any label length. */
+.cx-seg--fit {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  width: max-content;
+  flex: none;
+}
+/* Items are placed explicitly (all on row 1) so the thumb and its button share
+   a cell — auto-placement would push the buttons past the occupied track. */
+.cx-seg--fit .cx-seg-thumb {
+  position: static;
+  grid-area: 1 / 1;
+  width: auto;
+}
+.cx-seg--fit .cx-seg-btn {
+  grid-row: 1;
+}
+
 /* ── Translucent chrome ───────────────────────────────────────────────────
    Opaque by default so the header/nav are never see-through; the frosted
    treatment is layered on only where `color-mix` is actually supported. */
@@ -885,6 +921,20 @@
   -webkit-tap-highlight-color: transparent;
 }
 .cx-nav-item:active .cx-nav-pill { transform: scale(0.9); }
+
+/* Full-colour artwork replaces the old line icons. The art stays at full
+   strength AND full size in both states — no dimming, no draining, no shrinking
+   when idle. The pill and the accent-coloured label carry the selection alone. */
+.cx-nav-icon {
+  display: block;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  transition: transform var(--cx-dur-fast) var(--cx-ease);
+}
+/* Press feedback has to live on the icon now: an idle tab's pill is fully
+   transparent, so scaling only the pill would give nothing back to the touch. */
+.cx-nav-item:active .cx-nav-icon { transform: scale(0.9); }
 
 /* ── Skeletons ────────────────────────────────────────────────────────────
    A sweeping highlight reads as "loading" far better than a pulsing block,

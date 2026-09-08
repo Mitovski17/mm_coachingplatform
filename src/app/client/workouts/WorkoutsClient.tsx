@@ -8,6 +8,7 @@ import { ChevronRight, Dumbbell, X } from 'lucide-react'
 import type { TodayTemplate, HistorySession, ProgramWorkoutDay } from './actions'
 import { getProgramWorkoutDays } from './actions'
 import { useLanguage, tx, type Translations } from '@/lib/i18n'
+import HeadlineMark from '@/components/client/HeadlineMark'
 import WorkoutInstructions from './WorkoutInstructions'
 import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 
@@ -82,6 +83,7 @@ export default function WorkoutsClient({
         <h1 className="cx-display cx-display-lg" style={{ fontSize: '28px', fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
           {t.workouts.title}
         </h1>
+        <HeadlineMark />
       </div>
 
       {/* Segmented control — the thumb slides between options rather than an

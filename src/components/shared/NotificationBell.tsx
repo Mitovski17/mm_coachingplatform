@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
@@ -166,6 +165,9 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
   return (
     <>
       <style>{`
+        /* The artwork carries itself — no plate behind it. The button keeps its
+           36px box purely as a touch target, and gives feedback by scaling
+           rather than by lighting up a surface it no longer has. */
         .notif-bell-btn {
           position: relative;
           display: flex;
@@ -173,23 +175,15 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
           justify-content: center;
           width: 36px;
           height: 36px;
-          border-radius: 8px;
-          border: 1px solid var(--color-border);
+          padding: 0;
+          border: none;
+          background: none;
           cursor: pointer;
-          background-color: var(--color-surface-2);
-          color: var(--color-text-primary);
-          transition: background-color 0.15s, border-color 0.15s;
+          transition: transform 0.15s;
           flex-shrink: 0;
         }
-        .notif-bell-btn:hover {
-          background-color: var(--color-surface-3);
-          border-color: var(--color-accent);
-        }
-        .notif-bell-btn.open {
-          background-color: var(--color-surface-3);
-          border-color: var(--color-accent);
-          color: var(--color-accent);
-        }
+        .notif-bell-btn:active { transform: scale(0.92); }
+        .notif-bell-btn.open { transform: scale(0.96); }
 
         /* Desktop panel — positioned via inline style from JS */
         .notif-panel {
@@ -265,13 +259,29 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
           aria-label="Notifications"
           className={`notif-bell-btn${open ? ' open' : ''}`}
         >
-          <Bell size={18} />
+          {/* Labelled by the button's aria-label, so the artwork is decorative.
+              Sized by height and contained: the bell is taller than it is wide,
+              so a square box would render it smaller than the 36px chrome wants. */}
+          <img
+            src="/icons/bell.png"
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            style={{
+              width: 27,
+              height: 27,
+              objectFit: 'contain',
+              display: 'block',
+              pointerEvents: 'none',
+            }}
+          />
           {unreadCount > 0 && (
             <span
               style={{
                 position: 'absolute',
-                top: -5,
-                right: -5,
+                // Hugs the artwork now that there is no plate corner to hang off
+                top: -2,
+                right: -2,
                 minWidth: 18,
                 height: 18,
                 borderRadius: '9999px',

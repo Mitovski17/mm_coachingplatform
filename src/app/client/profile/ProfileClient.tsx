@@ -12,6 +12,7 @@ import { updatePersonalInfo, uploadAvatar, sendFeedbackToCoach } from './actions
 import { toast } from 'sonner'
 import { useLanguage, type Translations, type Lang } from '@/lib/i18n'
 import { useTheme } from '@/app/ThemeProvider'
+import HeadlineMark from '@/components/client/HeadlineMark'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1043,10 +1044,11 @@ export default function ProfileClient({
       <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 32 }}>
 
         {/* Header */}
-        <div className="cx-in" style={{ padding: '52px 20px 24px' }}>
+        <div className="cx-in" style={{ padding: '52px 20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <h1 className="cx-display cx-display-lg" style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
             {t.profile.title}
           </h1>
+          <HeadlineMark />
         </div>
 
         {/* Avatar card */}

@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { House, Dumbbell, Apple, User } from 'lucide-react'
 import ClientNotificationBell from '@/components/client/ClientNotificationBell'
 import WorkoutFloatingWidget from '@/components/client/WorkoutFloatingWidget'
 import { WorkoutSessionProvider } from '@/lib/WorkoutSessionContext'
@@ -25,11 +24,14 @@ function Shell({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [router])
 
+  // `size` is tuned per icon rather than shared: the artworks have different
+  // aspect ratios, so a single box would leave the (wide, horizontal) dumbbell
+  // reading much lighter than the dense, square house and apple.
   const NAV = [
-    { label: t.nav.home,    href: '/client',           Icon: House },
-    { label: t.nav.train,   href: '/client/workouts',  Icon: Dumbbell },
-    { label: t.nav.food,    href: '/client/nutrition', Icon: Apple },
-    { label: t.nav.profile, href: '/client/profile',   Icon: User },
+    { label: t.nav.home,    href: '/client',           icon: '/icons/nav/home.png',    size: 25 },
+    { label: t.nav.train,   href: '/client/workouts',  icon: '/icons/nav/train.png',   size: 28 },
+    { label: t.nav.food,    href: '/client/nutrition', icon: '/icons/nav/food.png',    size: 24 },
+    { label: t.nav.profile, href: '/client/profile',   icon: '/icons/nav/profile.png', size: 25 },
   ] as const
 
   return (
@@ -80,7 +82,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           zIndex: 50,
         }}
       >
-        {NAV.map(({ label, href, Icon }) => {
+        {NAV.map(({ label, href, icon, size }) => {
           const active = href === '/client' ? pathname === '/client' : pathname.startsWith(href)
           return (
             <Link
@@ -95,22 +97,42 @@ function Shell({ children }: { children: React.ReactNode }) {
                 textDecoration: 'none',
               }}
             >
-              {/* The pill scales in behind the icon when the tab becomes
-                  active — the only thing that moves is a transform. */}
+              {/* The pill is its own layer behind the icon so that only the pill
+                  scales in on activation. Scaling a wrapper would shrink the
+                  artwork too, and an icon rendered at 72% on a near-black bar
+                  reads as dimmed even at full opacity. */}
               <div
-                className="cx-nav-pill"
                 style={{
+                  position: 'relative',
                   width: 54,
                   height: 30,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  borderRadius: 999,
-                  backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
-                  transform: active ? 'scale(1)' : 'scale(0.72)',
                 }}
               >
-                <Icon size={20} strokeWidth={active ? 2.4 : 2} />
+                <span
+                  className="cx-nav-pill"
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    borderRadius: 999,
+                    backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
+                    transform: active ? 'scale(1)' : 'scale(0.72)',
+                  }}
+                />
+                {/* Labelled by the text beneath it, so the image is decorative. */}
+                <img
+                  src={icon}
+                  alt=""
+                  aria-hidden="true"
+                  width={size}
+                  height={size}
+                  draggable={false}
+                  className="cx-nav-icon"
+                  style={{ position: 'relative', width: size, height: size }}
+                />
               </div>
               <span
                 style={{

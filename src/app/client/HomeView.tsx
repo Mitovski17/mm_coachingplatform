@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Bell, ChevronRight, Dumbbell, MessageCircle, ClipboardList } from 'lucide-react'
+import { Check, ChevronRight, Dumbbell, MessageCircle, ClipboardList } from 'lucide-react'
 import type { TodayTemplate } from './workouts/actions'
 import type { DayLog } from './nutrition/actions'
 import type { HomeStats } from './home-actions'
@@ -194,7 +194,16 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
 
       {checkinDue && (
         <ActionBanner
-          icon={<Bell size={18} color="var(--color-accent)" />}
+          icon={
+            <img
+              src="/icons/checkin.png"
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              style={{ width: 46, height: 46, objectFit: 'contain', display: 'block' }}
+            />
+          }
+          bareIcon
           title={t.home.weeklyCheckinDue}
           sub={t.home.takesAbout3Min}
           href="/check-in"
@@ -349,8 +358,11 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
 
 /* A single banner shape shared by every "you have something to do" prompt, so
    they stay identical instead of drifting apart. */
-function ActionBanner({ icon, title, sub, href, cta, index }: {
+function ActionBanner({ icon, title, sub, href, cta, index, bareIcon = false }: {
   icon: React.ReactNode; title: string; sub: string; href: string; cta: string; index: number
+  /* Full-colour artwork stands on its own; only line glyphs need the tinted
+     plate behind them to hold their weight against the card. */
+  bareIcon?: boolean
 }) {
   return (
     <div className="cx-in" style={{ '--cx-i': index, margin: '0 16px 16px' } as React.CSSProperties}>
@@ -362,13 +374,15 @@ function ActionBanner({ icon, title, sub, href, cta, index }: {
         padding: '14px 16px',
         display: 'flex', alignItems: 'center', gap: 12,
       }}>
-        <div style={{
-          width: 38, height: 38, borderRadius: 'var(--cx-r-sm)',
-          backgroundColor: 'var(--color-accent-dim)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          {icon}
-        </div>
+        {bareIcon ? icon : (
+          <div style={{
+            width: 38, height: 38, borderRadius: 'var(--cx-r-sm)',
+            backgroundColor: 'var(--color-accent-dim)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            {icon}
+          </div>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <p className="cx-display" style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>
             {title}

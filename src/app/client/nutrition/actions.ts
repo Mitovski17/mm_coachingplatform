@@ -6,6 +6,12 @@ import { createClient } from '@supabase/supabase-js'
 import { searchFoods as searchFoodsLib, type FoodSearchResult } from '@/lib/food-search'
 import { resolveCarbCycleDay } from '@/lib/utils'
 import { requireClient } from '@/lib/auth'
+import {
+  aggregateShoppingItems,
+  type ShoppingList,
+  type ShoppingSourceDay,
+  type ShoppingSourceFood,
+} from '@/lib/shopping-list'
 
 function adminClient() {
   return createClient(
@@ -680,4 +686,214 @@ export async function updateNutritionLogQuantity(
     fat_g: Math.round(Number(row.fat_g) * ratio * 10) / 10,
   }).eq('id', logId).eq('client_id', clientId)
   if (error) throw new Error(error.message)
+}
+
+// ── Shopping list ───────────────────────────────────────────────────────────
+
+const MAX_SHOPPING_DAYS = 60
+
+function addDaysISO(date: string, delta: number): string {
+  const d = new Date(date + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + delta)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
+/** 0 = Monday … 6 = Sunday, matching `workout_program_days.day_of_week`. */
+function isoDayOfWeek(date: string): number {
+  const d = new Date(date + 'T00:00:00Z').getUTCDay()
+  return d === 0 ? 6 : d - 1
+}
+
+type ShopRawFood = { food_name: string; quantity: number; unit: string; sort_order: number }
+type ShopRawOption = { sort_order: number; meal_plan_foods: ShopRawFood[] }
+type ShopRawMeal = { sort_order: number; meal_plan_meal_options: ShopRawOption[] }
+type ShopRawTemplate = { id: string; meal_plan_meals: ShopRawMeal[] }
+
+/**
+ * A day's worth of groceries from one template. Meal options are alternatives —
+ * the client eats one of them — so counting every option would buy two or three
+ * breakfasts for the same morning. The coach's first option is the primary one,
+ * and that is what the shop is built from.
+ */
+function templateFoods(tpl: ShopRawTemplate): ShoppingSourceFood[] {
+  const out: ShoppingSourceFood[] = []
+  const meals = [...(tpl.meal_plan_meals ?? [])].sort((a, b) => a.sort_order - b.sort_order)
+  for (const meal of meals) {
+    const [option] = [...(meal.meal_plan_meal_options ?? [])].sort((a, b) => a.sort_order - b.sort_order)
+    if (!option) continue
+    for (const f of option.meal_plan_foods ?? []) {
+      out.push({ foodName: f.food_name, quantity: Number(f.quantity), unit: f.unit })
+    }
+  }
+  return out
+}
+
+/**
+ * Consolidates the meal plans that apply over the next `days` into a single
+ * shopping list.
+ *
+ * Each date is resolved independently with the same priority the diary uses
+ * (date override > carb cycle > training/rest assignment > overall), and whether
+ * a date is a training day comes from the client's workout program — so a
+ * 7-day shop for someone training 4×/week buys 4 training days and 3 rest days,
+ * not 7 of whichever plan happens to be on screen.
+ */
+export async function buildShoppingList(startDate: string, days: number): Promise<ShoppingList> {
+  const { clientId } = await requireClient()
+  const admin = adminClient()
+
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(startDate)
+    ? startDate
+    : new Date().toISOString().slice(0, 10)
+  const span = Math.min(Math.max(Math.round(days) || 1, 1), MAX_SHOPPING_DAYS)
+  const end = addDaysISO(start, span - 1)
+  const dates = Array.from({ length: span }, (_, i) => addDaysISO(start, i))
+
+  const [workoutOverrides, program, mealOverrides, carbCycle, assignments] = await Promise.all([
+    admin
+      .from('date_workout_overrides')
+      .select('assigned_date, template_day_id')
+      .eq('client_id', clientId)
+      .gte('assigned_date', start)
+      .lte('assigned_date', end),
+    admin
+      .from('workout_programs')
+      .select('id, schedule_type, cycle_start_date, workout_program_days(template_day_id, day_of_week, cycle_position)')
+      .eq('client_id', clientId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    admin
+      .from('date_meal_overrides')
+      .select('assigned_date, template_id')
+      .eq('client_id', clientId)
+      .gte('assigned_date', start)
+      .lte('assigned_date', end),
+    admin
+      .from('carb_cycle_assignments')
+      .select('low_plan_id, high_plan_id, cycle_start_date, cycle_length')
+      .eq('client_id', clientId)
+      .eq('is_active', true)
+      .maybeSingle(),
+    admin
+      .from('meal_plan_assignments')
+      .select('plan_type, template_id')
+      .eq('client_id', clientId)
+      .eq('is_active', true),
+  ])
+
+  // ── Which dates are training days ────────────────────────────────────────
+  // `undefined` = no override row; `null` = an override that explicitly says rest.
+  const workoutOverrideByDate = new Map<string, string | null>()
+  for (const row of (workoutOverrides.data ?? []) as { assigned_date: string; template_day_id: string | null }[]) {
+    workoutOverrideByDate.set(row.assigned_date, row.template_day_id)
+  }
+
+  const pgm = program.data as {
+    schedule_type: string | null
+    cycle_start_date: string | null
+    workout_program_days: { template_day_id: string | null; day_of_week: number | null; cycle_position: number | null }[] | null
+  } | null
+  const programDays = pgm?.workout_program_days ?? []
+  const cyclicDays = [...programDays].sort((a, b) => (a.cycle_position ?? 0) - (b.cycle_position ?? 0))
+
+  const isTrainingDay = (date: string): boolean => {
+    const override = workoutOverrideByDate.get(date)
+    if (override !== undefined) return override !== null
+    if (!pgm || programDays.length === 0) return false
+
+    if ((pgm.schedule_type ?? 'weekly') === 'cyclic') {
+      if (!pgm.cycle_start_date || cyclicDays.length === 0) return false
+      const elapsed = Math.round(
+        (Date.parse(date + 'T00:00:00Z') - Date.parse(pgm.cycle_start_date + 'T00:00:00Z')) / 86400000
+      )
+      if (elapsed < 0) return false
+      const row = cyclicDays.find((d) => d.cycle_position === elapsed % cyclicDays.length)
+      return !!row?.template_day_id
+    }
+
+    const dow = isoDayOfWeek(date)
+    return programDays.some((d) => d.day_of_week === dow && !!d.template_day_id)
+  }
+
+  // ── Which meal plan applies on each date ─────────────────────────────────
+  const mealOverrideByDate = new Map<string, string>()
+  for (const row of (mealOverrides.data ?? []) as { assigned_date: string; template_id: string | null }[]) {
+    if (row.template_id) mealOverrideByDate.set(row.assigned_date, row.template_id)
+  }
+
+  const cycle = carbCycle.data as {
+    low_plan_id: string | null
+    high_plan_id: string | null
+    cycle_start_date: string
+    cycle_length: number
+  } | null
+
+  const assignedByType = new Map<string, string>()
+  for (const row of (assignments.data ?? []) as { plan_type: string; template_id: string | null }[]) {
+    if (row.template_id) assignedByType.set(row.plan_type, row.template_id)
+  }
+  const overallId = assignedByType.get('overall') ?? null
+
+  const templateIdFor = (date: string): string | null => {
+    const override = mealOverrideByDate.get(date)
+    if (override) return override
+    if (cycle) {
+      const dayType = resolveCarbCycleDay(cycle.cycle_start_date, date, cycle.cycle_length)
+      const cyclePlan = dayType === 'high' ? cycle.high_plan_id : cycle.low_plan_id
+      if (cyclePlan) return cyclePlan
+    }
+    return assignedByType.get(isTrainingDay(date) ? 'training' : 'rest') ?? overallId
+  }
+
+  const planByDate = new Map<string, string>()
+  for (const date of dates) {
+    const id = templateIdFor(date)
+    if (id) planByDate.set(date, id)
+  }
+
+  const neededIds = [...new Set(planByDate.values())]
+  if (neededIds.length === 0) {
+    return { startDate: start, endDate: end, days: span, coveredDays: 0, items: [] }
+  }
+
+  // One round trip for every distinct template the range touches, however many
+  // days it spans.
+  const { data: templates, error } = await admin
+    .from('meal_plan_templates')
+    .select(`
+      id,
+      meal_plan_meals(
+        sort_order,
+        meal_plan_meal_options(
+          sort_order,
+          meal_plan_foods(food_name, quantity, unit, sort_order)
+        )
+      )
+    `)
+    .in('id', neededIds)
+  if (error) throw new Error(error.message)
+
+  const foodsByTemplate = new Map<string, ShoppingSourceFood[]>()
+  for (const tpl of (templates ?? []) as unknown as ShopRawTemplate[]) {
+    foodsByTemplate.set(tpl.id, templateFoods(tpl))
+  }
+
+  const sourceDays: ShoppingSourceDay[] = []
+  for (const date of dates) {
+    const templateId = planByDate.get(date)
+    if (!templateId) continue
+    const foods = foodsByTemplate.get(templateId)
+    if (!foods || foods.length === 0) continue
+    sourceDays.push({ date, foods })
+  }
+
+  return {
+    startDate: start,
+    endDate: end,
+    days: span,
+    coveredDays: sourceDays.length,
+    items: aggregateShoppingItems(sourceDays),
+  }
 }

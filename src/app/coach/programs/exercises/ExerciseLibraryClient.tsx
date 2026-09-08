@@ -9,6 +9,8 @@ import {
   deleteCustomExercise,
   type Exercise,
 } from '../actions'
+import ExerciseGif from '@/components/shared/ExerciseGif'
+import { hasExerciseGif } from '@/lib/exercise-gifs'
 
 const MUSCLE_GROUPS = [
   'All',
@@ -306,6 +308,13 @@ function ExerciseCard({
             alt={exercise.name}
             fill
             style={{ objectFit: 'cover' }}
+          />
+        ) : hasExerciseGif(exercise.name) ? (
+          // The demonstration doubles as the card art; tapping it plays the
+          // movement, which is what a coach building a program wants to check.
+          <ExerciseGif
+            name={exercise.name}
+            style={{ width: '100%', height: '100%', border: 'none', borderRadius: 0 }}
           />
         ) : (
           <span

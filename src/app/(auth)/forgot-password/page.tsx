@@ -12,14 +12,20 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+// Reasons /auth/confirm can send someone back here, in plain language.
+const LINK_ERRORS: Record<string, string> = {
+  invalid_link: 'That reset link was invalid or has expired. Enter your email below to get a new one.',
+  otp_expired: 'That reset link has expired. Enter your email below to get a new one.',
+  access_denied: 'That reset link is no longer valid. Enter your email below to get a new one.',
+}
+
 export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false)
   const [serverError, setServerError] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null
-    const params = new URLSearchParams(window.location.search)
-    return params.get('error') === 'invalid_link'
-      ? 'That reset link was invalid or has expired. Enter your email below to get a new one.'
-      : null
+    const code = new URLSearchParams(window.location.search).get('error')
+    if (!code) return null
+    return LINK_ERRORS[code] ?? LINK_ERRORS.invalid_link
   })
 
   const {
@@ -35,7 +41,14 @@ export default function ForgotPasswordPage() {
       redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password`,
     })
     if (error) {
-      setServerError(error.message)
+      // Supabase rate-limits recovery emails per address. The raw message
+      // ("For security purposes, you can only request this after N seconds")
+      // reads like a failure on the user's part, so soften it.
+      setServerError(
+        error.status === 429
+          ? 'A reset link was just sent. Check your inbox — you can request another in a minute.'
+          : error.message
+      )
       return
     }
     setSent(true)

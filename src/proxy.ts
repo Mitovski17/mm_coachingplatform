@@ -53,9 +53,23 @@ function copySupabaseCookies(from: NextResponse, to: NextResponse): void {
   })
 }
 
+// Routes that establish a session from an email link, rather than relying on
+// one already existing. They must be left alone: this proxy calls getUser() on
+// every request and, on a 4xx, deletes every sb-* cookie (see below). For a
+// user arriving with a stale session that deletion lands on the same response
+// the route handler is using to set the *new* session, and can wipe it — which
+// surfaces as a valid reset link reporting itself as expired.
+function ownsItsOwnAuth(pathname: string): boolean {
+  return pathname.startsWith('/auth/') || pathname === '/reset-password'
+}
+
 export async function proxy(request: NextRequest) {
   const mockResponse = handleMockAuth(request)
   if (mockResponse) return mockResponse
+
+  if (ownsItsOwnAuth(request.nextUrl.pathname)) {
+    return NextResponse.next({ request })
+  }
 
   let supabaseResponse = NextResponse.next({ request })
 

@@ -133,6 +133,7 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
 
       {/* Header */}
       <div
+        className="cx-chrome"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -140,19 +141,20 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
           padding: '0 20px',
           height: 64,
           borderBottom: '1px solid var(--color-border)',
-          backgroundColor: 'var(--color-surface-1)',
           flexShrink: 0,
         }}
       >
         <Link
           href="/coach/messages"
+          className="cx-icon-btn"
+          aria-label="Back to conversations"
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             width: 32,
             height: 32,
-            borderRadius: 8,
+            borderRadius: 9,
             color: 'var(--color-text-muted)',
             textDecoration: 'none',
           }}
@@ -165,6 +167,7 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
             height: 34,
             borderRadius: '50%',
             backgroundColor: '#f97316',
+            boxShadow: 'var(--cx-shadow-sm)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -186,6 +189,7 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
 
       {/* Messages */}
       <div
+        className="cx-pane"
         style={{
           flex: 1,
           overflowY: 'auto',
@@ -238,6 +242,7 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
       {/* Check-in snippet preview */}
       {pendingSnippet && (
         <div
+          className="cx-card"
           style={{
             margin: '0 12px',
             padding: '8px 12px',
@@ -274,6 +279,7 @@ export default function ThreadClient({ conversationId, clientName, initialMessag
             </div>
           </div>
           <button
+            className="cx-press"
             type="button"
             onClick={() => setPendingSnippet(null)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', padding: 2, lineHeight: 1, flexShrink: 0 }}

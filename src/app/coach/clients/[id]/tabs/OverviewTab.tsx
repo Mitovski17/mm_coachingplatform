@@ -62,19 +62,25 @@ function MetricCircle({
           style={{ stroke: 'var(--color-border)' }}
           strokeWidth={5}
         />
-        {/* Progress */}
+        {/* Progress. dasharray/dashoffset rather than a two-value dasharray so
+            `.cx-ring` can draw it in from empty on mount and then ease to any
+            later value, instead of the arc simply being there. */}
         <circle
           cx={32} cy={32} r={r}
+          className="cx-ring"
           fill="none"
           stroke={value !== null ? resolvedColor : 'transparent'}
           strokeWidth={5}
-          strokeDasharray={`${dash} ${circ}`}
+          strokeDasharray={circ}
+          strokeDashoffset={circ - dash}
           strokeLinecap="round"
           transform="rotate(-90 32 32)"
+          style={{ '--cx-circ': circ } as React.CSSProperties}
         />
         {/* Value */}
         <text
           x={32} y={28}
+          className="cx-num"
           textAnchor="middle"
           fontSize={maxValue === 100 ? 11 : 14}
           fontWeight={700}
@@ -115,10 +121,11 @@ function StatCard({
 }) {
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
-        borderRadius: 12,
+        borderRadius: 'var(--cx-r-sm)',
         padding: '14px 16px',
       }}
     >
@@ -135,6 +142,7 @@ function StatCard({
         {label}
       </div>
       <div
+        className="cx-num"
         style={{
           fontSize: 26,
           fontWeight: 800,
@@ -234,7 +242,7 @@ export default function OverviewTab({
   const cardBase: React.CSSProperties = {
     backgroundColor: 'var(--color-surface-1)',
     border: '1px solid var(--color-border)',
-    borderRadius: 12,
+    borderRadius: 'var(--cx-r-sm)',
     padding: 16,
   }
 
@@ -244,11 +252,12 @@ export default function OverviewTab({
       {/* Alert banner */}
       {redFlags.length > 0 && (
         <div
+          className="cx-in"
           style={{
             backgroundColor: 'rgba(239,68,68,0.07)',
             border: '1px solid rgba(239,68,68,0.2)',
             borderLeft: '4px solid #ef4444',
-            borderRadius: 10,
+            borderRadius: 'var(--cx-r-xs)',
             padding: 14,
           }}
         >
@@ -273,7 +282,7 @@ export default function OverviewTab({
       )}
 
       {/* 4 stat cards */}
-      <div className="coach-stat-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <div className="coach-stat-cards cx-stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         <StatCard
           label="Current Weight"
           value={currentWeight !== null ? String(currentWeight) : '—'}
@@ -302,11 +311,11 @@ export default function OverviewTab({
       </div>
 
       {/* Bottom 2-column */}
-      <div className="coach-overview-bottom" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+      <div className="coach-overview-bottom cx-stagger" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
 
         {/* Latest check-in */}
         {latest ? (
-          <div style={cardBase}>
+          <div className="cx-card" style={cardBase}>
             {/* Card header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
@@ -319,14 +328,15 @@ export default function OverviewTab({
               </div>
               <button
                 onClick={() => onTabChange('checkins')}
+                className="cx-cta"
                 style={{
                   padding: '7px 12px',
                   fontSize: 12,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   color: '#fff',
                   backgroundColor: 'var(--color-accent)',
                   border: 'none',
-                  borderRadius: 8,
+                  borderRadius: 9,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                 }}
@@ -348,7 +358,7 @@ export default function OverviewTab({
               <div
                 style={{
                   backgroundColor: 'var(--color-surface-2)',
-                  borderRadius: 10,
+                  borderRadius: 'var(--cx-r-xs)',
                   padding: '10px 14px',
                   borderLeft: '3px solid var(--color-border)',
                 }}
@@ -368,6 +378,7 @@ export default function OverviewTab({
               <div style={{ fontSize: 13, color: 'var(--color-text-hint)', marginBottom: 8 }}>No check-ins submitted yet</div>
               <button
                 onClick={() => onTabChange('checkins')}
+                className="cx-press"
                 style={{ fontSize: 12, color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer' }}
               >
                 View check-ins →
@@ -377,7 +388,7 @@ export default function OverviewTab({
         )}
 
         {/* Coach notes */}
-        <div style={cardBase}>
+        <div className="cx-card" style={cardBase}>
           {/* Card header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)' }}>
@@ -393,12 +404,13 @@ export default function OverviewTab({
             value={coachNotes}
             onChange={(e) => handleNotesChange(e.target.value)}
             placeholder="Add coaching notes for this client — progress observations, next steps, flags to watch..."
+            className="cx-field"
             style={{
               width: '100%',
               minHeight: 140,
               backgroundColor: 'var(--color-surface-2)',
               border: '1px solid var(--color-border)',
-              borderRadius: 8,
+              borderRadius: 10,
               padding: '10px 12px',
               fontSize: 13,
               color: 'var(--color-text-primary)',

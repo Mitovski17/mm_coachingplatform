@@ -188,7 +188,7 @@ function CheckinCardItem({
       <div style={cardBase}>
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="w-full flex items-center justify-between text-left"
+          className="cx-press w-full flex items-center justify-between text-left"
         >
           <div className="flex items-center gap-3">
             <div
@@ -252,6 +252,7 @@ function CheckinCardItem({
           <div className="flex gap-2 mt-3 overflow-x-auto">
             {photoUrls.map((url, i) => (
               <button
+                className="cx-press"
                 key={i}
                 type="button"
                 onClick={() => setLightbox(url)}
@@ -380,7 +381,7 @@ function CheckinCardItem({
                 </div>
                 <div className="flex gap-2 overflow-x-auto">
                   {photoUrls.map((url, i) => (
-                    <button key={i} onClick={() => setLightbox(url)}>
+                    <button className="cx-press" key={i} onClick={() => setLightbox(url)}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={url}
@@ -401,6 +402,7 @@ function CheckinCardItem({
 
             {checkin.notes && (
               <div
+                className="cx-card"
                 style={{
                   backgroundColor: 'var(--color-surface-2)',
                   padding: 12,

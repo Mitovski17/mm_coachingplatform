@@ -133,6 +133,7 @@ function WorkoutOverrideSection({
 
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
@@ -151,7 +152,7 @@ function WorkoutOverrideSection({
           <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
             Workout template day
           </label>
-          <select value={templateDayId} onChange={(e) => setTemplateDayId(e.target.value)} style={selectStyle()}>
+          <select className="cx-field" value={templateDayId} onChange={(e) => setTemplateDayId(e.target.value)} style={selectStyle()}>
             <option value="">— Rest day —</option>
             {Object.entries(grouped).map(([tplName, days]) => (
               <optgroup key={tplName} label={tplName}>
@@ -170,6 +171,7 @@ function WorkoutOverrideSection({
             Start date
           </label>
           <input
+            className="cx-field"
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
@@ -182,6 +184,7 @@ function WorkoutOverrideSection({
             End date <span style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>(optional)</span>
           </label>
           <input
+            className="cx-field"
             type="date"
             value={endDate}
             min={startDate}
@@ -196,6 +199,7 @@ function WorkoutOverrideSection({
       )}
 
       <button
+        className="cx-press"
         type="button"
         disabled={isPending}
         onClick={handleAdd}
@@ -226,6 +230,7 @@ function WorkoutOverrideSection({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {overrides.map((o) => (
             <div
+              className="cx-card"
               key={o.id}
               style={{
                 display: 'flex',
@@ -254,6 +259,7 @@ function WorkoutOverrideSection({
                 )}
               </div>
               <button
+                className="cx-press"
                 type="button"
                 disabled={isPending}
                 onClick={() => handleDelete(o)}
@@ -343,6 +349,7 @@ function MealOverrideSection({
 
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',
@@ -360,7 +367,7 @@ function MealOverrideSection({
           <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
             Meal plan template
           </label>
-          <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} style={selectStyle()}>
+          <select className="cx-field" value={templateId} onChange={(e) => setTemplateId(e.target.value)} style={selectStyle()}>
             <option value="">Select template…</option>
             {mealTemplates.map((t) => (
               <option key={t.id} value={t.id}>
@@ -375,6 +382,7 @@ function MealOverrideSection({
             Start date
           </label>
           <input
+            className="cx-field"
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
@@ -387,6 +395,7 @@ function MealOverrideSection({
             End date <span style={{ color: 'var(--color-text-hint)', fontWeight: 400 }}>(optional)</span>
           </label>
           <input
+            className="cx-field"
             type="date"
             value={endDate}
             min={startDate}
@@ -401,6 +410,7 @@ function MealOverrideSection({
       )}
 
       <button
+        className="cx-press"
         type="button"
         disabled={isPending}
         onClick={handleAdd}
@@ -431,6 +441,7 @@ function MealOverrideSection({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {overrides.map((o) => (
             <div
+              className="cx-card"
               key={o.id}
               style={{
                 display: 'flex',
@@ -452,6 +463,7 @@ function MealOverrideSection({
                 </span>
               </div>
               <button
+                className="cx-press"
                 type="button"
                 disabled={isPending}
                 onClick={() => handleDelete(o)}

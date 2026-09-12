@@ -168,7 +168,7 @@ export default function ExerciseLibraryClient({
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium"
+          className="cx-press inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium"
           style={{
             backgroundColor: 'var(--color-accent)',
             color: '#fff',
@@ -189,7 +189,7 @@ export default function ExerciseLibraryClient({
           placeholder="Search exercises..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-2 text-sm w-full"
+          className="cx-field px-3 py-2 text-sm w-full"
           style={{
             backgroundColor: 'var(--color-surface-2)',
             border: '1px solid var(--color-border)',
@@ -206,7 +206,7 @@ export default function ExerciseLibraryClient({
                 key={mg}
                 type="button"
                 onClick={() => setMuscleFilter(mg)}
-                className="px-3 py-1 text-xs font-medium"
+                className="cx-press px-3 py-1 text-xs font-medium"
                 style={{
                   backgroundColor: active ? 'var(--color-accent)' : 'var(--color-surface-2)',
                   color: active ? '#fff' : 'var(--color-text-muted)',
@@ -283,6 +283,7 @@ function ExerciseCard({
 
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-2)',
         border: '1px solid var(--color-border)',
@@ -334,6 +335,7 @@ function ExerciseCard({
           {isCustom ? (
             <>
               <button
+                className="cx-press"
                 type="button"
                 onClick={() => onEdit(exercise)}
                 title="Edit"
@@ -353,6 +355,7 @@ function ExerciseCard({
                 <Pencil size={12} />
               </button>
               <button
+                className="cx-press"
                 type="button"
                 onClick={() => onDelete(exercise)}
                 title="Delete"
@@ -442,10 +445,15 @@ function ExerciseModal({
 
   return (
     <div
+      className="cx-backdrop"
+      role="dialog"
+      aria-modal="true"
       style={{
         position: 'fixed',
         inset: 0,
         backgroundColor: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -454,10 +462,12 @@ function ExerciseModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        className="cx-pop"
         style={{
           backgroundColor: 'var(--color-surface-1)',
           border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--cx-shadow-lg)',
+          borderRadius: 'var(--cx-r-md)',
           width: '100%',
           maxWidth: 440,
           padding: 24,
@@ -468,6 +478,7 @@ function ExerciseModal({
             {mode === 'create' ? 'New Exercise' : 'Edit Exercise'}
           </h2>
           <button
+            className="cx-press"
             type="button"
             onClick={onClose}
             style={{
@@ -484,6 +495,7 @@ function ExerciseModal({
         <div className="flex flex-col gap-4">
           <Field label="Name *">
             <input
+              className="cx-field"
               type="text"
               value={form.name}
               onChange={(e) => onChange('name', e.target.value)}
@@ -494,6 +506,7 @@ function ExerciseModal({
 
           <Field label="Muscle Group">
             <select
+              className="cx-field"
               value={form.muscleGroup}
               onChange={(e) => onChange('muscleGroup', e.target.value)}
               style={inputStyle}
@@ -506,6 +519,7 @@ function ExerciseModal({
 
           <Field label="Equipment">
             <select
+              className="cx-field"
               value={form.equipment}
               onChange={(e) => onChange('equipment', e.target.value)}
               style={inputStyle}
@@ -518,6 +532,7 @@ function ExerciseModal({
 
           <Field label="Description (optional)">
             <textarea
+              className="cx-field"
               value={form.description}
               onChange={(e) => onChange('description', e.target.value)}
               rows={3}
@@ -529,6 +544,7 @@ function ExerciseModal({
 
         <div className="flex justify-end gap-2 mt-6">
           <button
+            className="cx-press"
             type="button"
             onClick={onClose}
             style={{
@@ -544,6 +560,7 @@ function ExerciseModal({
             Cancel
           </button>
           <button
+            className="cx-press"
             type="button"
             onClick={onSave}
             disabled={!isValid || saving}

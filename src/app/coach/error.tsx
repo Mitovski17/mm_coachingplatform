@@ -25,6 +25,7 @@ export default function CoachError({
         {error.message}
       </p>
       <button
+        className="cx-press"
         onClick={reset}
         style={{
           marginTop: 8,

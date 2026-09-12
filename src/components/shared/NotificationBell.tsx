@@ -179,11 +179,20 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
           border: none;
           background: none;
           cursor: pointer;
-          transition: transform 0.15s;
+          transition: transform var(--cx-dur-fast, 130ms) var(--cx-ease, ease);
           flex-shrink: 0;
         }
         .notif-bell-btn:active { transform: scale(0.92); }
         .notif-bell-btn.open { transform: scale(0.96); }
+
+        /* The panel grows out of the bell rather than appearing whole. Origin
+           is the top-right because that is the corner nearest the button in
+           both shells. Literal fallbacks keep this working on the standalone
+           routes that render outside a .cx wrapper. */
+        @keyframes notif-panel-in {
+          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to   { opacity: 1; transform: none; }
+        }
 
         /* Desktop panel — positioned via inline style from JS */
         .notif-panel {
@@ -192,12 +201,14 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
           max-height: 460px;
           background-color: var(--color-surface-1);
           border: 1px solid var(--color-border);
-          border-radius: 12px;
-          box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+          border-radius: 14px;
+          box-shadow: var(--cx-shadow-lg, 0 8px 40px rgba(0,0,0,0.6));
           z-index: 9999;
           display: flex;
           flex-direction: column;
           overflow: hidden;
+          transform-origin: top right;
+          animation: notif-panel-in var(--cx-dur, 220ms) var(--cx-spring, ease-out) both;
         }
 
         /* Mobile: fixed full-width from top */
@@ -212,6 +223,8 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
           }
         }
 
+        @keyframes notif-backdrop-in { from { opacity: 0 } }
+
         .notif-backdrop {
           display: none;
         }
@@ -221,7 +234,10 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
             position: fixed;
             inset: 0;
             background: rgba(0,0,0,0.45);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             z-index: 9998;
+            animation: notif-backdrop-in var(--cx-dur, 220ms) var(--cx-ease, ease) both;
           }
         }
 
@@ -236,10 +252,14 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
           border-bottom: 1px solid var(--color-border);
           cursor: pointer;
           text-align: left;
-          transition: background-color 0.1s;
+          -webkit-tap-highlight-color: transparent;
+          transition: background-color var(--cx-dur, 220ms) var(--cx-ease, ease);
         }
         .notif-row:hover {
           background-color: var(--color-surface-2);
+        }
+        .notif-row:active {
+          background-color: var(--color-surface-3);
         }
         @media (max-width: 480px) {
           .notif-row {
@@ -277,6 +297,7 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
           />
           {unreadCount > 0 && (
             <span
+              className="cx-pop cx-num"
               style={{
                 position: 'absolute',
                 // Hugs the artwork now that there is no plate corner to hang off
@@ -347,6 +368,7 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
                     suppressHydrationWarning
                     type="button"
                     onClick={markAllRead}
+                    className="cx-press"
                     style={{
                       background: 'none',
                       border: 'none',
@@ -365,6 +387,7 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
                   type="button"
                   onClick={() => setOpen(false)}
                   aria-label="Close notifications"
+                  className="cx-press"
                   style={{
                     background: 'none',
                     border: 'none',
@@ -381,7 +404,7 @@ export default function NotificationBell({ recipientType, recipientId }: Props) 
             </div>
 
             {/* List */}
-            <div style={{ overflowY: 'auto', flex: 1 }}>
+            <div className="cx-pane" style={{ overflowY: 'auto', flex: 1 }}>
               {loading ? (
                 <div
                   style={{

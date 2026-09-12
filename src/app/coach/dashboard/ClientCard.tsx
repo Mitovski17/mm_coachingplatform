@@ -47,35 +47,29 @@ export default function ClientCard({ client: c }: { client: ClientData }) {
 
   return (
     <Link href={`/coach/clients/${c.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+      {/* `cx-card cx-lift` replaces the old pointer handlers: hover is now a
+          CSS state the compositor interpolates, and the card lifts on its own
+          shadow rather than only swapping a border colour. */}
       <div
+        className="cx-card cx-lift cx-row"
         style={{
-          backgroundColor: 'var(--color-surface-1)',
           border: '1px solid var(--color-border)',
-          borderRadius: 12,
+          borderRadius: 'var(--cx-r-sm)',
           overflow: 'hidden',
           cursor: 'pointer',
-          transition: 'border-color 0.15s ease, background-color 0.15s ease',
-        }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget as HTMLDivElement
-          el.style.borderColor = 'var(--color-border-strong)'
-          el.style.backgroundColor = 'var(--color-surface-2)'
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget as HTMLDivElement
-          el.style.borderColor = 'var(--color-border)'
-          el.style.backgroundColor = 'var(--color-surface-1)'
+          height: '100%',
         }}
       >
-        {/* Orange compliance bar at top */}
-        <div style={{ height: 3, backgroundColor: 'var(--color-surface-3)' }}>
+        {/* Compliance bar. scaleX rather than width: a transform is
+            compositor-only, where animating width relayouts the whole card. */}
+        <div style={{ height: 3, backgroundColor: 'var(--color-surface-3)', overflow: 'hidden' }}>
           <div
+            className="cx-bar-fill"
             style={{
               height: '100%',
-              width: `${c.compliancePct}%`,
               backgroundColor: c.badgeType === 'overdue' ? '#ef4444' : 'var(--color-accent)',
-              transition: 'width 0.3s ease',
-            }}
+              '--cx-p': Math.max(0, Math.min(100, c.compliancePct)) / 100,
+            } as React.CSSProperties}
           />
         </div>
 
@@ -84,11 +78,13 @@ export default function ClientCard({ client: c }: { client: ClientData }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             {/* Avatar */}
             <div
+              className="cx-display"
               style={{
                 width: 40,
                 height: 40,
-                borderRadius: 10,
+                borderRadius: 12,
                 backgroundColor: c.avatarColor,
+                boxShadow: 'var(--cx-shadow-sm)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -104,9 +100,9 @@ export default function ClientCard({ client: c }: { client: ClientData }) {
 
             {/* Name + goal + week */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{
+              <p className="cx-display" style={{
                 fontSize: 15,
-                fontWeight: 600,
+                fontWeight: 700,
                 color: 'var(--color-text-primary)',
                 margin: '0 0 2px',
                 overflow: 'hidden',
@@ -155,7 +151,7 @@ export default function ClientCard({ client: c }: { client: ClientData }) {
                 Weight
               </p>
               {c.weight ? (
-                <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
+                <p className="cx-num" style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
                   {c.weight}
                   <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-hint)', marginLeft: 2 }}>
                     {c.weightUnit}

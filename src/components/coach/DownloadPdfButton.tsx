@@ -70,11 +70,17 @@ export default function DownloadPdfButton({
           }
 
   return (
+    // Icon-only sits in dense action rows next to the edit/delete buttons, so
+    // it takes the same hover treatment. The labelled form reads as a ghost —
+    // except when it is filled, where a ghost's grey hover would fight the
+    // accent it is painted in. Both drop their own transition in favour of the
+    // shared curves.
     <button
       type="button"
       onClick={handleClick}
       disabled={disabled || state === 'busy'}
       title={title ?? label}
+      className={iconOnly ? 'cx-icon-btn' : variant === 'solid' ? 'cx-cta' : 'cx-ghost'}
       style={{
         ...palette,
         display: 'inline-flex',
@@ -84,7 +90,7 @@ export default function DownloadPdfButton({
         padding: iconOnly ? 0 : pad,
         fontSize,
         fontWeight: 600,
-        borderRadius: iconOnly ? 'var(--radius-md)' : 8,
+        borderRadius: iconOnly ? 'var(--cx-r-xs)' : 9,
         cursor: disabled || state === 'busy' ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         fontFamily: 'inherit',
@@ -92,7 +98,6 @@ export default function DownloadPdfButton({
         width: iconOnly ? 30 : fullWidth ? '100%' : undefined,
         height: iconOnly ? 30 : undefined,
         flexShrink: 0,
-        transition: 'opacity 0.15s ease, border-color 0.15s ease',
       }}
     >
       {state === 'busy' ? (
@@ -102,7 +107,8 @@ export default function DownloadPdfButton({
         </>
       ) : state === 'done' ? (
         <>
-          <Check size={icon} style={{ color: '#22c55e' }} />
+          {/* The tick pops in so the state change registers without a toast */}
+          <Check size={icon} className="cx-pop" style={{ color: '#22c55e' }} />
           {!iconOnly && 'Downloaded'}
         </>
       ) : (

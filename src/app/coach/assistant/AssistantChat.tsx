@@ -399,6 +399,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
         >
           <div style={{ padding: '12px', flexShrink: 0, borderBottom: '1px solid var(--color-border)' }}>
             <button
+              className="cx-press"
               type="button"
               onClick={handleNewConversation}
               style={{
@@ -414,7 +415,6 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                 fontSize: '0.8rem',
                 fontWeight: 500,
                 cursor: 'pointer',
-                transition: 'background-color 0.15s',
               }}
             >
               <Plus size={13} />
@@ -422,7 +422,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
             </button>
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div className="cx-pane" style={{ flex: 1, overflowY: 'auto' }}>
             {conversations.length === 0 ? (
               <div
                 style={{
@@ -439,6 +439,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                 const isActive = conv.id === activeConversationId
                 return (
                   <button
+                    className="cx-press"
                     key={conv.id}
                     type="button"
                     onClick={() => handleLoadConversation(conv)}
@@ -450,7 +451,6 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                       borderBottom: '1px solid var(--color-border)',
                       backgroundColor: isActive ? 'var(--color-surface-3)' : 'transparent',
                       cursor: 'pointer',
-                      transition: 'background-color 0.12s',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
@@ -489,6 +489,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
 
         {/* Chat area */}
         <div
+          className="cx-card"
           style={{
             flex: 1,
             minWidth: 0,
@@ -501,7 +502,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
           }}
         >
           {/* Message list */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          <div className="cx-pane" style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
             {messages.length === 0 ? (
               <div
                 style={{
@@ -635,6 +636,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                       {/* Inline save card attached to this message */}
                       {card && (
                         <div
+                          className="cx-card"
                           style={{
                             marginLeft: 0,
                             maxWidth: 420,
@@ -678,6 +680,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                                   Plan name
                                 </label>
                                 <input
+                                  className="cx-field"
                                   type="text"
                                   value={card.planName}
                                   onChange={(e) =>
@@ -704,6 +707,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                                   Plan type
                                 </label>
                                 <select
+                                  className="cx-field"
                                   value={card.planType}
                                   onChange={(e) =>
                                     setMealPlanCards((prev) => ({
@@ -736,6 +740,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
 
                               {/* Save button */}
                               <button
+                                className="cx-press"
                                 type="button"
                                 onClick={() => handleSaveCard(msg.id)}
                                 disabled={card.saving}
@@ -754,7 +759,6 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                                   fontSize: '0.875rem',
                                   fontWeight: 600,
                                   cursor: card.saving ? 'not-allowed' : 'pointer',
-                                  transition: 'background-color 0.15s',
                                 }}
                               >
                                 {card.saving ? (
@@ -792,6 +796,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
             }}
           >
             <textarea
+              className="cx-field"
               ref={textareaRef}
               value={input}
               onChange={(e) => {
@@ -819,6 +824,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
             />
             {loading ? (
               <button
+                className="cx-press"
                 type="button"
                 onClick={handleStop}
                 style={{
@@ -839,6 +845,7 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
               </button>
             ) : (
               <button
+                className="cx-press"
                 type="button"
                 onClick={sendMessage}
                 disabled={!canSend}
@@ -854,7 +861,6 @@ export default function AssistantChat({ workspaceId }: { workspaceId: string }) 
                   border: 'none',
                   borderRadius: 'var(--radius-md)',
                   cursor: canSend ? 'pointer' : 'not-allowed',
-                  transition: 'background-color 0.15s, color 0.15s',
                 }}
               >
                 <Send size={16} />

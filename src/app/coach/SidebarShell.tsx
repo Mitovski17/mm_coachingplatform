@@ -119,20 +119,25 @@ export default function SidebarShell({
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-base)' }}>
+    // `cx` opts the whole console into the design layer the client view uses —
+    // the shared tokens, easing curves and press/lift/rise vocabulary defined
+    // in globals.css. Everything below reads from it rather than restating it.
+    <div className="cx flex min-h-screen" style={{ backgroundColor: 'var(--color-base)' }}>
 
       {/* ══════════════════════════════════════════════════════
           MOBILE — fixed top header   (hidden on ≥ 768 px)
           ══════════════════════════════════════════════════════ */}
+      {/* No inline background: `cx-chrome` owns it so the frosted treatment
+          can layer on where color-mix is supported. An inline colour would
+          outrank the class and leave the bar flatly opaque. */}
       <header
-        className="coach-mobile-header"
+        className="coach-mobile-header cx-chrome"
         style={{
           position:        'fixed',
           top:             0,
           left:            0,
           right:           0,
           height:          56,
-          backgroundColor: 'var(--color-surface-1)',
           borderBottom:    '1px solid var(--color-border)',
           paddingLeft:     16,
           paddingRight:    12,
@@ -145,14 +150,15 @@ export default function SidebarShell({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
             style={{
-              width: 28, height: 28, borderRadius: 7,
+              width: 28, height: 28, borderRadius: 8,
               backgroundColor: 'var(--color-accent)',
+              boxShadow: 'var(--cx-shadow-cta)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <span style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>M</span>
+            <span className="cx-display" style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>M</span>
           </div>
-          <span style={{ color: 'var(--color-text-primary)', fontSize: 15, fontWeight: 700 }}>
+          <span className="cx-display" style={{ color: 'var(--color-text-primary)', fontSize: 15, fontWeight: 800 }}>
             Mitovski
           </span>
         </div>
@@ -178,8 +184,11 @@ export default function SidebarShell({
           width:           `${w}px`,
           backgroundColor: 'var(--color-surface-1)',
           borderRight:     '1px solid var(--color-border)',
-          transition:      'width 0.2s ease',
+          // Width is layout-bound and can't be composited, so it uses the
+          // shared curve at the fast duration rather than lingering.
+          transition:      'width var(--cx-dur) var(--cx-ease)',
           overflow:        'hidden',
+          zIndex:          40,
         }}
       >
         {/* ── Logo / collapse toggle ── */}
@@ -197,6 +206,7 @@ export default function SidebarShell({
             suppressHydrationWarning
             type="button"
             onClick={toggle}
+            className="cx-press"
             style={{
               display:    'flex',
               alignItems: 'center',
@@ -214,27 +224,28 @@ export default function SidebarShell({
               style={{
                 width:           32,
                 height:          32,
-                borderRadius:    8,
+                borderRadius:    9,
                 backgroundColor: 'var(--color-accent)',
+                boxShadow:       'var(--cx-shadow-cta)',
                 display:         'flex',
                 alignItems:      'center',
                 justifyContent:  'center',
                 flexShrink:      0,
               }}
             >
-              <span style={{ color: '#fff', fontSize: 15, fontWeight: 800, letterSpacing: '-0.03em' }}>
+              <span className="cx-display" style={{ color: '#fff', fontSize: 15, fontWeight: 800, letterSpacing: '-0.03em' }}>
                 M
               </span>
             </div>
             {!collapsed && (
-              <div style={{ minWidth: 0 }}>
+              <div className="cx-side-label" style={{ minWidth: 0 }}>
                 <span
+                  className="cx-display"
                   style={{
                     display:        'block',
                     color:          'var(--color-text-primary)',
                     fontSize:       14,
-                    fontWeight:     700,
-                    letterSpacing:  '-0.01em',
+                    fontWeight:     800,
                     whiteSpace:     'nowrap',
                     lineHeight:     1.2,
                   }}
@@ -267,33 +278,22 @@ export default function SidebarShell({
             const active = pathname === href || pathname.startsWith(href + '/')
             const badge  = badgeFor(href)
             return (
+              // Colours come from `.cx-side` keyed on data-active, not from
+              // inline styles swapped in pointer handlers — a CSS state change
+              // transitions, an inline-style swap just snaps.
               <Link
                 key={href}
                 href={href}
                 title={collapsed ? label : undefined}
-                className="flex items-center transition-colors"
+                data-active={active}
+                aria-current={active ? 'page' : undefined}
+                className="cx-side flex items-center"
                 style={{
                   gap:             collapsed ? 0 : '10px',
                   justifyContent:  collapsed ? 'center' : 'flex-start',
                   padding:         collapsed ? '9px 0' : '9px 12px',
-                  backgroundColor: active ? 'var(--color-accent)' : 'transparent',
-                  borderRadius:    8,
-                  color:           active ? '#ffffff' : 'var(--color-text-muted)',
                   fontWeight:      active ? 600 : 400,
                   fontSize:        '14px',
-                  textDecoration:  'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.backgroundColor = 'var(--color-surface-3)'
-                    e.currentTarget.style.color           = 'var(--color-text-secondary)'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                    e.currentTarget.style.color           = 'var(--color-text-muted)'
-                  }
                 }}
               >
                 {/* Icon + notification dot */}
@@ -301,7 +301,7 @@ export default function SidebarShell({
                   <Icon size={16} />
                   {badge > 0 && (
                     <span
-                      className="absolute"
+                      className="absolute cx-pop"
                       style={{
                         top:             -3,
                         right:           -3,
@@ -317,11 +317,11 @@ export default function SidebarShell({
 
                 {/* Label + count badge */}
                 {!collapsed && (
-                  <span className="whitespace-nowrap flex items-center gap-1.5">
+                  <span className="cx-side-label flex items-center gap-1.5">
                     {label}
                     {badge > 0 && (
                       <span
-                        className="inline-flex items-center justify-center text-xs font-semibold"
+                        className="cx-pop cx-num inline-flex items-center justify-center text-xs font-semibold"
                         style={{
                           minWidth:        18,
                           height:          18,
@@ -348,13 +348,13 @@ export default function SidebarShell({
             <Link
               href="/admin"
               title={collapsed ? 'Admin Panel' : undefined}
-              className="flex items-center transition-colors"
+              className="cx-press flex items-center"
               style={{
                 gap:             collapsed ? 0 : '10px',
                 justifyContent:  collapsed ? 'center' : 'flex-start',
                 padding:         collapsed ? '8px 0' : '8px 12px',
                 backgroundColor: 'rgba(124,58,237,0.10)',
-                borderRadius:    8,
+                borderRadius:    10,
                 color:           '#7c3aed',
                 fontWeight:      600,
                 fontSize:        '13px',
@@ -362,7 +362,7 @@ export default function SidebarShell({
               }}
             >
               <ShieldCheck size={15} style={{ flexShrink: 0 }} />
-              {!collapsed && <span className="whitespace-nowrap">Admin Panel</span>}
+              {!collapsed && <span className="cx-side-label">Admin Panel</span>}
             </Link>
           </div>
         )}
@@ -375,17 +375,14 @@ export default function SidebarShell({
           <Link
             href="/coach/settings"
             title={collapsed ? 'Profile & Settings' : undefined}
-            className="flex items-center transition-colors"
+            data-active={false}
+            className="cx-side flex items-center"
             style={{
               gap:           collapsed ? 0 : 10,
               justifyContent: collapsed ? 'center' : 'flex-start',
               padding:       collapsed ? '6px 0' : '6px 8px',
-              borderRadius:  8,
-              textDecoration:'none',
               display:       'flex',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-surface-3)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
           >
             <div
               style={{
@@ -408,7 +405,7 @@ export default function SidebarShell({
                 : coachName.trim().split(/\s+/).map((p) => p[0]?.toUpperCase() ?? '').join('').slice(0, 2) || 'MC'}
             </div>
             {!collapsed && (
-              <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="cx-side-label" style={{ minWidth: 0, flex: 1 }}>
                 <p
                   style={{
                     fontSize:     13,
@@ -446,12 +443,17 @@ export default function SidebarShell({
       {/* ══════════════════════════════════════════════════════
           Main content area
           ══════════════════════════════════════════════════════ */}
+      {/* `key` restarts the entrance on every route change, so a navigation
+          reads as the new page arriving rather than as content silently
+          swapping under a static frame. `cx-page-in` fades without moving —
+          see the note on it in globals.css for why this one cannot translate. */}
       <main
-        className="coach-main-content flex-1 min-h-screen"
+        key={pathname}
+        className="coach-main-content cx-page-in flex-1 min-h-screen"
         style={{
           marginLeft:      `${w}px`,
           backgroundColor: 'var(--color-base)',
-          transition:      'margin-left 0.2s ease',
+          transition:      'margin-left var(--cx-dur) var(--cx-ease)',
         }}
       >
         {children}
@@ -460,15 +462,17 @@ export default function SidebarShell({
       {/* ══════════════════════════════════════════════════════
           MOBILE — fixed bottom navigation   (hidden on ≥ 768 px)
           ══════════════════════════════════════════════════════ */}
+      {/* The client app's pattern: a pill grows in behind the active icon. It
+          is its own layer so only the pill scales — scaling a wrapper would
+          shrink the icon too, and a 72%-size glyph reads as dimmed. */}
       <nav
-        className="coach-mobile-nav"
+        className="coach-mobile-nav cx-chrome cx-chrome-nav"
         style={{
           position:        'fixed',
           bottom:          0,
           left:            0,
           right:           0,
           height:          68,
-          backgroundColor: 'var(--color-surface-1)',
           borderTop:       '1px solid var(--color-border)',
           paddingBottom:   'env(safe-area-inset-bottom)',
           zIndex:          50,
@@ -482,36 +486,48 @@ export default function SidebarShell({
             <Link
               key={href}
               href={href}
+              aria-current={active ? 'page' : undefined}
+              className="cx-nav-item"
               style={{
                 flex:           1,
                 display:        'flex',
                 flexDirection:  'column',
                 alignItems:     'center',
                 justifyContent: 'center',
-                gap:            3,
+                gap:            4,
                 color:          active ? 'var(--color-accent)' : 'var(--color-text-hint)',
                 textDecoration: 'none',
               }}
             >
               <div
                 style={{
-                  width:           40,
+                  position:        'relative',
+                  width:           46,
                   height:          28,
                   display:         'flex',
                   alignItems:      'center',
                   justifyContent:  'center',
-                  borderRadius:    8,
-                  backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
-                  position:        'relative',
                 }}
               >
-                <Icon size={20} />
+                <span
+                  className="cx-nav-pill"
+                  aria-hidden="true"
+                  style={{
+                    position:        'absolute',
+                    inset:           0,
+                    borderRadius:    999,
+                    backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
+                    transform:       active ? 'scale(1)' : 'scale(0.72)',
+                  }}
+                />
+                <Icon size={20} style={{ position: 'relative' }} />
                 {badge > 0 && (
                   <span
+                    className="cx-pop"
                     style={{
                       position:        'absolute',
-                      top:             2,
-                      right:           4,
+                      top:             1,
+                      right:           5,
                       width:           7,
                       height:          7,
                       borderRadius:    '50%',
@@ -521,7 +537,7 @@ export default function SidebarShell({
                   />
                 )}
               </div>
-              <span style={{ fontSize: 10, fontWeight: active ? 600 : 400, lineHeight: 1 }}>
+              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, lineHeight: 1, letterSpacing: '-0.005em' }}>
                 {label}
               </span>
             </Link>
@@ -533,13 +549,15 @@ export default function SidebarShell({
           suppressHydrationWarning
           type="button"
           onClick={() => setMoreOpen((v) => !v)}
+          aria-expanded={moreOpen}
+          className="cx-nav-item"
           style={{
             flex:           1,
             display:        'flex',
             flexDirection:  'column',
             alignItems:     'center',
             justifyContent: 'center',
-            gap:            3,
+            gap:            4,
             color:          moreOpen ? 'var(--color-accent)' : 'var(--color-text-hint)',
             background:     'none',
             border:         'none',
@@ -548,18 +566,30 @@ export default function SidebarShell({
         >
           <div
             style={{
-              width:           40,
+              position:        'relative',
+              width:           46,
               height:          28,
               display:         'flex',
               alignItems:      'center',
               justifyContent:  'center',
-              borderRadius:    8,
-              backgroundColor: moreOpen ? 'var(--color-accent-dim)' : 'transparent',
             }}
           >
-            {moreOpen ? <X size={20} /> : <MoreHorizontal size={20} />}
+            <span
+              className="cx-nav-pill"
+              aria-hidden="true"
+              style={{
+                position:        'absolute',
+                inset:           0,
+                borderRadius:    999,
+                backgroundColor: moreOpen ? 'var(--color-accent-dim)' : 'transparent',
+                transform:       moreOpen ? 'scale(1)' : 'scale(0.72)',
+              }}
+            />
+            <span style={{ position: 'relative', display: 'flex' }}>
+              {moreOpen ? <X size={20} /> : <MoreHorizontal size={20} />}
+            </span>
           </div>
-          <span style={{ fontSize: 10, fontWeight: moreOpen ? 600 : 400, lineHeight: 1 }}>More</span>
+          <span style={{ fontSize: 10, fontWeight: moreOpen ? 700 : 500, lineHeight: 1, letterSpacing: '-0.005em' }}>More</span>
         </button>
       </nav>
 
@@ -570,10 +600,13 @@ export default function SidebarShell({
         <>
           {/* Backdrop */}
           <div
+            className="cx-backdrop"
             style={{
               position:        'fixed',
               inset:           0,
               backgroundColor: 'rgba(0,0,0,0.55)',
+              backdropFilter:  'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
               zIndex:          48,
             }}
             onClick={() => setMoreOpen(false)}
@@ -581,6 +614,10 @@ export default function SidebarShell({
 
           {/* Sheet */}
           <div
+            className="cx-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="More"
             style={{
               position:        'fixed',
               bottom:          68,
@@ -588,7 +625,8 @@ export default function SidebarShell({
               right:           0,
               backgroundColor: 'var(--color-surface-1)',
               borderTop:       '1px solid var(--color-border)',
-              borderRadius:    '20px 20px 0 0',
+              borderRadius:    '24px 24px 0 0',
+              boxShadow:       'var(--cx-shadow-lg)',
               padding:         '8px 16px 16px',
               zIndex:          49,
             }}
@@ -596,9 +634,9 @@ export default function SidebarShell({
             {/* Drag handle */}
             <div
               style={{
-                width:           36,
+                width:           40,
                 height:          4,
-                borderRadius:    2,
+                borderRadius:    999,
                 backgroundColor: 'var(--color-surface-3)',
                 margin:          '0 auto 16px',
               }}
@@ -611,12 +649,13 @@ export default function SidebarShell({
                   key={href}
                   href={href}
                   onClick={() => setMoreOpen(false)}
+                  className="cx-press"
                   style={{
                     display:         'flex',
                     alignItems:      'center',
                     gap:             14,
                     padding:         '12px 16px',
-                    borderRadius:    12,
+                    borderRadius:    14,
                     backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
                     color:           active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                     fontWeight:      active ? 600 : 400,
@@ -635,12 +674,13 @@ export default function SidebarShell({
               <Link
                 href="/admin"
                 onClick={() => setMoreOpen(false)}
+                className="cx-press"
                 style={{
                   display:         'flex',
                   alignItems:      'center',
                   gap:             14,
                   padding:         '12px 16px',
-                  borderRadius:    12,
+                  borderRadius:    14,
                   backgroundColor: 'rgba(124,58,237,0.10)',
                   color:           '#7c3aed',
                   fontWeight:      600,

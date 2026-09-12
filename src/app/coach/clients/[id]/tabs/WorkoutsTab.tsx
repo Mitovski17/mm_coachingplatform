@@ -171,7 +171,7 @@ function SessionCard({ session }: { session: WorkoutSession }) {
     >
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between text-left"
+        className="cx-press w-full flex items-center justify-between text-left"
       >
         <div className="min-w-0">
           <div

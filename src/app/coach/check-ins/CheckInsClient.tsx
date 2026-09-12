@@ -166,24 +166,39 @@ function CheckinCard({
     <>
       {lightboxSrc && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.88)' }}
+          className="cx-backdrop fixed inset-0 z-50 flex items-center justify-center"
+          style={{
+            backgroundColor: 'rgba(0,0,0,0.88)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+          }}
           onClick={() => setLightboxSrc(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Progress photo"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={lightboxSrc}
+            className="cx-pop"
             alt="Progress photo"
-            style={{ maxHeight: '90vh', maxWidth: '90vw', objectFit: 'contain', borderRadius: '8px' }}
+            style={{
+              maxHeight: '90vh',
+              maxWidth: '90vw',
+              objectFit: 'contain',
+              borderRadius: 'var(--cx-r-md)',
+              boxShadow: 'var(--cx-shadow-lg)',
+            }}
           />
         </div>
       )}
 
       <div
+        className="cx-card"
         style={{
           backgroundColor: 'var(--color-surface-2)',
           border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
+          borderRadius: 'var(--cx-r-md)',
           overflow: 'hidden',
         }}
       >
@@ -191,11 +206,13 @@ function CheckinCard({
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
           <div className="flex items-center gap-3">
             <div
+              className="cx-display"
               style={{
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
                 backgroundColor: bgColor,
+                boxShadow: 'var(--cx-shadow-sm)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -245,11 +262,11 @@ function CheckinCard({
             )}
             <Link
               href={`/coach/clients/${card.clientId}?tab=check-ins`}
-              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1"
+              className="cx-ghost inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1"
               style={{
                 backgroundColor: 'var(--color-surface-3)',
                 color: 'var(--color-text-secondary)',
-                borderRadius: 'var(--radius-sm)',
+                borderRadius: 'var(--cx-r-xs)',
                 border: '1px solid var(--color-border)',
                 textDecoration: 'none',
               }}
@@ -315,10 +332,12 @@ function CheckinCard({
                     key={i}
                     type="button"
                     onClick={() => setLightboxSrc(src)}
+                    aria-label={`Open progress photo ${i + 1}`}
+                    className="cx-press cx-lift"
                     style={{
                       width: 80,
                       height: 80,
-                      borderRadius: 'var(--radius-md)',
+                      borderRadius: 'var(--cx-r-sm)',
                       overflow: 'hidden',
                       border: '1px solid var(--color-border)',
                       padding: 0,
@@ -351,19 +370,20 @@ function CheckinCard({
                 placeholder="Add a private note…"
                 rows={2}
                 autoFocus={notesExpanded && !notes}
-                className="w-full text-sm resize-none"
+                /* `cx-field` owns the focus border and ring, so the old
+                   onFocus/onBlurCapture style swaps are gone — they set an
+                   inline border that then outranked every other rule. */
+                className="cx-field w-full text-sm resize-none"
                 style={{
                   backgroundColor: 'var(--color-surface-3)',
                   border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
+                  borderRadius: 'var(--cx-r-sm)',
                   color: 'var(--color-text-primary)',
                   padding: '8px 12px',
                   outline: 'none',
                   fontFamily: 'inherit',
                   lineHeight: 1.5,
                 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)' }}
-                onBlurCapture={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
               />
             </div>
           )}
@@ -374,7 +394,7 @@ function CheckinCard({
                 <button
                   type="button"
                   onClick={() => setNotesExpanded(true)}
-                  className="text-xs"
+                  className="cx-press text-xs"
                   style={{ color: 'var(--color-text-hint)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                 >
                   + Add note
@@ -384,11 +404,11 @@ function CheckinCard({
             <div className="flex items-center gap-2">
               <Link
                 href={`/coach/messages/${card.clientId}?checkinId=${card.checkinId}`}
-                className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5"
+                className="cx-ghost inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5"
                 style={{
                   backgroundColor: 'var(--color-surface-3)',
                   color: 'var(--color-text-secondary)',
-                  borderRadius: 'var(--radius-md)',
+                  borderRadius: 'var(--cx-r-sm)',
                   border: '1px solid var(--color-border)',
                   textDecoration: 'none',
                 }}
@@ -400,11 +420,11 @@ function CheckinCard({
                   type="button"
                   onClick={onMarkReviewed}
                   disabled={isMarkingReviewed}
-                  className="text-sm font-medium px-4 py-1.5 transition-opacity"
+                  className="cx-cta text-sm font-semibold px-4 py-1.5"
                   style={{
                     backgroundColor: 'var(--color-accent)',
                     color: '#fff',
-                    borderRadius: 'var(--radius-md)',
+                    borderRadius: 'var(--cx-r-sm)',
                     border: 'none',
                     cursor: isMarkingReviewed ? 'not-allowed' : 'pointer',
                     opacity: isMarkingReviewed ? 0.6 : 1,
@@ -467,10 +487,10 @@ export default function CheckInsClient({
   return (
     <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-4xl">
       {/* Page title */}
-      <div className="mb-6">
+      <div className="cx-in mb-6">
         <h1
-          className="text-2xl"
-          style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
+          className="cx-display cx-display-lg text-2xl"
+          style={{ color: 'var(--color-text-primary)', fontWeight: 800 }}
         >
           Check-ins
         </h1>
@@ -479,80 +499,83 @@ export default function CheckInsClient({
         </p>
       </div>
 
-      {/* Tabs */}
-      <div
-        className="flex gap-1 mb-6 p-1"
-        style={{
-          backgroundColor: 'var(--color-surface-2)',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--color-border)',
-          display: 'inline-flex',
-        }}
-      >
-        {(['pending', 'reviewed'] as const).map((t) => {
-          const count = t === 'pending' ? effectivePending.length : effectiveReviewed.length
-          const active = tab === t
-          return (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors"
-              style={{
-                backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
-                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                borderRadius: 'calc(var(--radius-md) - 2px)',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {t === 'pending' ? 'Pending review' : 'Reviewed'}
-              <span
-                className="inline-flex items-center justify-center text-xs px-1.5 py-0.5"
+      {/* Tabs — the thumb slides between options rather than the highlight
+          snapping from one pill to the other, so it reads as one control. */}
+      <div className="cx-in mb-6" style={{ '--cx-i': 1 } as React.CSSProperties}>
+        <div
+          className="cx-seg cx-seg--fit"
+          role="tablist"
+          aria-label="Check-in status"
+          style={{ '--cx-seg-n': 2, '--cx-seg-i': tab === 'pending' ? 0 : 1 } as React.CSSProperties}
+        >
+          <div className="cx-seg-thumb" aria-hidden="true" />
+          {(['pending', 'reviewed'] as const).map((t) => {
+            const count = t === 'pending' ? effectivePending.length : effectiveReviewed.length
+            const active = tab === t
+            return (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(t)}
+                className="cx-seg-btn flex items-center justify-center gap-1.5 text-sm"
                 style={{
-                  minWidth: 20,
-                  backgroundColor: active
-                    ? (t === 'pending' && count > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)')
-                    : 'var(--color-surface-3)',
-                  color: active && t === 'pending' && count > 0 ? '#ef4444' : 'var(--color-text-hint)',
-                  borderRadius: '9999px',
-                  fontWeight: 600,
+                  padding: '8px 14px',
+                  fontWeight: active ? 700 : 600,
+                  color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
                 }}
               >
-                {count}
-              </span>
-            </button>
-          )
-        })}
+                {t === 'pending' ? 'Pending review' : 'Reviewed'}
+                <span
+                  className="cx-num inline-flex items-center justify-center text-xs px-1.5 py-0.5"
+                  style={{
+                    minWidth: 20,
+                    backgroundColor: t === 'pending' && count > 0
+                      ? 'rgba(239,68,68,0.2)'
+                      : active ? 'var(--color-accent-dim)' : 'var(--color-surface-3)',
+                    color: t === 'pending' && count > 0
+                      ? '#ef4444'
+                      : active ? 'var(--color-accent)' : 'var(--color-text-hint)',
+                    borderRadius: '9999px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Cards */}
       {displayed.length === 0 ? (
         <div
-          className="flex items-center justify-center py-16 text-sm"
-          style={{
-            color: 'var(--color-text-hint)',
-            border: '1px dashed var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-          }}
+          className="cx-empty flex items-center justify-center py-16 text-sm"
+          style={{ color: 'var(--color-text-hint)' }}
         >
           {tab === 'pending'
             ? 'No pending check-ins this week'
             : 'No reviewed check-ins this week'}
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {displayed.map((card) => (
-            <CheckinCard
-              key={card.checkinId}
-              card={card}
-              notes={notes[card.checkinId] ?? ''}
-              onNotesChange={(v) => setNotes((prev) => ({ ...prev, [card.checkinId]: v }))}
-              onNotesBlur={() => handleNotesBlur(card.checkinId)}
-              onMarkReviewed={() => handleMarkReviewed(card.checkinId)}
-              isMarkingReviewed={markingIds.has(card.checkinId)}
-              isReviewed={reviewedIds.has(card.checkinId) || card.status === 'reviewed'}
-            />
+        // Explicit `--cx-i` rather than `.cx-stagger`: CheckinCard returns a
+        // fragment whose lightbox appears and disappears, so a positional
+        // nth-child stagger would miscount as soon as a photo is opened.
+        <div key={tab} className="flex flex-col gap-4">
+          {displayed.map((card, i) => (
+            <div key={card.checkinId} className="cx-in" style={{ '--cx-i': i } as React.CSSProperties}>
+              <CheckinCard
+                card={card}
+                notes={notes[card.checkinId] ?? ''}
+                onNotesChange={(v) => setNotes((prev) => ({ ...prev, [card.checkinId]: v }))}
+                onNotesBlur={() => handleNotesBlur(card.checkinId)}
+                onMarkReviewed={() => handleMarkReviewed(card.checkinId)}
+                isMarkingReviewed={markingIds.has(card.checkinId)}
+                isReviewed={reviewedIds.has(card.checkinId) || card.status === 'reviewed'}
+              />
+            </div>
           ))}
         </div>
       )}

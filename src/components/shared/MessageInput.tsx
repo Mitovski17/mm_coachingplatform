@@ -34,15 +34,18 @@ export default function MessageInput({ value, onChange, onSend, sending, placeho
 
   return (
     <div
+      className="cx-chrome"
       style={{
         display: 'flex',
         alignItems: 'flex-end',
         gap: 10,
         padding: '10px 14px',
         borderTop: '1px solid var(--color-border)',
-        backgroundColor: 'var(--color-surface-1)',
       }}
     >
+      {/* `cx-field` owns the focus border and ring. The old onFocus/onBlur
+          handlers wrote an inline border colour, which then outranked every
+          stylesheet rule for the life of the element. */}
       <textarea
         ref={textareaRef}
         value={value}
@@ -50,6 +53,7 @@ export default function MessageInput({ value, onChange, onSend, sending, placeho
         onKeyDown={handleKeyDown}
         placeholder={placeholder ?? 'Type a message…'}
         rows={1}
+        className="cx-field"
         style={{
           flex: 1,
           resize: 'none',
@@ -64,26 +68,26 @@ export default function MessageInput({ value, onChange, onSend, sending, placeho
           fontFamily: 'inherit',
           overflowY: 'hidden',
         }}
-        onFocus={(e) => { e.currentTarget.style.borderColor = '#f97316' }}
-        onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
       />
       <button
         type="button"
         onClick={onSend}
         disabled={sending || isEmpty}
+        aria-label="Send message"
+        className="cx-press"
         style={{
           width: 36,
           height: 36,
           borderRadius: '50%',
-          backgroundColor: sending || isEmpty ? 'var(--color-surface-3)' : '#f97316',
+          backgroundColor: sending || isEmpty ? 'var(--color-surface-3)' : 'var(--color-accent)',
           color: sending || isEmpty ? 'var(--color-text-hint)' : '#ffffff',
+          boxShadow: sending || isEmpty ? 'none' : 'var(--cx-shadow-cta)',
           border: 'none',
           cursor: sending || isEmpty ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          transition: 'background-color 0.15s',
         }}
       >
         <Send size={15} />

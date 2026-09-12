@@ -448,6 +448,7 @@ export default function AssistantTab({
         <div style={{ display: 'flex', gap: 6 }}>
           {messages.length > 0 && (
             <button
+              className="cx-press"
               onClick={startNewChat}
               style={{
                 display: 'flex', alignItems: 'center', gap: 5,
@@ -464,6 +465,7 @@ export default function AssistantTab({
             </button>
           )}
           <button
+            className="cx-press"
             onClick={() => setShowHistory((v) => !v)}
             style={{
               display: 'flex', alignItems: 'center', gap: 5,
@@ -487,6 +489,7 @@ export default function AssistantTab({
         {/* History panel */}
         {showHistory && (
           <div
+            className="cx-card"
             style={{
               width: 260,
               flexShrink: 0,
@@ -513,6 +516,7 @@ export default function AssistantTab({
                 Chat history
               </span>
               <button
+                className="cx-press"
                 onClick={() => setShowHistory(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', display: 'flex', alignItems: 'center' }}
               >
@@ -522,6 +526,7 @@ export default function AssistantTab({
 
             {/* New chat button */}
             <button
+              className="cx-press"
               onClick={startNewChat}
               style={{
                 margin: '8px 10px 4px',
@@ -543,7 +548,7 @@ export default function AssistantTab({
             </button>
 
             {/* Session list */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 6px 10px' }}>
+            <div className="cx-pane" style={{ flex: 1, overflowY: 'auto', padding: '4px 6px 10px' }}>
               {sessionsLoading ? (
                 <div style={{ padding: '20px 12px', textAlign: 'center', fontSize: 12, color: 'var(--color-text-hint)' }}>
                   Loading…
@@ -568,6 +573,7 @@ export default function AssistantTab({
                       }}
                     >
                       <button
+                        className="cx-press"
                         onClick={() => loadSession(session.id)}
                         style={{
                           flex: 1,
@@ -597,6 +603,7 @@ export default function AssistantTab({
                         </div>
                       </button>
                       <button
+                        className="cx-press"
                         onClick={() => deleteSession(session.id)}
                         disabled={deletingId === session.id}
                         style={{
@@ -624,6 +631,7 @@ export default function AssistantTab({
 
         {/* Chat panel */}
         <div
+          className="cx-card"
           style={{
             flex: 1,
             minWidth: 0,
@@ -636,7 +644,7 @@ export default function AssistantTab({
           }}
         >
           {/* Message list */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          <div className="cx-pane" style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
             {messages.length === 0 ? (
               <div
                 style={{
@@ -673,6 +681,7 @@ export default function AssistantTab({
                 >
                   {SUGGESTED_PROMPTS.map((prompt) => (
                     <button
+                      className="cx-press"
                       key={prompt}
                       onClick={() => sendMessage(prompt)}
                       disabled={loading}
@@ -683,7 +692,6 @@ export default function AssistantTab({
                         backgroundColor: 'var(--color-surface-1)',
                         color: 'var(--color-text-secondary)',
                         fontSize: 12, lineHeight: 1.4, cursor: 'pointer',
-                        transition: 'border-color 0.15s, background-color 0.15s',
                       }}
                       onMouseEnter={(e) => {
                         ;(e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--color-accent)'
@@ -726,6 +734,7 @@ export default function AssistantTab({
                       {/* Meal plan save card */}
                       {card && !msg.streaming && (
                         <div
+                          className="cx-card"
                           style={{
                             maxWidth: 420, borderRadius: 'var(--radius-lg)',
                             border: '1px solid var(--color-border)',
@@ -751,6 +760,7 @@ export default function AssistantTab({
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>Plan name</label>
                                 <input
+                                  className="cx-field"
                                   type="text"
                                   value={card.planName}
                                   onChange={(e) => setMealPlanCards((prev) => ({ ...prev, [msg.id]: { ...prev[msg.id], planName: e.target.value } }))}
@@ -764,6 +774,7 @@ export default function AssistantTab({
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>Plan type</label>
                                 <select
+                                  className="cx-field"
                                   value={card.planType}
                                   onChange={(e) => setMealPlanCards((prev) => ({ ...prev, [msg.id]: { ...prev[msg.id], planType: e.target.value as 'training' | 'rest' } }))}
                                   style={{
@@ -780,6 +791,7 @@ export default function AssistantTab({
                                 <div style={{ fontSize: '0.8rem', color: '#f87171' }}>{card.result.error}</div>
                               )}
                               <button
+                                className="cx-press"
                                 type="button"
                                 onClick={() => handleSaveCard(msg.id)}
                                 disabled={card.saving}
@@ -817,6 +829,7 @@ export default function AssistantTab({
             }}
           >
             <textarea
+              className="cx-field"
               ref={textareaRef}
               value={input}
               onChange={(e) => { setInput(e.target.value); adjustHeight() }}
@@ -836,6 +849,7 @@ export default function AssistantTab({
             />
             {loading ? (
               <button
+                className="cx-press"
                 type="button"
                 onClick={handleStop}
                 style={{
@@ -850,6 +864,7 @@ export default function AssistantTab({
               </button>
             ) : (
               <button
+                className="cx-press"
                 type="button"
                 onClick={() => sendMessage()}
                 disabled={!canSend}
@@ -860,7 +875,6 @@ export default function AssistantTab({
                   color: canSend ? '#fff' : 'var(--color-text-hint)',
                   border: 'none', borderRadius: 'var(--radius-md)',
                   cursor: canSend ? 'pointer' : 'not-allowed',
-                  transition: 'background-color 0.15s, color 0.15s',
                 }}
               >
                 <Send size={16} />

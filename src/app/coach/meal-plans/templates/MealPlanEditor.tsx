@@ -566,6 +566,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           />
           {canUndo && (
             <button
+              className="cx-press"
               type="button"
               onClick={handleUndo}
               title="Undo last change"
@@ -576,10 +577,11 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
             </button>
           )}
           <button
+            className="cx-press"
             type="button"
             onClick={handleSave}
             disabled={saving || saved || !isDirty}
-            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: saved ? '#16a34a' : '#f97316', color: '#fff', border: 'none', cursor: saving || saved || !isDirty ? 'not-allowed' : 'pointer', opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1), transition: 'opacity 0.15s, background-color 0.2s' }}
+            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: saved ? '#16a34a' : '#f97316', color: '#fff', border: 'none', cursor: saving || saved || !isDirty ? 'not-allowed' : 'pointer', opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1) }}
           >
             {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save template'}
           </button>
@@ -595,6 +597,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <textarea
+              className="cx-field"
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiGenerate() } }}
@@ -604,12 +607,13 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
               style={{ flex: 1, padding: '8px 12px', fontSize: 13, background: '#1a1a1a', border: '1px solid #272727', borderRadius: 8, color: '#fff', outline: 'none', opacity: aiGenerating ? 0.6 : 1, resize: 'none', lineHeight: 1.5, fontFamily: 'inherit' }}
             />
             <button
+              className="cx-press"
               type="button"
               onClick={handleAiGenerate}
               disabled={aiGenerating || !aiPrompt.trim()}
               onMouseEnter={(e) => { if (!aiGenerating && aiPrompt.trim()) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ea6c0a' }}
               onMouseLeave={(e) => { if (!aiGenerating && aiPrompt.trim()) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316' }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: aiGenerating || !aiPrompt.trim() ? '#1e1e1e' : '#f97316', color: aiGenerating || !aiPrompt.trim() ? '#555' : '#fff', border: 'none', cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer', flexShrink: 0, alignSelf: 'stretch', transition: 'background-color 0.15s ease' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: aiGenerating || !aiPrompt.trim() ? '#1e1e1e' : '#f97316', color: aiGenerating || !aiPrompt.trim() ? '#555' : '#fff', border: 'none', cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer', flexShrink: 0, alignSelf: 'stretch' }}
             >
               {aiGenerating ? <><Loader2 size={13} className="animate-spin" /> Generating…</> : <><Sparkles size={13} /> Generate</>}
             </button>
@@ -619,11 +623,12 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
       ) : (
         <div style={{ marginBottom: 20 }}>
           <button
+            className="cx-press"
             type="button"
             onClick={() => { setAiError(null); setAiEditModalOpen(true) }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#f97316'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#111'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#2a2a2a'; (e.currentTarget as HTMLButtonElement).style.color = '#ccc' }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', fontSize: 13, fontWeight: 600, backgroundColor: '#111', color: '#ccc', border: '1px solid #2a2a2a', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', fontSize: 13, fontWeight: 600, backgroundColor: '#111', color: '#ccc', border: '1px solid #2a2a2a', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             <Sparkles size={13} style={{ color: '#f97316' }} />
             Edit with AI
@@ -635,20 +640,25 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
       {aiEditModalOpen && (
         <div
           onClick={() => setAiEditModalOpen(false)}
-          style={{ position: 'fixed', inset: 0, zIndex: 50, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          className="cx-backdrop"
+          role="dialog"
+          aria-modal="true"
+          style={{ position: 'fixed', inset: 0, zIndex: 50, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ width: 480, background: '#111', border: '1px solid #2a2a2a', borderRadius: 12, padding: 24 }}
+            className="cx-pop"
+            style={{ width: 480, background: '#111', border: '1px solid #2a2a2a', borderRadius: 'var(--cx-r-md)', boxShadow: 'var(--cx-shadow-lg)', padding: 24 }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <Sparkles size={15} style={{ color: '#f97316' }} />
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>Edit with AI</span>
               </div>
-              <button type="button" onClick={() => setAiEditModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', padding: 4, fontSize: 16, lineHeight: 1 }}>✕</button>
+              <button className="cx-press" type="button" onClick={() => setAiEditModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', padding: 4, fontSize: 16, lineHeight: 1 }}>✕</button>
             </div>
             <textarea
+              className="cx-field"
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiGenerate() } }}
@@ -661,6 +671,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
             {aiError && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{aiError}</p>}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button
+                className="cx-press"
                 type="button"
                 onClick={() => setAiEditModalOpen(false)}
                 style={{ padding: '8px 16px', fontSize: 13, fontWeight: 500, background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -668,12 +679,13 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
                 Cancel
               </button>
               <button
+                className="cx-press"
                 type="button"
                 onClick={handleAiGenerate}
                 disabled={aiGenerating || !aiPrompt.trim()}
                 onMouseEnter={(e) => { if (!aiGenerating && aiPrompt.trim()) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ea6c0a' }}
                 onMouseLeave={(e) => { if (!aiGenerating && aiPrompt.trim()) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316' }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, backgroundColor: aiGenerating || !aiPrompt.trim() ? '#1e1e1e' : '#f97316', color: aiGenerating || !aiPrompt.trim() ? '#555' : '#fff', border: 'none', borderRadius: 8, cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'background-color 0.15s ease' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, backgroundColor: aiGenerating || !aiPrompt.trim() ? '#1e1e1e' : '#f97316', color: aiGenerating || !aiPrompt.trim() ? '#555' : '#fff', border: 'none', borderRadius: 8, cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
               >
                 {aiGenerating ? <><Loader2 size={13} className="animate-spin" /> Applying…</> : <><Sparkles size={13} /> Apply Edit</>}
               </button>
@@ -689,6 +701,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
             Template name
           </label>
           <input
+            className="cx-field"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -718,6 +731,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, color: '#fff', margin: 0 }}>Meals</h2>
         <button
+          className="cx-press"
           type="button"
           onClick={addMeal}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, backgroundColor: '#f97316', color: '#fff', border: 'none', cursor: 'pointer' }}
@@ -759,6 +773,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
             Notes for client
           </label>
           <textarea
+            className="cx-field"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
@@ -770,6 +785,7 @@ export default function MealPlanEditor({ workspaceId, initialData }: { workspace
             Recommendations
           </label>
           <textarea
+            className="cx-field"
             value={recommendations}
             onChange={(e) => setRecommendations(e.target.value)}
             rows={4}
@@ -809,10 +825,11 @@ function PlanTypeToggle({ value, onChange }: { value: PlanType; onChange: (v: Pl
         const label = t === 'training' ? 'Training Day' : t === 'rest' ? 'Rest Day' : 'Overall'
         return (
           <button
+            className="cx-press"
             key={t}
             type="button"
             onClick={() => onChange(t)}
-            style={{ padding: '6px 14px', fontSize: 13, fontWeight: 500, borderRadius: 7, border: 'none', cursor: 'pointer', background: active ? '#1e1e1e' : 'transparent', color: active ? '#fff' : '#555', transition: 'background 0.12s, color 0.12s', whiteSpace: 'nowrap' }}
+            style={{ padding: '6px 14px', fontSize: 13, fontWeight: 500, borderRadius: 7, border: 'none', cursor: 'pointer', background: active ? '#1e1e1e' : 'transparent', color: active ? '#fff' : '#555', whiteSpace: 'nowrap' }}
           >
             {label}
           </button>
@@ -853,6 +870,7 @@ function MealCard({
       <div className="mpe-meal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #1a1a1a' }}>
         <div className="mpe-meal-header-left" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
           <select
+            className="cx-field"
             value={isPreset ? meal.name : 'Other'}
             onChange={(e) => {
               const v = e.target.value
@@ -865,6 +883,7 @@ function MealCard({
           </select>
           {!isPreset && (
             <input
+              className="cx-field"
               type="text"
               value={meal.name}
               onChange={(e) => onChangeName(e.target.value)}
@@ -883,16 +902,17 @@ function MealCard({
         </div>
 
         <div className="mpe-meal-controls" style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          <button type="button" title="Move up" disabled={index === 0} onClick={() => onMove(-1)} style={iconBtn(index === 0)}><ChevronUp size={13} /></button>
-          <button type="button" title="Move down" disabled={index === total - 1} onClick={() => onMove(1)} style={iconBtn(index === total - 1)}><ChevronDown size={13} /></button>
+          <button className="cx-press" type="button" title="Move up" disabled={index === 0} onClick={() => onMove(-1)} style={iconBtn(index === 0)}><ChevronUp size={13} /></button>
+          <button className="cx-press" type="button" title="Move down" disabled={index === total - 1} onClick={() => onMove(1)} style={iconBtn(index === total - 1)}><ChevronDown size={13} /></button>
           <button
+            className="cx-press"
             type="button"
             onClick={onAddOption}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 10px', height: 28, fontSize: 12, fontWeight: 500, background: 'transparent', border: '1px solid #222', borderRadius: 6, color: '#888', cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
             <Plus size={12} /> Option
           </button>
-          <button type="button" title="Delete meal" onClick={onRemove} style={{ ...iconBtn(), color: '#ef4444', border: '1px solid #222' }}><Trash2 size={13} /></button>
+          <button className="cx-press" type="button" title="Delete meal" onClick={onRemove} style={{ ...iconBtn(), color: '#ef4444', border: '1px solid #222' }}><Trash2 size={13} /></button>
         </div>
       </div>
 
@@ -904,6 +924,7 @@ function MealCard({
             return (
               <div key={o.tempId} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <button
+                  className="cx-press"
                   type="button"
                   onClick={() => onSelectOption(o.tempId)}
                   style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6, border: active ? '1px solid rgba(249,115,22,0.4)' : '1px solid #222', background: active ? 'rgba(249,115,22,0.08)' : 'transparent', color: active ? '#f97316' : '#555', cursor: 'pointer' }}
@@ -911,7 +932,7 @@ function MealCard({
                   Option {o.label}
                 </button>
                 {active && meal.options.length > 1 && (
-                  <button type="button" onClick={() => onRemoveOption(o.tempId)} title="Remove option" style={{ width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }}>
+                  <button className="cx-press" type="button" onClick={() => onRemoveOption(o.tempId)} title="Remove option" style={{ width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }}>
                     <X size={11} />
                   </button>
                 )}
@@ -943,6 +964,7 @@ function QuantityInput({ value, onChange, style }: { value: number; onChange: (v
   useEffect(() => { setDisplay(String(value)) }, [value])
   return (
     <input
+      className="cx-field"
       type="text"
       inputMode="decimal"
       value={display}
@@ -1020,6 +1042,7 @@ function OptionContent({
               style={{ width: 52, padding: '4px 6px', fontSize: 13, background: '#1a1a1a', border: '1px solid #222', borderRadius: 6, color: '#fff', outline: 'none' }}
             />
             <select
+              className="cx-field"
               value={f.unit}
               onChange={(e) => onUpdateFoodUnit(f.tempId, e.target.value)}
               style={{ maxWidth: 52, padding: '4px 3px', fontSize: 11, background: '#1a1a1a', border: '1px solid #222', borderRadius: 6, color: '#888', outline: 'none' }}
@@ -1032,6 +1055,7 @@ function OptionContent({
           <span className="mpe-food-col-hide" style={{ fontSize: 13, fontWeight: 600, color: COLOR_CARBS, textAlign: 'center' }}>{round1(f.carbsG)}</span>
           <span className="mpe-food-col-hide" style={{ fontSize: 13, fontWeight: 600, color: COLOR_FAT, textAlign: 'center' }}>{round1(f.fatG)}</span>
           <button
+            className="cx-press"
             type="button"
             onClick={() => onRemoveFood(f.tempId)}
             style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: '#3a3a3a', cursor: 'pointer', borderRadius: 4, marginLeft: 'auto' }}
@@ -1066,7 +1090,7 @@ function FoodSearchBox({
       <button
         type="button"
         onClick={() => onChange({ open: true })}
-        className="mpe-food-addbtn"
+        className="cx-press mpe-food-addbtn"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 18px', background: 'transparent', border: 'none', borderTop: '1px dashed #222', color: '#444', fontSize: 13, cursor: 'pointer' }}
       >
         <Plus size={13} style={{ color: '#555' }} />
@@ -1080,6 +1104,7 @@ function FoodSearchBox({
       <div className="mpe-food-search-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px' }}>
         <Search size={13} style={{ color: '#555', flexShrink: 0 }} />
         <input
+          className="cx-field"
           type="text"
           autoFocus
           value={s.query}
@@ -1089,7 +1114,7 @@ function FoodSearchBox({
           style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: '#e0e0e0' }}
         />
         {s.loading && <Loader2 size={13} className="animate-spin" style={{ color: '#555' }} />}
-        <button type="button" onClick={() => onChange({ open: false, query: '' })} style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer', padding: 0, display: 'inline-flex' }}>
+        <button className="cx-press" type="button" onClick={() => onChange({ open: false, query: '' })} style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer', padding: 0, display: 'inline-flex' }}>
           <X size={13} />
         </button>
       </div>
@@ -1098,6 +1123,7 @@ function FoodSearchBox({
         <div className="mpe-search-results" style={{ borderTop: '1px solid #1a1a1a' }}>
           {s.results.map((r, i) => (
             <button
+              className="cx-press"
               key={(r.externalId ?? r.name) + i}
               type="button"
               onClick={() => onAddFromResult(r)}
@@ -1116,6 +1142,7 @@ function FoodSearchBox({
             <p style={{ padding: '8px 18px', fontSize: 12, color: '#555', margin: 0 }}>No results found</p>
           )}
           <button
+            className="cx-press"
             type="button"
             onClick={() => onChange({ manualOpen: !s.manualOpen })}
             style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 18px', fontSize: 12, color: '#666', background: '#0d0d0d', border: 'none', cursor: 'pointer', borderTop: '1px solid #1a1a1a' }}
@@ -1191,24 +1218,25 @@ function ManualEntry({ onAdd, onClose }: { onAdd: (p: { foodName: string; calori
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
         <div style={{ gridColumn: 'span 2' }}>
           <label style={lbl}>Food name</label>
-          <input type="text" value={fname} onChange={(e) => setFname(e.target.value)} placeholder="e.g. Large egg white" style={inp} />
+          <input className="cx-field" type="text" value={fname} onChange={(e) => setFname(e.target.value)} placeholder="e.g. Large egg white" style={inp} />
         </div>
         <div>
           <label style={lbl}>Unit</label>
-          <select value={unit} onChange={(e) => handleUnitChange(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+          <select className="cx-field" value={unit} onChange={(e) => handleUnitChange(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
             {UNITS.map((u) => <option key={u} value={u} style={{ background: '#1a1a1a' }}>{u}</option>)}
           </select>
         </div>
         <div>
           <label style={lbl}>Quantity ({unit})</label>
-          <input type="text" inputMode="decimal" value={q} onChange={(e) => setQ(normalizeDecimalInput(e.target.value))} style={inp} />
+          <input className="cx-field" type="text" inputMode="decimal" value={q} onChange={(e) => setQ(normalizeDecimalInput(e.target.value))} style={inp} />
         </div>
-        <div><label style={lbl}>kcal {suffix}</label><input type="text" inputMode="decimal" value={cal} onChange={(e) => setCal(normalizeDecimalInput(e.target.value))} style={inp} /></div>
-        <div><label style={lbl}>Protein {suffix}</label><input type="text" inputMode="decimal" value={p} onChange={(e) => setP(normalizeDecimalInput(e.target.value))} style={inp} /></div>
-        <div><label style={lbl}>Carbs {suffix}</label><input type="text" inputMode="decimal" value={c} onChange={(e) => setC(normalizeDecimalInput(e.target.value))} style={inp} /></div>
-        <div><label style={lbl}>Fat {suffix}</label><input type="text" inputMode="decimal" value={f} onChange={(e) => setF(normalizeDecimalInput(e.target.value))} style={inp} /></div>
+        <div><label style={lbl}>kcal {suffix}</label><input className="cx-field" type="text" inputMode="decimal" value={cal} onChange={(e) => setCal(normalizeDecimalInput(e.target.value))} style={inp} /></div>
+        <div><label style={lbl}>Protein {suffix}</label><input className="cx-field" type="text" inputMode="decimal" value={p} onChange={(e) => setP(normalizeDecimalInput(e.target.value))} style={inp} /></div>
+        <div><label style={lbl}>Carbs {suffix}</label><input className="cx-field" type="text" inputMode="decimal" value={c} onChange={(e) => setC(normalizeDecimalInput(e.target.value))} style={inp} /></div>
+        <div><label style={lbl}>Fat {suffix}</label><input className="cx-field" type="text" inputMode="decimal" value={f} onChange={(e) => setF(normalizeDecimalInput(e.target.value))} style={inp} /></div>
       </div>
       <button
+        className="cx-press"
         type="button"
         onClick={handle}
         style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: '#f97316', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer' }}

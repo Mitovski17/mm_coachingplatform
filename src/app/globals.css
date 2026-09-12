@@ -238,10 +238,6 @@
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Messages list row hover */
-.messages-row { background-color: var(--color-surface-1); transition: background-color 0.15s; }
-.messages-row:hover { background-color: var(--color-surface-2); }
-
 /* ─── Coach shell main column ─────────────────────────────────────── */
 /* <main> is a flex item, so its default `min-width: auto` lets page content
    push it wider than the viewport — the sidebar stays fixed and the whole
@@ -752,16 +748,25 @@
 /* ── Surfaces ─────────────────────────────────────────────────────────────
    Only shadow + transition live here; background/border/radius stay inline so
    this layers onto existing markup without specificity fights. */
+/* background/border are in the transition list so `.cx-card` composes with
+   `.cx-tint` (surface change on hover) without the tint snapping — `transition`
+   is a single property, so a second class restating it would replace this list
+   rather than extend it. */
 .cx-card {
   box-shadow: var(--cx-shadow-md);
   transition: box-shadow var(--cx-dur) var(--cx-ease),
-              transform var(--cx-dur) var(--cx-ease);
+              transform var(--cx-dur) var(--cx-ease),
+              background-color var(--cx-dur) var(--cx-ease),
+              border-color var(--cx-dur) var(--cx-ease);
 }
 .cx-card-flat { box-shadow: var(--cx-shadow-sm); }
 
 /* ── Interaction feedback ─────────────────────────────────────────────────
    Touch has no hover, so the press state is the primary affordance. */
-.cx-press {
+/* `.cx-press-sm` shares the transition rather than only overriding the scale —
+   on its own it had none, so the press snapped in and eased nowhere out. */
+.cx-press,
+.cx-press-sm {
   transition: transform var(--cx-dur-fast) var(--cx-ease),
               box-shadow var(--cx-dur) var(--cx-ease),
               background-color var(--cx-dur) var(--cx-ease),
@@ -885,6 +890,18 @@
 .cx-seg--fit .cx-seg-btn {
   grid-row: 1;
 }
+/* Each button is pinned to its own column. Without this the buttons only have
+   a definite row, so auto-placement puts the first one in column 2 to avoid
+   the cell the thumb already occupies — leaving an extra track and collapsing
+   the thumb's own track to zero width, i.e. an invisible thumb.
+   `nth-of-type` counts buttons only, so the thumb (a div) doesn't shift the
+   indices. Six covers every segmented control in the app. */
+.cx-seg--fit .cx-seg-btn:nth-of-type(1) { grid-column: 1 }
+.cx-seg--fit .cx-seg-btn:nth-of-type(2) { grid-column: 2 }
+.cx-seg--fit .cx-seg-btn:nth-of-type(3) { grid-column: 3 }
+.cx-seg--fit .cx-seg-btn:nth-of-type(4) { grid-column: 4 }
+.cx-seg--fit .cx-seg-btn:nth-of-type(5) { grid-column: 5 }
+.cx-seg--fit .cx-seg-btn:nth-of-type(6) { grid-column: 6 }
 
 /* ── Translucent chrome ───────────────────────────────────────────────────
    Opaque by default so the header/nav are never see-through; the frosted
@@ -1016,3 +1033,284 @@
   .cx-cta:active,
   .cx-lift:hover { transform: none !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COACH CONSOLE — premium UI layer
+   ---------------------------------------------------------------------------
+   SidebarShell now renders `.cx` too, so everything above is live in the coach
+   console: the same tokens, the same easing curves, the same press/lift/rise
+   vocabulary. What follows is only the half the client view never needed.
+
+   The client is touch-only and 480px wide. The console is a pointer-driven
+   desktop app with real scrollbars, dense lists, hover affordances and tab
+   bars — so this section adds those, under the same performance contract:
+   transform/opacity only, capped at 400ms, no animation library.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────
+   The client view never shows one. The console is full of scrollable panels,
+   and a default OS bar is the loudest, least-designed thing on the screen.
+   `scrollbar-width`/`scrollbar-color` inherit, so one declaration on `.cx`
+   covers Firefox; WebKit needs the pseudo-elements on descendants too.
+   The thumb is drawn inside a transparent border via `background-clip` so it
+   reads as a floating capsule rather than a filled gutter. */
+.cx { scrollbar-width: thin; scrollbar-color: var(--color-surface-3) transparent; }
+.cx ::-webkit-scrollbar,
+.cx::-webkit-scrollbar { width: 11px; height: 11px; }
+.cx ::-webkit-scrollbar-track,
+.cx::-webkit-scrollbar-track { background: transparent; }
+.cx ::-webkit-scrollbar-thumb,
+.cx::-webkit-scrollbar-thumb {
+  background-color: var(--color-surface-3);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+.cx ::-webkit-scrollbar-corner,
+.cx::-webkit-scrollbar-corner { background: transparent; }
+@media (hover: hover) and (pointer: fine) {
+  .cx ::-webkit-scrollbar-thumb:hover,
+  .cx::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-text-hint);
+    background-clip: content-box;
+  }
+}
+
+/* Inner panels shouldn't hand their leftover scroll to the page behind them —
+   hitting the end of a list must not start scrolling the document. */
+.cx-pane {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Page transition ──────────────────────────────────────────────────────
+   Opacity only — deliberately NOT `.cx-in`. A transform on the page wrapper
+   would make it the containing block for every `position: fixed` descendant
+   for as long as the animation runs, and the console has fixed elements that
+   are present at mount (the editors' save bars), which would be flung to the
+   bottom of a tall document and then snap back. Opacity creates no containing
+   block. The travel still happens — on the sections inside each page, which
+   carry `.cx-in` individually and contain nothing fixed. */
+@keyframes cx-page-in { from { opacity: 0; } }
+.cx-page-in { animation: cx-page-in var(--cx-dur) var(--cx-ease) both; }
+
+/* ── Auto-stagger ─────────────────────────────────────────────────────────
+   `.cx-in` needs a `--cx-i` per element. For a mapped list that means
+   threading an index through markup that doesn't otherwise want one, so this
+   does it positionally instead. Only the first ten rows animate: past that the
+   stagger is invisible anyway and the animations are pure cost. */
+.cx-stagger > *:nth-child(-n+10) {
+  animation: cx-rise var(--cx-dur-slow) var(--cx-ease) both;
+}
+.cx-stagger > *:nth-child(1)  { animation-delay: 0ms }
+.cx-stagger > *:nth-child(2)  { animation-delay: 40ms }
+.cx-stagger > *:nth-child(3)  { animation-delay: 80ms }
+.cx-stagger > *:nth-child(4)  { animation-delay: 120ms }
+.cx-stagger > *:nth-child(5)  { animation-delay: 160ms }
+.cx-stagger > *:nth-child(6)  { animation-delay: 200ms }
+.cx-stagger > *:nth-child(7)  { animation-delay: 240ms }
+.cx-stagger > *:nth-child(8)  { animation-delay: 280ms }
+.cx-stagger > *:nth-child(9)  { animation-delay: 320ms }
+.cx-stagger > *:nth-child(10) { animation-delay: 360ms }
+
+/* ── Sidebar navigation ───────────────────────────────────────────────────
+   Colour lives here rather than in inline styles so hover is a CSS state
+   change the compositor can interpolate. The previous implementation swapped
+   inline styles from onMouseEnter/onMouseLeave, which cannot transition and
+   forces a style recalc on every pointer crossing. */
+.cx-side {
+  position: relative;
+  border-radius: 10px;
+  color: var(--color-text-muted);
+  background-color: transparent;
+  text-decoration: none;
+  transition: background-color var(--cx-dur) var(--cx-ease),
+              color var(--cx-dur) var(--cx-ease),
+              transform var(--cx-dur-fast) var(--cx-ease),
+              box-shadow var(--cx-dur) var(--cx-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.cx-side[data-active='true'] {
+  background-color: var(--color-accent);
+  color: #ffffff;
+  box-shadow: var(--cx-shadow-cta);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cx-side:not([data-active='true']):hover {
+    background-color: var(--color-surface-3);
+    color: var(--color-text-secondary);
+  }
+}
+.cx-side:active { transform: scale(0.97); }
+
+/* The sidebar collapse is a width animation — layout-bound and unavoidable —
+   so it is kept short and paired with a label that fades rather than reflows
+   character by character. */
+.cx-side-label {
+  white-space: nowrap;
+  transition: opacity var(--cx-dur-fast) var(--cx-ease);
+}
+
+/* ── Rows ─────────────────────────────────────────────────────────────────
+   Dense list rows: the whole row is the target, so the feedback is a surface
+   change plus a hairline, never a transform that would shift its neighbours. */
+.cx-row {
+  background-color: var(--color-surface-1);
+  transition: background-color var(--cx-dur) var(--cx-ease),
+              border-color var(--cx-dur) var(--cx-ease),
+              box-shadow var(--cx-dur) var(--cx-ease),
+              transform var(--cx-dur) var(--cx-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cx-row:hover { background-color: var(--color-surface-2); }
+}
+.cx-row:active { background-color: var(--color-surface-3); }
+
+/* ── Chips / filter pills ─────────────────────────────────────────────────
+   Inline styles still own the active colours (they depend on per-chip data);
+   this owns the timing and the press. */
+.cx-chip {
+  cursor: pointer;
+  transition: background-color var(--cx-dur) var(--cx-ease),
+              border-color var(--cx-dur) var(--cx-ease),
+              color var(--cx-dur) var(--cx-ease),
+              transform var(--cx-dur-fast) var(--cx-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.cx-chip:active { transform: scale(0.95); }
+@media (hover: hover) and (pointer: fine) {
+  .cx-chip[data-active='false']:hover {
+    border-color: var(--color-border-strong);
+    color: var(--color-text-secondary);
+  }
+}
+
+/* ── Icon buttons ─────────────────────────────────────────────────────────
+   The 28–32px square actions that trail every list row.
+
+   The hover colours are `!important` for the same reason the field focus ring
+   is: nearly every one of these controls declares `backgroundColor` and
+   `border` inline, and an inline declaration outranks any class. Without it
+   the rule parses fine and simply never shows — the button would keep only its
+   press scale and appear dead to the pointer. It is scoped to :hover, so the
+   resting appearance still belongs to the element. */
+.cx-icon-btn {
+  cursor: pointer;
+  transition: background-color var(--cx-dur) var(--cx-ease),
+              border-color var(--cx-dur) var(--cx-ease),
+              color var(--cx-dur) var(--cx-ease),
+              transform var(--cx-dur-fast) var(--cx-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.cx-icon-btn:active:not(:disabled) { transform: scale(0.9); }
+.cx-icon-btn:disabled { cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) {
+  .cx-icon-btn:hover:not(:disabled) {
+    background-color: var(--color-surface-3) !important;
+    border-color: var(--color-border-strong) !important;
+  }
+  /* Destructive actions tint towards their own colour instead of grey */
+  .cx-icon-btn-danger:hover:not(:disabled) {
+    background-color: rgba(239,68,68,0.12) !important;
+    border-color: rgba(239,68,68,0.35) !important;
+  }
+}
+
+/* ── Secondary / ghost buttons ───────────────────────────────────────────── */
+.cx-ghost {
+  cursor: pointer;
+  transition: background-color var(--cx-dur) var(--cx-ease),
+              border-color var(--cx-dur) var(--cx-ease),
+              color var(--cx-dur) var(--cx-ease),
+              transform var(--cx-dur-fast) var(--cx-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.cx-ghost:active:not(:disabled) { transform: scale(0.975); }
+@media (hover: hover) and (pointer: fine) {
+  /* `!important` for the inline-style reason above. Never put `.cx-ghost` on a
+     button whose background carries meaning (a filled primary, a green "saved"
+     state) — that is what `.cx-cta` is for. */
+  .cx-ghost:hover:not(:disabled) {
+    background-color: var(--color-surface-2) !important;
+    border-color: var(--color-border-strong) !important;
+    color: var(--color-text-primary);
+  }
+}
+
+/* ── Fields ───────────────────────────────────────────────────────────────
+   Inline `border` declarations are all over the console's inputs and inline
+   styles outrank any class, so the focus border has to be marked important to
+   land. The ring itself is a box-shadow, which nothing sets inline. */
+.cx-field {
+  transition: border-color var(--cx-dur) var(--cx-ease),
+              background-color var(--cx-dur) var(--cx-ease),
+              box-shadow var(--cx-dur) var(--cx-ease);
+}
+.cx-field:focus,
+.cx-field:focus-visible {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 3px var(--color-accent-dim);
+  outline: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cx-field:hover:not(:focus) { border-color: var(--color-border-strong) !important; }
+}
+
+/* ── Underline tab bar ────────────────────────────────────────────────────
+   A scaleX'd rule per tab rather than one measured indicator that slides. The
+   console's tab bars scroll horizontally and size to their labels, so a shared
+   indicator would need JS measurement and a resize observer to stay correct;
+   this gets the same "grows into place" read for free, and it cannot desync. */
+.cx-tab {
+  position: relative;
+  cursor: pointer;
+  background: none;
+  border: none;
+  transition: color var(--cx-dur) var(--cx-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.cx-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background-color: var(--color-accent);
+  transform: scaleX(0);
+  transition: transform var(--cx-dur) var(--cx-ease);
+}
+.cx-tab[data-active='true']::after { transform: scaleX(1); }
+@media (hover: hover) and (pointer: fine) {
+  .cx-tab[data-active='false']:hover { color: var(--color-text-secondary); }
+}
+
+/* Horizontal tab strips: fade the overflowing edge so a cut-off tab reads as
+   "there is more" rather than as a rendering glitch. */
+.cx-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.cx-scroll-x::-webkit-scrollbar { display: none; }
+
+/* The console's bottom nav uses inline lucide SVGs rather than the client's
+   PNG artwork, so the press feedback `.cx-nav-icon` carries there has to
+   attach to the svg instead. Without it an inactive tab — whose pill is fully
+   transparent — gives nothing back to the touch. */
+.cx-nav-item svg { transition: transform var(--cx-dur-fast) var(--cx-ease); }
+.cx-nav-item:active svg { transform: scale(0.9); }
+
+/* ── Empty states ─────────────────────────────────────────────────────────── */
+.cx-empty {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--cx-r-md);
+  animation: cx-rise var(--cx-dur-slow) var(--cx-ease) both;
+}
+
+/* ── Legacy alias ─────────────────────────────────────────────────────────
+   The messages list predates `.cx-row`; keep the old hook working. */
+.messages-row { background-color: var(--color-surface-1); transition: background-color var(--cx-dur, 220ms) var(--cx-ease, ease); }
+.messages-row:hover { background-color: var(--color-surface-2); }

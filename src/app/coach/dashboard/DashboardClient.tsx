@@ -100,7 +100,7 @@ export default function DashboardClient({
     <div className="coach-page" style={{ minHeight: '100vh' }}>
 
       {/* ── Header ── */}
-      <div className="coach-dash-header" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+      <div className="coach-dash-header cx-in" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
 
         {/* Title row (on mobile this becomes its own row via .coach-dash-header-row) */}
         <div className="coach-dash-header-row" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -108,10 +108,10 @@ export default function DashboardClient({
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-hint)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
               Your Clients
             </p>
-            <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
+            <h1 className="cx-display cx-display-lg" style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.2 }}>
               {clients.length} active
               {needAttention > 0 && (
-                <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--color-accent)', marginLeft: 10 }}>
+                <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-accent)', marginLeft: 10 }}>
                   · {needAttention} need attention
                 </span>
               )}
@@ -121,6 +121,7 @@ export default function DashboardClient({
           {/* Add client button — always visible */}
           <Link
             href="/coach/clients/new"
+            className="cx-cta"
             style={{
               display:         'inline-flex',
               alignItems:      'center',
@@ -129,7 +130,7 @@ export default function DashboardClient({
               color:           '#ffffff',
               fontSize:        13,
               fontWeight:      700,
-              borderRadius:    8,
+              borderRadius:    10,
               padding:         '9px 16px',
               textDecoration:  'none',
               flexShrink:      0,
@@ -143,17 +144,18 @@ export default function DashboardClient({
 
         {/* Search — full-width on mobile, fixed on desktop */}
         <div className="coach-search-wrap" style={{ position: 'relative', flexShrink: 0 }}>
-          <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-hint)', pointerEvents: 'none' }} />
+          <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-hint)', pointerEvents: 'none', zIndex: 1 }} />
           <input
             suppressHydrationWarning
             type="text"
             placeholder="Search clients..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            className="cx-field"
             style={{
               background:   'var(--color-surface-1)',
               border:       '1px solid var(--color-border)',
-              borderRadius: 8,
+              borderRadius: 10,
               padding:      '8px 12px 8px 34px',
               fontSize:     13,
               color:        'var(--color-text-primary)',
@@ -167,16 +169,18 @@ export default function DashboardClient({
       {/* ── Alert banner ── */}
       {showAlert && (
         <div
+          className="cx-in"
           style={{
+            '--cx-i': 1,
             marginBottom: 20,
             backgroundColor: 'rgba(255,92,0,0.07)',
             border: '1px solid rgba(255,92,0,0.18)',
-            borderRadius: 10,
+            borderRadius: 'var(--cx-r-sm)',
             padding: '13px 16px',
             display: 'flex',
             alignItems: 'center',
             gap: 12,
-          }}
+          } as React.CSSProperties}
         >
           <Bell size={16} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
           <span style={{ fontSize: 14, color: 'var(--color-text-secondary)', flex: 1 }}>
@@ -187,12 +191,13 @@ export default function DashboardClient({
           </span>
           <Link
             href="/coach/check-ins"
+            className="cx-press"
             style={{
               fontSize: 13,
               fontWeight: 700,
               color: 'var(--color-accent)',
               border: '1.5px solid var(--color-accent)',
-              borderRadius: 7,
+              borderRadius: 9,
               padding: '6px 14px',
               textDecoration: 'none',
               flexShrink: 0,
@@ -204,7 +209,8 @@ export default function DashboardClient({
             suppressHydrationWarning
             type="button"
             onClick={() => setAlertDismissed(true)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', padding: 2, flexShrink: 0 }}
+            className="cx-press cx-hit"
+            style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', padding: 2, flexShrink: 0 }}
             aria-label="Dismiss"
           >
             <X size={14} />
@@ -214,13 +220,14 @@ export default function DashboardClient({
 
       {/* ── Filter tabs ── */}
       <div
-        className="coach-tabs-scroll"
+        className="coach-tabs-scroll cx-in"
         style={{
+          '--cx-i': 2,
           display:      'flex',
           gap:          6,
           marginBottom: 20,
           flexWrap:     'wrap',
-        }}
+        } as React.CSSProperties}
       >
         {allTabs.map((tab) => {
           const count = counts[tab.key] ?? 0
@@ -234,24 +241,26 @@ export default function DashboardClient({
               key={tab.key}
               type="button"
               onClick={() => setFilter(tab.key)}
+              data-active={active}
+              aria-pressed={active}
+              className="cx-chip"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
                 padding: '6px 14px',
-                borderRadius: 20,
+                borderRadius: 999,
                 fontSize: 13,
                 fontWeight: active ? 600 : 400,
-                cursor: 'pointer',
                 border: active ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border)',
                 backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
                 color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                transition: 'all 0.12s ease',
               }}
             >
               {tab.label}
               {count > 0 && (
                 <span
+                  className="cx-num"
                   style={{
                     fontSize: 11,
                     fontWeight: 700,
@@ -289,10 +298,11 @@ export default function DashboardClient({
       {/* ── Card grid ── */}
       {clients.length === 0 ? (
         <div
+          className="cx-card"
           style={{
             backgroundColor: 'var(--color-surface-1)',
             border: '1px solid var(--color-border)',
-            borderRadius: 14,
+            borderRadius: 'var(--cx-r-md)',
             padding: '48px 24px',
             textAlign: 'center',
           }}
@@ -302,13 +312,17 @@ export default function DashboardClient({
           </p>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+        <div className="cx-in" style={{ textAlign: 'center', padding: '40px 0' }}>
           <p style={{ fontSize: 14, color: 'var(--color-text-hint)', margin: 0 }}>
             No clients match this filter.
           </p>
         </div>
       ) : (
+        // `key` on the grid restarts the stagger when the filter changes, so a
+        // new result set arrives rather than silently replacing the old one.
         <div
+          key={filter}
+          className="cx-stagger"
           style={{
             display:             'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',

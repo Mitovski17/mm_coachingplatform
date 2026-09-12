@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import {
   LogOut, Bell, Moon, Shield, User, Camera, Eye, EyeOff, Check,
-  ChevronDown, ChevronUp, Globe,
+  ChevronDown, Globe,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { updateCoachProfile, uploadCoachAvatar, signOut } from './actions'
@@ -75,7 +75,7 @@ const DEFAULT_NOTIF: NotifPrefs = {
 const card: React.CSSProperties = {
   backgroundColor: 'var(--color-surface-1)',
   border: '1px solid var(--color-border)',
-  borderRadius: 14,
+  borderRadius: 'var(--cx-r-md)',
   overflow: 'hidden',
 }
 
@@ -84,7 +84,7 @@ const inputStyle: React.CSSProperties = {
   padding: '12px 14px',
   backgroundColor: 'var(--color-surface-2)',
   border: '1px solid var(--color-border)',
-  borderRadius: 10,
+  borderRadius: 'var(--cx-r-xs)',
   color: 'var(--color-text-primary)',
   fontSize: 15,
   outline: 'none',
@@ -95,7 +95,7 @@ const primaryBtn: React.CSSProperties = {
   padding: '11px 22px',
   backgroundColor: 'var(--color-accent)',
   border: 'none',
-  borderRadius: 10,
+  borderRadius: 'var(--cx-r-xs)',
   color: '#fff',
   fontSize: 14,
   fontWeight: 700,
@@ -132,28 +132,33 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
+      className="cx-press-sm"
       style={{
         position: 'relative',
         width: 44,
         height: 26,
-        borderRadius: 13,
+        borderRadius: 999,
         backgroundColor: checked ? 'var(--color-accent)' : 'var(--color-surface-3)',
+        boxShadow: checked ? 'var(--cx-shadow-cta)' : 'none',
         border: 'none',
         cursor: 'pointer',
-        transition: 'background-color 0.2s',
         flexShrink: 0,
       }}
     >
+      {/* The knob slides on `transform`, not `left`: animating `left` relayouts
+          the switch on every frame, where a translate is compositor-only. The
+          spring gives it the slight overshoot a physical switch has. */}
       <span
         style={{
           position: 'absolute',
           top: 3,
-          left: checked ? 21 : 3,
+          left: 3,
           width: 20,
           height: 20,
           borderRadius: '50%',
           backgroundColor: '#fff',
-          transition: 'left 0.2s',
+          transform: checked ? 'translateX(18px)' : 'translateX(0)',
+          transition: 'transform var(--cx-dur) var(--cx-spring)',
           boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
         }}
       />
@@ -177,6 +182,8 @@ function SectionRow({
     <button
       type="button"
       onClick={onToggle}
+      aria-expanded={open}
+      className="cx-press-sm"
       style={{
         width: '100%',
         display: 'flex',
@@ -192,7 +199,7 @@ function SectionRow({
     >
       <div
         style={{
-          width: 36, height: 36, borderRadius: 10,
+          width: 36, height: 36, borderRadius: 11,
           backgroundColor: 'var(--color-surface-3)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}
@@ -205,9 +212,17 @@ function SectionRow({
         </p>
         <p style={{ fontSize: 12, color: 'var(--color-text-hint)', margin: '1px 0 0' }}>{sub}</p>
       </div>
-      {open
-        ? <ChevronUp size={16} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
-        : <ChevronDown size={16} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />}
+      {/* One chevron that rotates, rather than two that swap — swapping the
+          glyph gives the rotation nothing to interpolate between. */}
+      <ChevronDown
+        size={16}
+        style={{
+          color: 'var(--color-text-hint)',
+          flexShrink: 0,
+          transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: 'transform var(--cx-dur) var(--cx-ease)',
+        }}
+      />
     </button>
   )
 }
@@ -292,6 +307,7 @@ function PersonalInfoContent({
               : initials}
           </div>
           <button
+            className="cx-press"
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
@@ -330,7 +346,7 @@ function PersonalInfoContent({
           Full Name
         </label>
         <input
-          style={inputStyle}
+          className="cx-field" style={inputStyle}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Your full name"
@@ -350,7 +366,7 @@ function PersonalInfoContent({
           Email
         </label>
         <input
-          style={{ ...inputStyle, color: 'var(--color-text-hint)', cursor: 'not-allowed' }}
+          className="cx-field" style={{ ...inputStyle, color: 'var(--color-text-hint)', cursor: 'not-allowed' }}
           value={email}
           readOnly
           title="Email is managed via Supabase Auth"
@@ -362,7 +378,7 @@ function PersonalInfoContent({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          style={{ ...primaryBtn, opacity: saving ? 0.7 : 1 }}
+          className="cx-cta" style={{ ...primaryBtn, opacity: saving ? 0.7 : 1 }}
         >
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
@@ -419,28 +435,28 @@ function SecurityContent({ email }: { email: string }) {
     >
       <div style={{ position: 'relative' }}>
         <input
-          style={{ ...inputStyle, paddingRight: 44 }}
+          className="cx-field" style={{ ...inputStyle, paddingRight: 44 }}
           type={showCurrent ? 'text' : 'password'}
           value={currentPw}
           onChange={(e) => setCurrentPw(e.target.value)}
           placeholder="Current password"
           autoComplete="current-password"
         />
-        <button type="button" style={eyeBtn} onClick={() => setShowCurrent((s) => !s)}>
+        <button type="button" className="cx-press" style={eyeBtn} onClick={() => setShowCurrent((s) => !s)}>
           {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
 
       <div style={{ position: 'relative' }}>
         <input
-          style={{ ...inputStyle, paddingRight: 44 }}
+          className="cx-field" style={{ ...inputStyle, paddingRight: 44 }}
           type={showNew ? 'text' : 'password'}
           value={newPw}
           onChange={(e) => setNewPw(e.target.value)}
           placeholder="New password"
           autoComplete="new-password"
         />
-        <button type="button" style={eyeBtn} onClick={() => setShowNew((s) => !s)}>
+        <button type="button" className="cx-press" style={eyeBtn} onClick={() => setShowNew((s) => !s)}>
           {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
@@ -454,13 +470,14 @@ function SecurityContent({ email }: { email: string }) {
             }}
           >
             <div
+              className="cx-bar-fill"
               style={{
                 height: '100%',
-                width: `${(strength.score / 5) * 100}%`,
                 backgroundColor: strength.color,
                 borderRadius: 2,
-                transition: 'width 0.3s, background-color 0.3s',
-              }}
+                transition: 'transform var(--cx-dur-slow) var(--cx-ease), background-color var(--cx-dur-slow) var(--cx-ease)',
+                '--cx-p': strength.score / 5,
+              } as React.CSSProperties}
             />
           </div>
           <span style={{ fontSize: 11, fontWeight: 600, color: strength.color, flexShrink: 0 }}>
@@ -470,7 +487,7 @@ function SecurityContent({ email }: { email: string }) {
       )}
 
       <input
-        style={inputStyle}
+        className="cx-field" style={inputStyle}
         type="password"
         value={confirmPw}
         onChange={(e) => setConfirmPw(e.target.value)}
@@ -487,7 +504,7 @@ function SecurityContent({ email }: { email: string }) {
           type="button"
           onClick={handleChangePassword}
           disabled={saving}
-          style={{ ...primaryBtn, opacity: saving ? 0.7 : 1 }}
+          className="cx-cta" style={{ ...primaryBtn, opacity: saving ? 0.7 : 1 }}
         >
           {saving ? 'Changing…' : 'Change Password'}
         </button>
@@ -543,8 +560,8 @@ export default function SettingsClient({
     <div className="coach-settings-page">
 
       {/* Page title */}
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
+      <div className="cx-in" style={{ marginBottom: 32 }}>
+        <h1 className="cx-display cx-display-lg" style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
           Profile &amp; Settings
         </h1>
         <p style={{ fontSize: 14, color: 'var(--color-text-hint)', margin: 0 }}>
@@ -554,14 +571,16 @@ export default function SettingsClient({
 
       {/* ── Identity card ── */}
       <div
+        className="cx-card cx-in"
         style={{
           ...card,
+          '--cx-i': 1,
           padding: '20px',
           marginBottom: 28,
           display: 'flex',
           alignItems: 'center',
           gap: 18,
-        }}
+        } as React.CSSProperties}
       >
         <div
           style={{
@@ -650,7 +669,7 @@ export default function SettingsClient({
               View all →
             </Link>
           </div>
-          <div style={card}>
+          <div className="cx-card" style={card}>
             {clients.map((c, i) => {
               const isLast = i === clients.length - 1
               const statusColor = STATUS_COLORS[c.status ?? ''] ?? '#6b7280'
@@ -723,7 +742,7 @@ export default function SettingsClient({
         >
           Account
         </p>
-        <div style={card}>
+        <div className="cx-card" style={card}>
 
           {/* Personal Info (accordion) */}
           <SectionRow
@@ -734,6 +753,10 @@ export default function SettingsClient({
             onToggle={() => toggleSection('personal-info')}
           />
           {openSection === 'personal-info' && (
+            // The panel rises in rather than the card snapping to its open
+            // height. Height itself stays un-animated: `auto` is not
+            // interpolatable, and a measured max-height janks on long forms.
+            <div className="cx-in">
             <PersonalInfoContent
               profileId={profileId}
               fullName={displayName}
@@ -741,6 +764,7 @@ export default function SettingsClient({
               avatarUrl={displayAvatar}
               onSaved={(name, av) => { setDisplayName(name); setDisplayAvatar(av) }}
             />
+            </div>
           )}
 
           {/* Notifications (inline toggles) */}
@@ -867,7 +891,7 @@ export default function SettingsClient({
         >
           Security
         </p>
-        <div style={card}>
+        <div className="cx-card" style={card}>
           <SectionRow
             icon={Shield}
             label="Privacy &amp; security"
@@ -876,7 +900,7 @@ export default function SettingsClient({
             onToggle={() => toggleSection('security')}
             isLast
           />
-          {openSection === 'security' && <SecurityContent email={email} />}
+          {openSection === 'security' && <div className="cx-in"><SecurityContent email={email} /></div>}
         </div>
       </div>
 
@@ -884,13 +908,14 @@ export default function SettingsClient({
       <button
         type="button"
         onClick={() => setShowSignOutConfirm(true)}
+        className="cx-press"
         style={{
           width: '100%',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           padding: '14px',
           backgroundColor: 'rgba(239,68,68,0.08)',
           border: '1px solid rgba(239,68,68,0.2)',
-          borderRadius: 14,
+          borderRadius: 'var(--cx-r-md)',
           cursor: 'pointer',
           fontSize: 15, fontWeight: 600, color: '#ef4444',
         }}
@@ -902,10 +927,15 @@ export default function SettingsClient({
       {/* ── Sign out confirmation modal ── */}
       {showSignOutConfirm && (
         <div
+          className="cx-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Sign out"
           style={{
             position: 'fixed', inset: 0,
             backgroundColor: 'rgba(0,0,0,0.5)',
             backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
             zIndex: 1000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 20,
@@ -913,10 +943,12 @@ export default function SettingsClient({
           onClick={() => setShowSignOutConfirm(false)}
         >
           <div
+            className="cx-pop"
             style={{
               backgroundColor: 'var(--color-surface-1)',
               border: '1px solid var(--color-border)',
-              borderRadius: 20,
+              borderRadius: 'var(--cx-r-lg)',
+              boxShadow: 'var(--cx-shadow-lg)',
               padding: '28px 24px',
               width: '100%', maxWidth: 340,
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
@@ -945,11 +977,12 @@ export default function SettingsClient({
               <button
                 type="button"
                 onClick={() => setShowSignOutConfirm(false)}
+                className="cx-ghost"
                 style={{
                   flex: 1, padding: '12px 0',
                   backgroundColor: 'var(--color-surface-2)',
                   border: '1px solid var(--color-border)',
-                  borderRadius: 12,
+                  borderRadius: 'var(--cx-r-sm)',
                   fontSize: 15, fontWeight: 600,
                   color: 'var(--color-text-primary)',
                   cursor: 'pointer',
@@ -960,11 +993,12 @@ export default function SettingsClient({
               <form action={signOut} style={{ flex: 1 }}>
                 <button
                   type="submit"
+                  className="cx-press"
                   style={{
                     width: '100%', padding: '12px 0',
                     backgroundColor: '#ef4444',
                     border: 'none',
-                    borderRadius: 12,
+                    borderRadius: 'var(--cx-r-sm)',
                     fontSize: 15, fontWeight: 600,
                     color: '#fff',
                     cursor: 'pointer',

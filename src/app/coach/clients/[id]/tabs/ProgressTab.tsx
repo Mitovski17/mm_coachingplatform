@@ -267,6 +267,7 @@ export default function ProgressTab({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <button
+          className="cx-press"
           onClick={() => { setForm(emptyForm()); setShowModal(true) }}
           style={{
             backgroundColor: 'var(--color-accent)',
@@ -282,6 +283,7 @@ export default function ProgressTab({
           + Log Measurements
         </button>
         <select
+          className="cx-field"
           value={range}
           onChange={(e) => setRange(e.target.value as RangeKey)}
           style={{
@@ -366,7 +368,7 @@ export default function ProgressTab({
                 Select another photo to compare
                 <button
                   onClick={() => setSelected([])}
-                  className="ml-2 hover:underline"
+                  className="cx-press ml-2 hover:underline"
                   style={{ color: 'var(--color-accent)' }}
                 >
                   Clear
@@ -380,7 +382,7 @@ export default function ProgressTab({
                   <div key={photo.url} className="flex flex-col gap-1">
                     <button
                       onClick={() => togglePhoto(photo.url)}
-                      className="block"
+                      className="cx-press block"
                       style={{
                         aspectRatio: '1',
                         borderRadius: 12,
@@ -415,7 +417,7 @@ export default function ProgressTab({
         >
           <button
             onClick={(e) => { e.stopPropagation(); setShowCompare(false); setSelected([]) }}
-            className="absolute top-4 right-4 text-2xl"
+            className="cx-press absolute top-4 right-4 text-2xl"
             style={{ color: '#fff' }}
             aria-label="Close"
           >
@@ -450,6 +452,7 @@ export default function ProgressTab({
           onClick={() => setShowModal(false)}
         >
           <div
+            className="cx-card"
             style={{
               backgroundColor: 'var(--color-surface-1)',
               border: '1px solid var(--color-border)',
@@ -470,6 +473,7 @@ export default function ProgressTab({
               <div>
                 <label style={labelStyle}>Date</label>
                 <input
+                  className="cx-field"
                   type="date"
                   value={form.recordedDate}
                   onChange={(e) => setField('recordedDate', e.target.value)}
@@ -481,6 +485,7 @@ export default function ProgressTab({
                 <div>
                   <label style={labelStyle}>Weight (kg)</label>
                   <input
+                    className="cx-field"
                     type="number"
                     step="0.01"
                     placeholder="e.g. 75.5"
@@ -492,6 +497,7 @@ export default function ProgressTab({
                 <div>
                   <label style={labelStyle}>Body Fat %</label>
                   <input
+                    className="cx-field"
                     type="number"
                     step="0.1"
                     placeholder="e.g. 18.5"
@@ -505,43 +511,44 @@ export default function ProgressTab({
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label style={labelStyle}>Waist (cm)</label>
-                  <input type="number" step="0.1" placeholder="—" value={form.waistCm} onChange={(e) => setField('waistCm', e.target.value)} style={inputStyle} />
+                  <input className="cx-field" type="number" step="0.1" placeholder="—" value={form.waistCm} onChange={(e) => setField('waistCm', e.target.value)} style={inputStyle} />
                 </div>
                 <div>
                   <label style={labelStyle}>Chest (cm)</label>
-                  <input type="number" step="0.1" placeholder="—" value={form.chestCm} onChange={(e) => setField('chestCm', e.target.value)} style={inputStyle} />
+                  <input className="cx-field" type="number" step="0.1" placeholder="—" value={form.chestCm} onChange={(e) => setField('chestCm', e.target.value)} style={inputStyle} />
                 </div>
                 <div>
                   <label style={labelStyle}>Hips (cm)</label>
-                  <input type="number" step="0.1" placeholder="—" value={form.hipsCm} onChange={(e) => setField('hipsCm', e.target.value)} style={inputStyle} />
+                  <input className="cx-field" type="number" step="0.1" placeholder="—" value={form.hipsCm} onChange={(e) => setField('hipsCm', e.target.value)} style={inputStyle} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label style={labelStyle}>Left Arm (cm)</label>
-                  <input type="number" step="0.1" placeholder="—" value={form.leftArmCm} onChange={(e) => setField('leftArmCm', e.target.value)} style={inputStyle} />
+                  <input className="cx-field" type="number" step="0.1" placeholder="—" value={form.leftArmCm} onChange={(e) => setField('leftArmCm', e.target.value)} style={inputStyle} />
                 </div>
                 <div>
                   <label style={labelStyle}>Right Arm (cm)</label>
-                  <input type="number" step="0.1" placeholder="—" value={form.rightArmCm} onChange={(e) => setField('rightArmCm', e.target.value)} style={inputStyle} />
+                  <input className="cx-field" type="number" step="0.1" placeholder="—" value={form.rightArmCm} onChange={(e) => setField('rightArmCm', e.target.value)} style={inputStyle} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label style={labelStyle}>Left Thigh (cm)</label>
-                  <input type="number" step="0.1" placeholder="—" value={form.leftThighCm} onChange={(e) => setField('leftThighCm', e.target.value)} style={inputStyle} />
+                  <input className="cx-field" type="number" step="0.1" placeholder="—" value={form.leftThighCm} onChange={(e) => setField('leftThighCm', e.target.value)} style={inputStyle} />
                 </div>
                 <div>
                   <label style={labelStyle}>Right Thigh (cm)</label>
-                  <input type="number" step="0.1" placeholder="—" value={form.rightThighCm} onChange={(e) => setField('rightThighCm', e.target.value)} style={inputStyle} />
+                  <input className="cx-field" type="number" step="0.1" placeholder="—" value={form.rightThighCm} onChange={(e) => setField('rightThighCm', e.target.value)} style={inputStyle} />
                 </div>
               </div>
 
               <div>
                 <label style={labelStyle}>Notes</label>
                 <textarea
+                  className="cx-field"
                   rows={3}
                   placeholder="Optional notes..."
                   value={form.notes}
@@ -553,6 +560,7 @@ export default function ProgressTab({
 
             <div className="flex justify-end gap-2 mt-5">
               <button
+                className="cx-press"
                 onClick={() => setShowModal(false)}
                 style={{
                   backgroundColor: 'var(--color-surface-2)',
@@ -568,6 +576,7 @@ export default function ProgressTab({
                 Cancel
               </button>
               <button
+                className="cx-press"
                 onClick={handleSave}
                 disabled={saving || isPending}
                 style={{

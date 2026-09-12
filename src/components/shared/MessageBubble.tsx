@@ -136,12 +136,16 @@ export default function MessageBubble({
           </div>
         )}
 
+        {/* Elevation only, deliberately no entrance animation: these mount in
+            bulk when a thread opens, and a hundred bubbles popping at once
+            reads as a glitch rather than as polish. */}
         <div
           style={{
             padding: '8px 13px',
             borderRadius,
             backgroundColor: isMine ? ORANGE : 'var(--color-surface-3)',
             color: isMine ? '#fff' : 'var(--color-text-primary)',
+            boxShadow: 'var(--cx-shadow-sm)',
             fontSize: 14,
             lineHeight: 1.5,
             whiteSpace: 'pre-wrap',

@@ -130,7 +130,7 @@ export default function DigestTab({
         <button
           onClick={handleGenerate}
           disabled={generating}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+          className="cx-press inline-flex items-center gap-2 px-4 py-2 text-sm"
           style={{
             backgroundColor: generating
               ? 'var(--color-surface-3)'
@@ -311,7 +311,7 @@ export default function DigestTab({
               </div>
               <button
                 onClick={handleCopy}
-                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
+                className="cx-press inline-flex items-center gap-1.5 px-3 py-1 text-xs"
                 style={{
                   backgroundColor: copied
                     ? 'rgba(34,197,94,0.12)'
@@ -329,7 +329,7 @@ export default function DigestTab({
               </button>
             </div>
             <div
-              className="text-sm leading-relaxed whitespace-pre-wrap"
+              className="cx-card text-sm leading-relaxed whitespace-pre-wrap"
               style={{
                 color: 'var(--color-text-secondary)',
                 backgroundColor: 'var(--color-surface-2)',

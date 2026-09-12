@@ -231,7 +231,7 @@ export default function ProgramEditor({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Hypertrophy Block 1"
-            className="w-full text-sm"
+            className="cx-field w-full text-sm"
             style={inputStyle()}
           />
         </div>
@@ -243,7 +243,7 @@ export default function ProgramEditor({
             suppressHydrationWarning
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
-            className="w-full text-sm"
+            className="cx-field w-full text-sm"
             style={inputStyle()}
           >
             <option value="">— Select client —</option>
@@ -264,7 +264,7 @@ export default function ProgramEditor({
             type="button"
             onClick={() => setIsActive((v) => !v)}
             aria-pressed={isActive}
-            className="relative"
+            className="cx-press relative"
             style={{
               width: 34,
               height: 20,
@@ -272,7 +272,6 @@ export default function ProgramEditor({
               backgroundColor: isActive ? 'var(--color-accent)' : 'var(--color-surface-3)',
               border: '1px solid var(--color-border)',
               cursor: 'pointer',
-              transition: 'background-color 0.15s ease',
               flexShrink: 0,
             }}
           >
@@ -280,12 +279,13 @@ export default function ProgramEditor({
               style={{
                 position: 'absolute',
                 top: 2,
-                left: isActive ? 16 : 2,
+                left: 2,
                 width: 14,
                 height: 14,
                 borderRadius: '50%',
                 backgroundColor: '#fff',
-                transition: 'left 0.15s ease',
+                transform: isActive ? 'translateX(14px)' : 'translateX(0)',
+                transition: 'transform var(--cx-dur) var(--cx-spring)',
                 display: 'block',
               }}
             />
@@ -298,7 +298,7 @@ export default function ProgramEditor({
         <div className="flex items-center gap-2">
           <span className="text-xs" style={{ color: 'var(--color-text-hint)' }}>Schedule:</span>
           <div
-            className="inline-flex gap-1 p-0.5"
+            className="cx-card inline-flex gap-1 p-0.5"
             style={{
               backgroundColor: 'var(--color-surface-2)',
               border: '1px solid var(--color-border)',
@@ -313,7 +313,7 @@ export default function ProgramEditor({
                   suppressHydrationWarning
                   type="button"
                   onClick={() => setScheduleType(type)}
-                  className="px-3 py-1 text-sm font-medium transition-colors"
+                  className="cx-press px-3 py-1 text-sm font-medium"
                   style={{
                     backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
                     color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
@@ -337,7 +337,7 @@ export default function ProgramEditor({
             Weekly Schedule
           </h2>
           <div
-            className="flex flex-col"
+            className="cx-card flex flex-col"
             style={{
               backgroundColor: 'var(--color-surface-2)',
               border: '1px solid var(--color-border)',
@@ -399,7 +399,7 @@ export default function ProgramEditor({
                           setPendingTemplate((prev) => ({ ...prev, [i]: tplId }))
                         }
                       }}
-                      className="w-full text-sm"
+                      className="cx-field w-full text-sm"
                       style={inputStyle()}
                     >
                       <option value="">— Rest Day —</option>
@@ -419,7 +419,7 @@ export default function ProgramEditor({
                           const dayId = e.target.value || null
                           setDays((prev) => ({ ...prev, [i]: dayId }))
                         }}
-                        className="w-full text-sm"
+                        className="cx-field w-full text-sm"
                         style={{ ...inputStyle(), borderColor: 'var(--color-accent)' }}
                       >
                         <option value="">— Pick a workout day —</option>
@@ -466,7 +466,7 @@ export default function ProgramEditor({
               type="date"
               value={cycleStartDate}
               onChange={(e) => setCycleStartDate(e.target.value)}
-              className="w-full text-sm"
+              className="cx-field w-full text-sm"
               style={inputStyle()}
             />
             <p className="mt-1 text-xs" style={{ color: 'var(--color-text-hint)' }}>
@@ -477,7 +477,7 @@ export default function ProgramEditor({
           {/* Cycle day list */}
           {cycleDays.length > 0 && (
             <div
-              className="flex flex-col mb-3"
+              className="cx-card flex flex-col mb-3"
               style={{
                 backgroundColor: 'var(--color-surface-2)',
                 border: '1px solid var(--color-border)',
@@ -539,7 +539,7 @@ export default function ProgramEditor({
                             setCyclePendingTemplate((prev) => ({ ...prev, [position]: tplId }))
                           }
                         }}
-                        className="w-full text-sm"
+                        className="cx-field w-full text-sm"
                         style={inputStyle()}
                       >
                         <option value="">— Rest Day —</option>
@@ -559,7 +559,7 @@ export default function ProgramEditor({
                             const dayId = e.target.value || null
                             setCycleDays((prev) => prev.map((d, idx) => idx === position ? { templateDayId: dayId } : d))
                           }}
-                          className="w-full text-sm"
+                          className="cx-field w-full text-sm"
                           style={{ ...inputStyle(), borderColor: 'var(--color-accent)' }}
                         >
                           <option value="">— Pick a workout day —</option>
@@ -586,7 +586,7 @@ export default function ProgramEditor({
                       type="button"
                       onClick={() => removeCycleDay(position)}
                       title="Remove this day"
-                      className="inline-flex items-center justify-center flex-shrink-0"
+                      className="cx-press inline-flex items-center justify-center flex-shrink-0"
                       style={{
                         width: 30,
                         height: 30,
@@ -610,7 +610,7 @@ export default function ProgramEditor({
             <button
               type="button"
               onClick={() => addCycleDay(null)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium"
+              className="cx-press inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium"
               style={{
                 backgroundColor: 'var(--color-surface-2)',
                 color: 'var(--color-text-secondary)',
@@ -625,7 +625,7 @@ export default function ProgramEditor({
             <button
               type="button"
               onClick={() => addCycleDay(null)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium"
+              className="cx-press inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium"
               style={{
                 backgroundColor: 'var(--color-surface-2)',
                 color: 'var(--color-text-muted)',
@@ -658,9 +658,8 @@ export default function ProgramEditor({
 
       {/* Sticky action bar */}
       <div
-        className="coach-sticky-bar fixed bottom-0 left-0 right-0 px-4 py-3 sm:px-6 flex items-center justify-end gap-3"
+        className="coach-sticky-bar cx-chrome fixed bottom-0 left-0 right-0 px-4 py-3 sm:px-6 flex items-center justify-end gap-3"
         style={{
-          backgroundColor: 'var(--color-surface-1)',
           borderTop: '1px solid var(--color-border)',
         }}
       >
@@ -678,12 +677,12 @@ export default function ProgramEditor({
         )}
         <Link
           href="/coach/programs"
-          className="px-4 py-2 text-sm font-medium"
+          className="cx-ghost px-4 py-2 text-sm font-medium"
           style={{
             color: 'var(--color-text-muted)',
             backgroundColor: 'transparent',
             border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 'var(--cx-r-xs)',
             textDecoration: 'none',
           }}
         >
@@ -693,15 +692,14 @@ export default function ProgramEditor({
           type="button"
           onClick={handleSave}
           disabled={saving || saved || !isDirty}
-          className="px-4 py-2 text-sm font-medium"
+          className="cx-cta px-4 py-2 text-sm font-semibold"
           style={{
             backgroundColor: saved ? '#16a34a' : 'var(--color-accent)',
             color: '#fff',
             border: 'none',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 'var(--cx-r-xs)',
             cursor: saving || saved || !isDirty ? 'not-allowed' : 'pointer',
             opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1),
-            transition: 'opacity 0.15s, background-color 0.2s',
           }}
         >
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Program'}

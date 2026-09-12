@@ -56,6 +56,7 @@ function AssignmentCard({ icon, label, name, href, accentColor, meta, onDownload
   // nested in an anchor is invalid markup and swallows the card's click target.
   return (
     <div
+      className="cx-card"
       style={{
         backgroundColor: 'var(--color-surface-1)',
         border: '1px solid var(--color-border)',

@@ -3,14 +3,14 @@ export default function Loading() {
     <div className="coach-page">
       {/* Page title */}
       <div
-        className="animate-pulse"
-        style={{ width: 180, height: 28, backgroundColor: '#1A1A1A', borderRadius: 8, marginBottom: 24 }}
+        className="cx-skel"
+        style={{ width: 180, height: 28, backgroundColor: 'var(--color-surface-2)', borderRadius: 8, marginBottom: 24 }}
       />
 
       {/* Table header */}
       <div
-        className="animate-pulse rounded-xl"
-        style={{ height: 44, backgroundColor: '#1A1A1A', marginBottom: 2 }}
+        className="cx-skel rounded-xl"
+        style={{ height: 44, backgroundColor: 'var(--color-surface-2)', marginBottom: 2 }}
       />
 
       {/* Table rows */}
@@ -18,8 +18,8 @@ export default function Loading() {
         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
           <div
             key={i}
-            className="animate-pulse rounded-xl"
-            style={{ height: 52, backgroundColor: '#1A1A1A', border: '1px solid var(--color-border)' }}
+            className="cx-skel rounded-xl"
+            style={{ height: 52, backgroundColor: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
           />
         ))}
       </div>

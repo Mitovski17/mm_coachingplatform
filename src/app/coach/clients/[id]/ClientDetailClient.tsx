@@ -122,9 +122,10 @@ export default function ClientDetailClient(props: Props) {
   return (
     <div>
       {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+      <div className="cx-in" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
         <Link
           href="/coach/clients"
+          className="cx-press"
           style={{ fontSize: 12, color: 'var(--color-text-hint)', textDecoration: 'none' }}
         >
           CLIENTS
@@ -136,13 +137,14 @@ export default function ClientDetailClient(props: Props) {
       </div>
 
       {/* Title + action buttons */}
-      <div className="coach-client-title-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
+      <div className="coach-client-title-row cx-in" style={{ '--cx-i': 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' } as React.CSSProperties}>
+        <h1 className="cx-display cx-display-lg" style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1 }}>
           {profile.name}
         </h1>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <Link
             href={`/coach/clients/${profile.id}/schedule`}
+            className="cx-ghost"
             style={{
               padding:         '8px 16px',
               fontSize:        13,
@@ -150,7 +152,7 @@ export default function ClientDetailClient(props: Props) {
               color:           'var(--color-text-primary)',
               backgroundColor: 'transparent',
               border:          '1px solid var(--color-border)',
-              borderRadius:    8,
+              borderRadius:    10,
               cursor:          'pointer',
               textDecoration:  'none',
               display:         'inline-flex',
@@ -161,6 +163,7 @@ export default function ClientDetailClient(props: Props) {
           </Link>
           <Link
             href={`/coach/messages/${profile.id}`}
+            className="cx-ghost"
             style={{
               padding:         '8px 16px',
               fontSize:        13,
@@ -168,7 +171,7 @@ export default function ClientDetailClient(props: Props) {
               color:           'var(--color-text-primary)',
               backgroundColor: 'transparent',
               border:          '1px solid var(--color-border)',
-              borderRadius:    8,
+              borderRadius:    10,
               cursor:          'pointer',
               textDecoration:  'none',
               display:         'inline-flex',
@@ -182,26 +185,29 @@ export default function ClientDetailClient(props: Props) {
 
       {/* Client info card */}
       <div
-        className="coach-client-info-card"
+        className="coach-client-info-card cx-card cx-in"
         style={{
+          '--cx-i':        2,
           backgroundColor: 'var(--color-surface-1)',
           border:          '1px solid var(--color-border)',
-          borderRadius:    12,
+          borderRadius:    'var(--cx-r-sm)',
           padding:         '14px 18px',
           display:         'flex',
           alignItems:      'center',
           gap:             16,
           marginBottom:    20,
           flexWrap:        'wrap',
-        }}
+        } as React.CSSProperties}
       >
         {/* Avatar */}
         <div
+          className="cx-display"
           style={{
             width: 48,
             height: 48,
             borderRadius: '50%',
             backgroundColor: avatarColor(profile.name),
+            boxShadow: 'var(--cx-shadow-sm)',
             color: '#fff',
             fontWeight: 700,
             fontSize: 16,
@@ -253,7 +259,7 @@ export default function ClientDetailClient(props: Props) {
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-hint)', marginBottom: 2 }}>
               Week
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)', lineHeight: 1 }}>
+            <div className="cx-num" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)', lineHeight: 1 }}>
               {weekNum} <span style={{ fontSize: 14, color: 'var(--color-text-hint)', fontWeight: 500 }}>/ —</span>
             </div>
           </div>
@@ -261,39 +267,44 @@ export default function ClientDetailClient(props: Props) {
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-hint)', marginBottom: 2 }}>
               Total Change
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: changeColor, lineHeight: 1 }}>
+            <div className="cx-num" style={{ fontSize: 20, fontWeight: 800, color: changeColor, lineHeight: 1 }}>
               {changeStr}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tab bar */}
+      {/* Tab bar — the underline scales in from the centre of the chosen tab
+          rather than a border blinking on. A shared indicator that slides
+          between tabs would need JS measurement here, because the strip scrolls
+          horizontally and every tab is a different width. */}
       <div
-        className="coach-client-tabs flex gap-4 mb-6"
-        style={{ borderBottom: '1px solid var(--color-border)' }}
+        className="coach-client-tabs cx-scroll-x cx-in flex gap-4 mb-6"
+        style={{ '--cx-i': 3, borderBottom: '1px solid var(--color-border)' } as React.CSSProperties}
       >
         {TABS.map((tab) => {
           const active = tab.id === activeTab
           return (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={active}
+              data-active={active}
               onClick={() => setActiveTab(tab.id)}
-              className="pb-2.5 transition-colors flex items-center gap-1.5"
+              className="cx-tab pb-2.5 flex items-center gap-1.5"
               style={{
                 color: active
                   ? 'var(--color-text-primary)'
                   : 'var(--color-text-muted)',
                 fontWeight: active ? 600 : 500,
                 fontSize: 14,
-                borderBottom: active
-                  ? `2px solid var(--color-accent)`
-                  : '2px solid transparent',
-                marginBottom: -1,
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
             >
               {active && (
                 <span
+                  className="cx-pop"
                   style={{
                     width: 4,
                     height: 4,
@@ -309,7 +320,9 @@ export default function ClientDetailClient(props: Props) {
         })}
       </div>
 
-      {/* Tab content */}
+      {/* Tab content. `key` restarts the entrance on every switch, so the new
+          panel arrives instead of appearing fully-formed mid-scroll. */}
+      <div key={activeTab} className="cx-in">
       {activeTab === 'overview' && (
         <OverviewTab
           profile={props.profile}
@@ -362,6 +375,7 @@ export default function ClientDetailClient(props: Props) {
           clientName={props.profile.name}
         />
       )}
+      </div>
     </div>
   )
 }

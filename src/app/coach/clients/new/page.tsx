@@ -68,6 +68,7 @@ export default function NewClientPage() {
 
       {step === 'form' ? (
         <div
+          className="cx-card"
           style={{
             backgroundColor: 'var(--color-surface-1)',
             border: '1px solid var(--color-border)',
@@ -84,7 +85,7 @@ export default function NewClientPage() {
                 Client email address
               </label>
               <div
-                className="flex items-center gap-2"
+                className="cx-card flex items-center gap-2"
                 style={{
                   backgroundColor: 'var(--color-surface-2)',
                   border: '1px solid var(--color-border)',
@@ -94,6 +95,7 @@ export default function NewClientPage() {
               >
                 <Mail size={15} style={{ color: 'var(--color-text-hint)', flexShrink: 0 }} />
                 <input
+                  className="cx-field"
                   id="email"
                   type="email"
                   value={email}
@@ -118,6 +120,7 @@ export default function NewClientPage() {
             )}
 
             <button
+              className="cx-press"
               type="submit"
               disabled={loading || !email.trim()}
               style={{
@@ -138,6 +141,7 @@ export default function NewClientPage() {
         </div>
       ) : (
         <div
+          className="cx-card"
           style={{
             backgroundColor: 'var(--color-surface-1)',
             border: '1px solid var(--color-border)',
@@ -166,6 +170,7 @@ export default function NewClientPage() {
           </p>
 
           <div
+            className="cx-card"
             style={{
               backgroundColor: 'var(--color-surface-2)',
               border: '1px solid var(--color-border)',
@@ -185,7 +190,7 @@ export default function NewClientPage() {
             <button
               type="button"
               onClick={handleCopy}
-              className="flex items-center gap-2"
+              className="cx-press flex items-center gap-2"
               style={{
                 flex: 1,
                 padding: '10px',
@@ -203,6 +208,7 @@ export default function NewClientPage() {
               {copied ? 'Copied!' : 'Copy link'}
             </button>
             <button
+              className="cx-press"
               type="button"
               onClick={() => router.push('/coach/dashboard')}
               style={{

@@ -69,8 +69,8 @@ export default function MealPlansClient({
 
   return (
     <div className="px-4 py-6 sm:px-6 sm:py-8 max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-2xl" style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
+      <div className="cx-in mb-6">
+        <h1 className="cx-display cx-display-lg text-2xl" style={{ color: 'var(--color-text-primary)', fontWeight: 800 }}>
           Meal Plans
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
@@ -78,57 +78,59 @@ export default function MealPlansClient({
         </p>
       </div>
 
-      <div
-        className="flex gap-1 mb-6 p-1"
-        style={{
-          backgroundColor: 'var(--color-surface-2)',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--color-border)',
-          display: 'inline-flex',
-        }}
-      >
-        {([
-          ['templates', 'Templates', templates.length],
-          ['assignments', 'Assignments', byClient.length],
-        ] as const).map(([t, label, count]) => {
-          const active = tab === t
-          return (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors"
-              style={{
-                backgroundColor: active ? 'var(--color-accent-dim)' : 'transparent',
-                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                borderRadius: 'calc(var(--radius-md) - 2px)',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {label}
-              <span
-                className="inline-flex items-center justify-center text-xs px-1.5 py-0.5"
+      <div className="cx-in mb-6" style={{ '--cx-i': 1 } as React.CSSProperties}>
+        <div
+          className="cx-seg cx-seg--fit"
+          role="tablist"
+          aria-label="Meal plans"
+          style={{ '--cx-seg-n': 2, '--cx-seg-i': tab === 'templates' ? 0 : 1 } as React.CSSProperties}
+        >
+          <div className="cx-seg-thumb" aria-hidden="true" />
+          {([
+            ['templates', 'Templates', templates.length],
+            ['assignments', 'Assignments', byClient.length],
+          ] as const).map(([t, label, count]) => {
+            const active = tab === t
+            return (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(t)}
+                className="cx-seg-btn flex items-center justify-center gap-1.5 text-sm"
                 style={{
-                  minWidth: 20,
-                  backgroundColor: active ? 'rgba(255,255,255,0.1)' : 'var(--color-surface-3)',
-                  color: 'var(--color-text-hint)',
-                  borderRadius: '9999px',
-                  fontWeight: 600,
+                  padding: '8px 14px',
+                  fontWeight: active ? 700 : 600,
+                  color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
                 }}
               >
-                {count}
-              </span>
-            </button>
-          )
-        })}
+                {label}
+                <span
+                  className="cx-num inline-flex items-center justify-center text-xs px-1.5 py-0.5"
+                  style={{
+                    minWidth: 20,
+                    backgroundColor: active ? 'var(--color-accent-dim)' : 'var(--color-surface-3)',
+                    color: active ? 'var(--color-accent)' : 'var(--color-text-hint)',
+                    borderRadius: '9999px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      {tab === 'templates' ? (
-        <TemplatesPanel templates={templates} onDelete={handleDelete} onDuplicate={handleDuplicate} deleting={pending} duplicatingId={duplicatingId} />
-      ) : (
-        <AssignmentsPanel rows={byClient} />
-      )}
+      <div key={tab} className="cx-in" style={{ '--cx-i': 2 } as React.CSSProperties}>
+        {tab === 'templates' ? (
+          <TemplatesPanel templates={templates} onDelete={handleDelete} onDuplicate={handleDuplicate} deleting={pending} duplicatingId={duplicatingId} />
+        ) : (
+          <AssignmentsPanel rows={byClient} />
+        )}
+      </div>
     </div>
   )
 }
@@ -158,11 +160,11 @@ function TemplatesPanel({
         </h2>
         <Link
           href="/coach/meal-plans/templates/new"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium"
+          className="cx-cta inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold"
           style={{
             backgroundColor: 'var(--color-accent)',
             color: '#fff',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 'var(--cx-r-sm)',
             textDecoration: 'none',
           }}
         >
@@ -212,18 +214,14 @@ function Section({
       </div>
       {items.length === 0 ? (
         <div
-          className="flex flex-col items-center justify-center py-10 gap-2 text-sm"
-          style={{
-            color: 'var(--color-text-hint)',
-            border: '1px dashed var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-          }}
+          className="cx-empty flex flex-col items-center justify-center py-10 gap-2 text-sm"
+          style={{ color: 'var(--color-text-hint)' }}
         >
           <UtensilsCrossed size={22} />
           <p>No {title.toLowerCase()} templates yet</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="cx-stagger flex flex-col gap-3">
           {items.map((t) => (
             <TemplateCard key={t.id} t={t} planType={planType} onDelete={onDelete} onDuplicate={onDuplicate} deleting={deleting} duplicating={duplicatingId === t.id} />
           ))}
@@ -257,11 +255,11 @@ function TemplateCard({
 
   return (
     <div
-      className="px-5 py-4 overflow-hidden"
+      className="cx-card px-5 py-4 overflow-hidden"
       style={{
         backgroundColor: 'var(--color-surface-2)',
         border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
+        borderRadius: 'var(--cx-r-md)',
       }}
     >
       <div className="flex items-start justify-between mb-2 gap-2">
@@ -279,13 +277,13 @@ function TemplateCard({
           <Link
             href={`/coach/meal-plans/templates/${t.id}`}
             title="Edit"
-            className="inline-flex items-center justify-center"
+            className="cx-icon-btn inline-flex items-center justify-center"
             style={{
               width: 30,
               height: 30,
               color: 'var(--color-text-muted)',
               border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 'var(--cx-r-xs)',
             }}
           >
             <Pencil size={13} />
@@ -304,14 +302,14 @@ function TemplateCard({
             disabled={duplicating || deleting}
             onClick={() => onDuplicate(t.id)}
             title="Duplicate"
-            className="inline-flex items-center justify-center"
+            className="cx-icon-btn inline-flex items-center justify-center"
             style={{
               width: 30,
               height: 30,
               color: 'var(--color-text-muted)',
               backgroundColor: 'transparent',
               border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 'var(--cx-r-xs)',
               cursor: duplicating || deleting ? 'not-allowed' : 'pointer',
               opacity: duplicating ? 0.5 : 1,
             }}
@@ -323,14 +321,14 @@ function TemplateCard({
             disabled={deleting || duplicating}
             onClick={() => onDelete(t.id, t.name)}
             title="Delete"
-            className="inline-flex items-center justify-center"
+            className="cx-icon-btn cx-icon-btn-danger inline-flex items-center justify-center"
             style={{
               width: 30,
               height: 30,
               color: '#ef4444',
               backgroundColor: 'transparent',
               border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 'var(--cx-r-xs)',
               cursor: deleting ? 'not-allowed' : 'pointer',
               opacity: deleting ? 0.5 : 1,
             }}
@@ -367,11 +365,11 @@ function AssignmentsPanel({
         </h2>
         <Link
           href="/coach/meal-plans/new"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium"
+          className="cx-cta inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold"
           style={{
             backgroundColor: 'var(--color-accent)',
             color: '#fff',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 'var(--cx-r-sm)',
             textDecoration: 'none',
           }}
         >
@@ -382,26 +380,22 @@ function AssignmentsPanel({
 
       {rows.length === 0 ? (
         <div
-          className="flex flex-col items-center justify-center py-16 gap-3 text-sm"
-          style={{
-            color: 'var(--color-text-hint)',
-            border: '1px dashed var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-          }}
+          className="cx-empty flex flex-col items-center justify-center py-16 gap-3 text-sm"
+          style={{ color: 'var(--color-text-hint)' }}
         >
           <Users size={26} />
           <p>No assignments yet. Assign your first meal plan.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="cx-stagger flex flex-col gap-3">
           {rows.map((r) => (
             <div
               key={r.clientId}
-              className="flex items-start justify-between px-5 py-4"
+              className="cx-card flex items-start justify-between px-5 py-4"
               style={{
                 backgroundColor: 'var(--color-surface-2)',
                 border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-lg)',
+                borderRadius: 'var(--cx-r-md)',
               }}
             >
               <div className="flex-1 min-w-0 mr-4">
@@ -451,13 +445,13 @@ function AssignmentsPanel({
                 <Link
                   href={`/coach/meal-plans/assignments/${r.clientId}`}
                   title="Edit"
-                  className="inline-flex items-center justify-center"
+                  className="cx-icon-btn inline-flex items-center justify-center"
                   style={{
                     width: 32,
                     height: 32,
                     color: 'var(--color-text-muted)',
                     border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-md)',
+                    borderRadius: 'var(--cx-r-xs)',
                   }}
                 >
                   <Pencil size={14} />

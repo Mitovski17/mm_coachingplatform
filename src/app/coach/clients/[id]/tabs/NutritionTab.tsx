@@ -393,7 +393,7 @@ export default function NutritionTab({
                   type="button"
                   onClick={() => toggleDay(d.date, empty)}
                   disabled={empty}
-                  className="grid text-sm w-full text-left"
+                  className="cx-press grid text-sm w-full text-left"
                   style={{
                     gridTemplateColumns: '1.5fr 1fr 1fr 1fr 1fr',
                     padding: '8px 12px',

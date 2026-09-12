@@ -123,8 +123,8 @@ export default async function MessagesPage() {
 
   return (
     <div className="coach-page" style={{ maxWidth: 720 }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+      <div className="cx-in" style={{ marginBottom: 28 }}>
+        <h1 className="cx-display cx-display-lg" style={{ fontSize: 24, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
           Messages
         </h1>
         <p style={{ fontSize: 14, color: 'var(--color-text-hint)', margin: '4px 0 0' }}>
@@ -149,11 +149,12 @@ export default async function MessagesPage() {
         </div>
       ) : (
         <div
+          className="cx-card cx-stagger"
           style={{
             display: 'flex',
             flexDirection: 'column',
             gap: 2,
-            borderRadius: 12,
+            borderRadius: 'var(--cx-r-sm)',
             overflow: 'hidden',
             border: '1px solid var(--color-border)',
             backgroundColor: 'var(--color-surface-1)',
@@ -171,7 +172,7 @@ export default async function MessagesPage() {
               <Link
                 key={row.id}
                 href={`/coach/messages/${row.client_id}`}
-                className="messages-row"
+                className="cx-row"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -184,11 +185,13 @@ export default async function MessagesPage() {
               >
                 {/* Avatar */}
                 <div
+                  className="cx-display"
                   style={{
                     width: 40,
                     height: 40,
                     borderRadius: '50%',
                     backgroundColor: color,
+                    boxShadow: 'var(--cx-shadow-sm)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -242,11 +245,13 @@ export default async function MessagesPage() {
                 {/* Unread badge */}
                 {row.unread > 0 && (
                   <span
+                    className="cx-pop cx-num"
                     style={{
                       minWidth: 20,
                       height: 20,
                       borderRadius: 10,
                       backgroundColor: 'var(--color-accent)',
+                      boxShadow: 'var(--cx-shadow-cta)',
                       color: '#fff',
                       fontSize: 11,
                       fontWeight: 700,

@@ -153,7 +153,7 @@ export default function MealPlanAssignmentEditor({
         </label>
         {lockedClient ? (
           <div
-            className="px-3 py-2 text-sm"
+            className="cx-card px-3 py-2 text-sm"
             style={{
               backgroundColor: 'var(--color-surface-2)',
               border: '1px solid var(--color-border)',
@@ -169,7 +169,7 @@ export default function MealPlanAssignmentEditor({
             suppressHydrationWarning
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
-            className="px-3 py-2 text-sm"
+            className="cx-field px-3 py-2 text-sm"
             style={{ ...selectStyle(), maxWidth: 360, width: '100%' }}
           >
             <option value="">Select a client...</option>
@@ -188,6 +188,7 @@ export default function MealPlanAssignmentEditor({
         style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}
       >
         <div
+          className="cx-card"
           style={{
             backgroundColor: 'var(--color-surface-1)',
             border: '1px solid var(--color-border)',
@@ -205,7 +206,7 @@ export default function MealPlanAssignmentEditor({
             suppressHydrationWarning
             value={trainingTemplateId}
             onChange={(e) => setTrainingTemplateId(e.target.value)}
-            className="w-full px-3 py-2 text-sm"
+            className="cx-field w-full px-3 py-2 text-sm"
             style={selectStyle()}
           >
             <option value="">None</option>
@@ -218,6 +219,7 @@ export default function MealPlanAssignmentEditor({
         </div>
 
         <div
+          className="cx-card"
           style={{
             backgroundColor: 'var(--color-surface-1)',
             border: '1px solid var(--color-border)',
@@ -235,7 +237,7 @@ export default function MealPlanAssignmentEditor({
             suppressHydrationWarning
             value={restTemplateId}
             onChange={(e) => setRestTemplateId(e.target.value)}
-            className="w-full px-3 py-2 text-sm"
+            className="cx-field w-full px-3 py-2 text-sm"
             style={selectStyle()}
           >
             <option value="">None</option>
@@ -250,7 +252,7 @@ export default function MealPlanAssignmentEditor({
 
       {/* Overall plan — full width */}
       <div
-        className="mb-6"
+        className="cx-card mb-6"
         style={{
           backgroundColor: 'var(--color-surface-1)',
           border: '1px solid var(--color-border)',
@@ -268,7 +270,7 @@ export default function MealPlanAssignmentEditor({
           suppressHydrationWarning
           value={overallTemplateId}
           onChange={(e) => setOverallTemplateId(e.target.value)}
-          className="w-full px-3 py-2 text-sm"
+          className="cx-field w-full px-3 py-2 text-sm"
           style={selectStyle()}
         >
           <option value="">None</option>
@@ -300,6 +302,7 @@ export default function MealPlanAssignmentEditor({
             </span>
           </div>
           <button
+            className="cx-press"
             type="button"
             onClick={() => setCarbCycleEnabled((v) => !v)}
             style={{
@@ -310,7 +313,6 @@ export default function MealPlanAssignmentEditor({
               border: 'none',
               cursor: 'pointer',
               position: 'relative',
-              transition: 'background-color 0.2s',
               flexShrink: 0,
             }}
             aria-label="Toggle carb cycle"
@@ -319,12 +321,13 @@ export default function MealPlanAssignmentEditor({
               style={{
                 position: 'absolute',
                 top: 2,
-                left: carbCycleEnabled ? 18 : 2,
+                left: 2,
                 width: 16,
                 height: 16,
                 borderRadius: 8,
                 backgroundColor: '#fff',
-                transition: 'left 0.2s',
+                transform: carbCycleEnabled ? 'translateX(16px)' : 'translateX(0)',
+                transition: 'transform var(--cx-dur) var(--cx-spring)',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
               }}
             />
@@ -347,7 +350,7 @@ export default function MealPlanAssignmentEditor({
                   suppressHydrationWarning
                   value={carbCycleLowId}
                   onChange={(e) => setCarbCycleLowId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm"
+                  className="cx-field w-full px-3 py-2 text-sm"
                   style={selectStyle()}
                 >
                   <option value="">Select plan...</option>
@@ -366,7 +369,7 @@ export default function MealPlanAssignmentEditor({
                   suppressHydrationWarning
                   value={carbCycleHighId}
                   onChange={(e) => setCarbCycleHighId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm"
+                  className="cx-field w-full px-3 py-2 text-sm"
                   style={selectStyle()}
                 >
                   <option value="">Select plan...</option>
@@ -388,7 +391,7 @@ export default function MealPlanAssignmentEditor({
                 type="date"
                 value={carbCycleStartDate}
                 onChange={(e) => setCarbCycleStartDate(e.target.value)}
-                className="px-3 py-2 text-sm"
+                className="cx-field px-3 py-2 text-sm"
                 style={{ ...selectStyle(), maxWidth: 200, width: '100%' }}
               />
               <p className="text-xs mt-1" style={{ color: 'var(--color-text-hint)' }}>
@@ -410,7 +413,7 @@ export default function MealPlanAssignmentEditor({
           type="button"
           disabled={saving || saved || !isDirty}
           onClick={handleSave}
-          className="px-4 py-2 text-sm font-medium"
+          className="cx-press px-4 py-2 text-sm font-medium"
           style={{
             backgroundColor: saved ? '#16a34a' : 'var(--color-accent)',
             color: '#fff',
@@ -418,7 +421,6 @@ export default function MealPlanAssignmentEditor({
             border: 'none',
             cursor: saving || saved || !isDirty ? 'not-allowed' : 'pointer',
             opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1),
-            transition: 'opacity 0.15s, background-color 0.2s',
           }}
         >
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}

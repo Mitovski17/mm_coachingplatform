@@ -205,6 +205,7 @@ function ExerciseCombobox({
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <input
+        className="cx-field"
         type="text"
         value={open ? query : (selected?.name ?? '')}
         placeholder="Search exercise…"
@@ -213,18 +214,19 @@ function ExerciseCombobox({
         style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem', boxSizing: 'border-box' }}
       />
       {open && (
-        <div style={{
+        <div className="cx-pop cx-pane" style={{
           position: 'absolute',
           top: 'calc(100% + 4px)',
           left: 0,
           right: 0,
           zIndex: 200,
+          transformOrigin: 'top center',
           background: 'var(--color-surface-3)',
           border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-md)',
+          borderRadius: 'var(--cx-r-xs)',
           maxHeight: 240,
           overflowY: 'auto',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          boxShadow: 'var(--cx-shadow-lg)',
         }}>
           {filtered.length === 0 ? (
             <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
@@ -346,11 +348,16 @@ function NotesField({
       {open && (
         <div
           onClick={() => setOpen(false)}
+          className="cx-backdrop"
+          role="dialog"
+          aria-modal="true"
           style={{
             position: 'fixed',
             inset: 0,
             zIndex: 60,
             backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -359,13 +366,15 @@ function NotesField({
         >
           <div
             onClick={(e) => e.stopPropagation()}
+            className="cx-pop cx-pane"
             style={{
               width: '100%',
               maxWidth: 760,
               maxHeight: '85vh',
               backgroundColor: 'var(--color-surface-1)',
               border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-xl)',
+              borderRadius: 'var(--cx-r-lg)',
+              boxShadow: 'var(--cx-shadow-lg)',
               padding: 20,
               display: 'flex',
               flexDirection: 'column',
@@ -378,6 +387,7 @@ function NotesField({
                 {title}
               </span>
               <button
+                className="cx-press"
                 type="button"
                 onClick={() => setOpen(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', padding: 4 }}
@@ -386,6 +396,7 @@ function NotesField({
               </button>
             </div>
             <textarea
+              className="cx-field"
               autoFocus
               value={value}
               onChange={(e) => handleChange(e.target.value)}
@@ -425,6 +436,7 @@ function NotesField({
               )}
               {onSaveAsDefault && (
                 <button
+                  className="cx-press"
                   type="button"
                   onClick={handleSaveAsDefault}
                   disabled={defaultState === 'saving'}
@@ -450,6 +462,7 @@ function NotesField({
                 </button>
               )}
               <button
+                className="cx-press"
                 type="button"
                 onClick={() => setOpen(false)}
                 style={{
@@ -1075,7 +1088,7 @@ export default function TemplateEditor({
               type="button"
               onClick={handleUndo}
               title="Undo last change"
-              className="te-hdr-undo"
+              className="cx-press te-hdr-undo"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1099,7 +1112,7 @@ export default function TemplateEditor({
             type="button"
             onClick={handleSave}
             disabled={saving || saved || !isDirty}
-            className="te-hdr-save"
+            className="cx-press te-hdr-save"
             style={{
               padding: '6px 16px',
               fontSize: '0.8rem',
@@ -1112,7 +1125,6 @@ export default function TemplateEditor({
               opacity: saved ? 1 : (saving || !isDirty ? 0.5 : 1),
               fontFamily: 'inherit',
               whiteSpace: 'nowrap',
-              transition: 'opacity 0.15s, background-color 0.2s',
             }}
           >
             {saving ? 'Saving…' : saved ? 'Saved ✓' : (
@@ -1128,11 +1140,12 @@ export default function TemplateEditor({
       {/* Two-column layout */}
       <div className="coach-editor-body" style={{ overflow: 'hidden' }}>
         {/* Left: main editor */}
-        <div className="coach-editor-left no-scrollbar" style={{ flex: '0 0 55%', minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: '28px 32px 80px' }}>
+        <div className="coach-editor-left no-scrollbar cx-pane" style={{ flex: '0 0 55%', minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: '28px 32px 80px' }}>
 
           {/* AI panel */}
           {!aiGenerated ? (
             <div
+              className="cx-card"
               style={{
                 marginBottom: 24,
                 padding: 16,
@@ -1152,6 +1165,7 @@ export default function TemplateEditor({
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                 <textarea
+                  className="cx-field"
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiGenerate() } }}
@@ -1174,6 +1188,7 @@ export default function TemplateEditor({
                   }}
                 />
                 <button
+                  className="cx-press"
                   type="button"
                   onClick={handleAiGenerate}
                   disabled={aiGenerating || !aiPrompt.trim()}
@@ -1194,7 +1209,6 @@ export default function TemplateEditor({
                     flexShrink: 0,
                     whiteSpace: 'nowrap',
                     fontFamily: 'inherit',
-                    transition: 'background-color 0.15s ease',
                     alignSelf: 'stretch',
                   }}
                 >
@@ -1212,6 +1226,7 @@ export default function TemplateEditor({
           ) : (
             <div style={{ marginBottom: 24 }}>
               <button
+                className="cx-press"
                 type="button"
                 onClick={() => { setAiError(null); setAiEditModalOpen(true) }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#f97316' }}
@@ -1229,7 +1244,6 @@ export default function TemplateEditor({
                   borderRadius: 'var(--radius-md)',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
-                  transition: 'background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease',
                 }}
               >
                 <Sparkles size={13} style={{ color: 'var(--color-accent)' }} />
@@ -1242,19 +1256,26 @@ export default function TemplateEditor({
           {aiEditModalOpen && (
             <div
               onClick={() => setAiEditModalOpen(false)}
+              className="cx-backdrop"
+              role="dialog"
+              aria-modal="true"
               style={{
                 position: 'fixed', inset: 0, zIndex: 50,
                 backgroundColor: 'rgba(0,0,0,0.6)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
               <div
                 onClick={(e) => e.stopPropagation()}
+                className="cx-pop"
                 style={{
                   width: 480,
                   backgroundColor: 'var(--color-surface-1)',
                   border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-xl)',
+                  borderRadius: 'var(--cx-r-lg)',
+                  boxShadow: 'var(--cx-shadow-lg)',
                   padding: 24,
                 }}
               >
@@ -1266,6 +1287,7 @@ export default function TemplateEditor({
                     </span>
                   </div>
                   <button
+                    className="cx-press"
                     type="button"
                     onClick={() => setAiEditModalOpen(false)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-hint)', padding: 4 }}
@@ -1274,6 +1296,7 @@ export default function TemplateEditor({
                   </button>
                 </div>
                 <textarea
+                  className="cx-field"
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiGenerate() } }}
@@ -1303,6 +1326,7 @@ export default function TemplateEditor({
                 )}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button
+                    className="cx-press"
                     type="button"
                     onClick={() => setAiEditModalOpen(false)}
                     style={{
@@ -1315,6 +1339,7 @@ export default function TemplateEditor({
                     Cancel
                   </button>
                   <button
+                    className="cx-press"
                     type="button"
                     onClick={handleAiGenerate}
                     disabled={aiGenerating || !aiPrompt.trim()}
@@ -1327,7 +1352,7 @@ export default function TemplateEditor({
                       color: aiGenerating || !aiPrompt.trim() ? 'var(--color-text-hint)' : '#fff',
                       border: 'none', borderRadius: 'var(--radius-md)',
                       cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
-                      fontFamily: 'inherit', transition: 'background-color 0.15s ease',
+                      fontFamily: 'inherit',
                     }}
                   >
                     {aiGenerating ? (
@@ -1347,6 +1372,7 @@ export default function TemplateEditor({
               Template name
             </label>
             <input
+              className="cx-field"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -1380,21 +1406,26 @@ export default function TemplateEditor({
               }}
               className="no-scrollbar"
             >
+              {/* `cx-chip` in place of `transition: all` — `all` transitions
+                  every animatable property, including ones that were never
+                  meant to move, and costs more to evaluate than naming the
+                  three that actually change. */}
               {days.map((day, idx) => (
                 <div
                   key={day.tempId}
+                  data-active={activeDayIndex === idx}
+                  className="cx-chip"
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 4,
                     padding: '5px 10px',
-                    borderRadius: 'var(--radius-md)',
+                    borderRadius: 'var(--cx-r-xs)',
                     border: '1px solid',
                     borderColor: activeDayIndex === idx ? 'var(--color-accent)' : 'var(--color-border)',
                     backgroundColor: activeDayIndex === idx ? `var(--color-accent)22` : 'var(--color-surface-2)',
                     cursor: 'pointer',
                     flexShrink: 0,
-                    transition: 'all 0.12s ease',
                   }}
                   onClick={() => setActiveDayIndex(idx)}
                 >
@@ -1410,6 +1441,7 @@ export default function TemplateEditor({
                   </span>
                   {days.length > 1 && (
                     <button
+                      className="cx-press"
                       type="button"
                       onClick={(e) => { e.stopPropagation(); removeDay(idx) }}
                       title={`Remove ${day.label}`}
@@ -1436,6 +1468,7 @@ export default function TemplateEditor({
                 </div>
               ))}
               <button
+                className="cx-press"
                 type="button"
                 onClick={addDay}
                 title="Add workout day"
@@ -1461,6 +1494,7 @@ export default function TemplateEditor({
           {/* Active day label + notes */}
           {activeDay && (
             <div
+              className="cx-card"
               style={{
                 marginBottom: 20,
                 padding: '12px 14px',
@@ -1474,6 +1508,7 @@ export default function TemplateEditor({
                   Day label
                 </label>
                 <input
+                  className="cx-field"
                   type="text"
                   value={activeDay.label}
                   onChange={(e) => updateDayLabel(activeDayIndex, e.target.value)}
@@ -1501,6 +1536,7 @@ export default function TemplateEditor({
               Exercises — {activeDay?.label || `Day ${activeDayIndex + 1}`}
             </h2>
             <button
+              className="cx-press"
               type="button"
               onClick={addExercise}
               style={{
@@ -1543,7 +1579,7 @@ export default function TemplateEditor({
               {exercises.map((ex, i) => (
                 <div
                   key={ex.tempId}
-                  className="te-exercise-card"
+                  className="cx-card te-exercise-card"
                   style={{
                     padding: '16px',
                     backgroundColor: 'var(--color-surface-2)',
@@ -1578,6 +1614,7 @@ export default function TemplateEditor({
                     <div className="te-exercise-reorder" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 6, flexShrink: 0 }}>
                       <GripVertical size={14} style={{ color: 'var(--color-text-hint)' }} />
                       <button
+                        className="cx-press"
                         type="button"
                         onClick={() => moveExercise(ex.tempId, -1)}
                         disabled={i === 0}
@@ -1587,6 +1624,7 @@ export default function TemplateEditor({
                         <ChevronUp size={12} />
                       </button>
                       <button
+                        className="cx-press"
                         type="button"
                         onClick={() => moveExercise(ex.tempId, 1)}
                         disabled={i === exercises.length - 1}
@@ -1620,6 +1658,7 @@ export default function TemplateEditor({
                             exercises={exerciseList}
                           />
                           <button
+                            className="cx-press"
                             type="button"
                             onClick={() => setCustomModalForTempId(ex.tempId)}
                             style={{
@@ -1711,6 +1750,7 @@ export default function TemplateEditor({
                                 {s.setNumber}
                               </span>
                               <input
+                                className="cx-field"
                                 type="text"
                                 inputMode="numeric"
                                 value={s.targetReps}
@@ -1722,6 +1762,7 @@ export default function TemplateEditor({
                                 style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}
                               />
                               <input
+                                className="cx-field"
                                 type="text"
                                 value={s.targetWeight}
                                 onChange={(e) => updateSet(ex.tempId, s.tempId, { targetWeight: e.target.value })}
@@ -1729,6 +1770,7 @@ export default function TemplateEditor({
                                 style={{ ...inputStyle(), padding: '6px 8px', fontSize: '0.875rem' }}
                               />
                               <input
+                                className="cx-field"
                                 type="text"
                                 value={s.rpe}
                                 onChange={(e) => updateSet(ex.tempId, s.tempId, { rpe: e.target.value })}
@@ -1743,6 +1785,7 @@ export default function TemplateEditor({
                                 compactStyle={{ padding: '6px 8px', fontSize: '0.875rem' }}
                               />
                               <button
+                                className="cx-press"
                                 type="button"
                                 onClick={() => removeSet(ex.tempId, s.tempId)}
                                 title="Remove set"
@@ -1767,6 +1810,7 @@ export default function TemplateEditor({
                         </div>
 
                         <button
+                          className="cx-press"
                           type="button"
                           onClick={() => addSet(ex.tempId)}
                           style={{
@@ -1786,6 +1830,7 @@ export default function TemplateEditor({
 
                     {/* Delete exercise */}
                     <button
+                      className="cx-press"
                       type="button"
                       onClick={() => removeExercise(ex.tempId)}
                       title="Remove exercise"
@@ -1832,7 +1877,7 @@ export default function TemplateEditor({
 
         {/* Right: sidebar — stats for active day (hidden on mobile) */}
         <div
-          className="coach-editor-right no-scrollbar"
+          className="coach-editor-right no-scrollbar cx-pane"
           style={{
             flex: '1 1 0',
             minWidth: 0,
@@ -1851,6 +1896,7 @@ export default function TemplateEditor({
           {/* Stats row */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 28 }}>
             <div
+              className="cx-card"
               style={{
                 flex: 1,
                 padding: '14px 16px',
@@ -1867,6 +1913,7 @@ export default function TemplateEditor({
               </p>
             </div>
             <div
+              className="cx-card"
               style={{
                 flex: 1,
                 padding: '14px 16px',
@@ -1940,14 +1987,14 @@ export default function TemplateEditor({
                         }}
                       >
                         <div
+                          className="cx-bar-fill"
                           style={{
                             height: '100%',
-                            width: `${pct}%`,
                             borderRadius: 999,
                             backgroundColor: color,
-                            transition: 'width 0.35s ease',
                             opacity: 0.9,
-                          }}
+                            '--cx-p': Math.max(0, Math.min(100, pct)) / 100,
+                          } as React.CSSProperties}
                         />
                       </div>
                     </div>
@@ -1976,6 +2023,7 @@ export default function TemplateEditor({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {exercises.map((ex, i) => (
                   <div
+                    className="cx-card"
                     key={ex.tempId}
                     style={{
                       display: 'flex',
@@ -2095,6 +2143,9 @@ function CustomExerciseModal({
 
   return (
     <div
+      className="cx-backdrop"
+      role="dialog"
+      aria-modal="true"
       style={{
         position: 'fixed',
         inset: 0,
@@ -2103,13 +2154,17 @@ function CustomExerciseModal({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        className="cx-pop"
         style={{
           width: '100%',
           maxWidth: 400,
+          boxShadow: 'var(--cx-shadow-lg)',
           backgroundColor: 'var(--color-surface-1)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-xl)',
@@ -2125,6 +2180,7 @@ function CustomExerciseModal({
             Name
           </label>
           <input
+            className="cx-field"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -2139,6 +2195,7 @@ function CustomExerciseModal({
             Muscle Group
           </label>
           <select
+            className="cx-field"
             value={muscleGroup}
             onChange={(e) => setMuscleGroup(e.target.value)}
             style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
@@ -2156,6 +2213,7 @@ function CustomExerciseModal({
             Equipment
           </label>
           <select
+            className="cx-field"
             value={equipment}
             onChange={(e) => setEquipment(e.target.value)}
             style={{ ...inputStyle(), width: '100%', fontSize: '0.875rem' }}
@@ -2186,6 +2244,7 @@ function CustomExerciseModal({
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button
+            className="cx-press"
             type="button"
             onClick={onClose}
             style={{
@@ -2203,6 +2262,7 @@ function CustomExerciseModal({
             Cancel
           </button>
           <button
+            className="cx-press"
             type="button"
             onClick={handleSave}
             disabled={saving}
@@ -2232,6 +2292,7 @@ function RestSecondsInput({ value, onChange }: { value: number; onChange: (v: nu
   useEffect(() => { setDisplay(String(value)) }, [value])
   return (
     <input
+      className="cx-field"
       type="text"
       inputMode="numeric"
       value={display}

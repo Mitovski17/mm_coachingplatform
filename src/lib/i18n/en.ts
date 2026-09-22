@@ -265,6 +265,21 @@ export const en = {
     servings: 'servings',
     servingSize: 'Serving size',
     quantity: 'Quantity',
+    unit: 'Unit',
+    /** Singular/plural labels for every measuring unit a food can be logged in. */
+    units: {
+      g:       { one: 'g',       many: 'g'        },
+      ml:      { one: 'ml',      many: 'ml'       },
+      l:       { one: 'l',       many: 'l'        },
+      cup:     { one: 'cup',     many: 'cups'     },
+      serving: { one: 'serving', many: 'servings' },
+      portion: { one: 'portion', many: 'portions' },
+      piece:   { one: 'piece',   many: 'pieces'   },
+    },
+    /** e.g. "1 cup ≈ 240 g" — shows how a unit is converted into macros. */
+    unitEquals: (unit: string, grams: number) => `1 ${unit} ≈ ${grams} g`,
+    /** Label on the field where the client sets what one serving/portion/piece weighs. */
+    gramsPerUnit: (unit: string) => `Grams per ${unit}`,
     emptyMeal: 'Nothing logged yet',
     targets: 'Targets',
     consumed: 'Consumed',
@@ -286,7 +301,8 @@ export const en = {
     per100gValues: 'Nutrition per 100 g',
     fiber: 'Fiber',
     caloriesLabel: 'Calories',
-    quantityEatenG: 'Amount you ate (g)',
+    quantityEaten: 'Amount you ate',
+    quantityRequired: 'Please enter how much you ate.',
     saveAndLog: 'Save & add to meal',
     torch: 'Torch',
     productNameRequired: 'Please enter a product name.',

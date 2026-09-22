@@ -3,8 +3,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  LogOut, ChevronRight, ChevronLeft, Bell, Moon, Shield, HelpCircle,
-  User, Camera, Eye, EyeOff, Check, ChevronDown, ChevronUp, Send, BarChart2,
+  LogOut, ChevronRight, ChevronLeft, Moon,
+  Camera, Eye, EyeOff, Check, ChevronDown, ChevronUp, Send,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { useLanguage, type Translations, type Lang } from '@/lib/i18n'
 import { useTheme } from '@/app/ThemeProvider'
 import HeadlineMark from '@/components/client/HeadlineMark'
+import Icon3D from '@/components/client/Icon3D'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,14 @@ const card: React.CSSProperties = {
   overflow: 'hidden',
   boxShadow: 'var(--cx-shadow-sm)',
 }
+
+/**
+ * Width of the icon cell at the head of every settings row. Fixed so the labels
+ * form one column: the artwork inside varies in both size and aspect, so
+ * letting each icon set the cell width would stagger the text down the list.
+ * Sized to the tallest icon in the menu.
+ */
+const ICON_SLOT = 38
 
 const rowBase: React.CSSProperties = {
   width: '100%',
@@ -1009,26 +1018,31 @@ export default function ProfileClient({
 
   const langSubLabel = lang === 'bg' ? t.profile.bulgarian : t.profile.english
 
+  // `size` is tuned per icon rather than shared: these artworks range from
+  // 0.64 to 0.99 wide-over-tall, so one box would leave the narrow ones (the
+  // question mark, the guard) reading much lighter than the square ones. The
+  // numbers equalise roughly how much ink each covers. They all sit in a fixed
+  // ICON_SLOT-wide cell, so the labels still line up down the column.
   const MENU_SECTIONS = [
     {
       title: t.profile.account,
       items: [
-        { icon: User,   label: t.profile.personalInfo,   sub: t.profile.personalInfoSub, panel: 'personal-info' as Panel },
-        { icon: Bell,   label: t.profile.notifications,  sub: t.profile.notificationsSub, panel: 'notifications' as Panel },
-        { icon: Moon,   label: t.profile.appearance,     sub: t.profile.appearanceSub,    panel: 'appearance' as Panel },
+        { icon: '/icons/mm.png',         iconSize: 36, label: t.profile.personalInfo,  sub: t.profile.personalInfoSub,  panel: 'personal-info' as Panel },
+        { icon: '/icons/bell.png',       iconSize: 34, label: t.profile.notifications, sub: t.profile.notificationsSub, panel: 'notifications' as Panel },
+        { icon: '/icons/appearance.png', iconSize: 33, label: t.profile.appearance,    sub: t.profile.appearanceSub,    panel: 'appearance' as Panel },
       ],
     },
     {
       title: t.profile.preferences,
       items: [
-        { icon: User,   label: t.profile.language,       sub: langSubLabel,               panel: 'preferences' as Panel },
+        { icon: '/icons/language.png',   iconSize: 32, label: t.profile.language,      sub: langSubLabel,               panel: 'preferences' as Panel },
       ],
     },
     {
       title: t.profile.support,
       items: [
-        { icon: Shield,     label: t.profile.privacy,    sub: t.profile.privacySub,       panel: 'privacy-security' as Panel },
-        { icon: HelpCircle, label: t.profile.help,       sub: t.profile.helpSub,          panel: 'help-feedback' as Panel },
+        { icon: '/icons/privacy.png',    iconSize: 38, label: t.profile.privacy,       sub: t.profile.privacySub,       panel: 'privacy-security' as Panel },
+        { icon: '/icons/help.png',       iconSize: 38, label: t.profile.help,          sub: t.profile.helpSub,          panel: 'help-feedback' as Panel },
       ],
     },
   ]
@@ -1044,11 +1058,11 @@ export default function ProfileClient({
       <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 32 }}>
 
         {/* Header */}
-        <div className="cx-in" style={{ padding: '52px 20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div className="cx-in" style={{ padding: '52px 20px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <HeadlineMark name="profile" />
           <h1 className="cx-display cx-display-lg" style={{ fontSize: 30, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
             {t.profile.title}
           </h1>
-          <HeadlineMark />
         </div>
 
         {/* Avatar card */}
@@ -1132,12 +1146,13 @@ export default function ProfileClient({
               textDecoration: 'none',
             }}
           >
+            {/* Same fixed cell as the settings rows below, so this row's label
+                starts on the same column as theirs. */}
             <div style={{
-              width: 36, height: 36, borderRadius: 'var(--cx-r-sm)',
-              backgroundColor: 'var(--color-accent-dim)',
+              width: ICON_SLOT, height: ICON_SLOT,
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}>
-              <BarChart2 size={17} color="var(--color-accent)" />
+              <Icon3D src="/icons/progress.png" size={34} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.3 }}>{t.profile.progress}</p>
@@ -1155,7 +1170,6 @@ export default function ProfileClient({
             </p>
             <div style={card}>
               {section.items.map((item, idx) => {
-                const Icon = item.icon
                 const isLast = idx === section.items.length - 1
                 return (
                   <button
@@ -1165,19 +1179,21 @@ export default function ProfileClient({
                     className="cx-press-sm cx-tint"
                     style={{ ...rowBase, borderBottom: isLast ? 'none' : '1px solid var(--color-border)' }}
                   >
+                    {/* Bare artwork in a fixed-width cell. The cell is what keeps
+                        the labels aligned now that the icons no longer share a
+                        plate to sit in — without it each row's text would start
+                        at a different x. */}
                     <div
                       style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 10,
-                        backgroundColor: 'var(--color-surface-3)',
+                        width: ICON_SLOT,
+                        height: ICON_SLOT,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
                       }}
                     >
-                      <Icon size={17} style={{ color: 'var(--color-text-secondary)' }} />
+                      <Icon3D src={item.icon} size={item.iconSize} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.3 }}>{item.label}</p>

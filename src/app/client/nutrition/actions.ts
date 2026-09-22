@@ -580,6 +580,10 @@ export async function addBarcodeFood(payload: {
   fatPer100g: number
   fiberPer100g?: number | null
   quantity: number
+  /** Unit the client entered `quantity` in; defaults to grams. */
+  unit?: string
+  /** `quantity` converted to grams, which is what the per-100 g values scale by. */
+  quantityGrams?: number
 }): Promise<void> {
   const ctx = await requireClient()
   payload.clientId = ctx.clientId
@@ -607,9 +611,11 @@ export async function addBarcodeFood(payload: {
   )
   if (fErr) throw new Error(fErr.message)
 
-  // Log the scanned quantity into the client's day.
+  // Log the scanned quantity into the client's day. The entry keeps the unit the
+  // client chose, while the macros scale off its gram equivalent.
   const q = payload.quantity
-  const ratio = q / 100
+  const grams = payload.quantityGrams && payload.quantityGrams > 0 ? payload.quantityGrams : q
+  const ratio = grams / 100
   await logCustomFood({
     clientId: payload.clientId,
     workspaceId: payload.workspaceId,
@@ -617,7 +623,7 @@ export async function addBarcodeFood(payload: {
     mealType: payload.mealType,
     foodName: payload.brand?.trim() ? `${name} (${payload.brand.trim()})` : name,
     quantity: q,
-    unit: 'g',
+    unit: payload.unit || 'g',
     calories: Math.round(payload.caloriesPer100g * ratio * 10) / 10,
     proteinG: Math.round(payload.proteinPer100g * ratio * 10) / 10,
     carbsG: Math.round(payload.carbsPer100g * ratio * 10) / 10,

@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronRight, Dumbbell, MessageCircle, ClipboardList } from 'lucide-react'
+import { Check, ChevronRight, Dumbbell, ClipboardList } from 'lucide-react'
+import Icon3D from '@/components/client/Icon3D'
 import type { TodayTemplate } from './workouts/actions'
 import type { DayLog } from './nutrition/actions'
 import type { HomeStats } from './home-actions'
@@ -123,13 +124,23 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
           </h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginTop: 4 }}>
-          <Link href="/client/messages" aria-label={t.nav.messages} className="cx-press cx-tint" style={{
-            width: 40, height: 40, borderRadius: '50%',
-            backgroundColor: 'var(--color-surface-3)',
+          {/* Pure artwork — no plate behind it. The link keeps a 40px box as a
+              touch target and gives feedback by scaling, which is what the
+              notification bell next door does too. */}
+          <Link href="/client/messages" aria-label={t.nav.messages} className="cx-press" style={{
+            width: 40, height: 40,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             textDecoration: 'none', flexShrink: 0,
           }}>
-            <MessageCircle size={20} color="var(--color-text-muted)" />
+            <img
+              src="/icons/messages.png"
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              width={32}
+              height={32}
+              style={{ width: 32, height: 32, objectFit: 'contain', display: 'block', userSelect: 'none' }}
+            />
           </Link>
           <Link href="/client/profile" aria-label={t.nav.profile} className="cx-press" style={{
             width: 40, height: 40, borderRadius: '50%',
@@ -157,21 +168,23 @@ export default function HomeView({ today, logs, stats, avatarUrl, onboardingComp
               <p style={{ fontSize: 10, fontWeight: 700, color: isToday ? 'var(--color-accent)' : 'var(--color-text-hint)', margin: 0, letterSpacing: '0.06em' }}>
                 {letter}
               </p>
+              {/* A completed day is the tick artwork alone — no plate, ring or
+                  glow behind it. The accent-coloured CTA shadow in particular
+                  fought the green. The box stays 36px either way so the strip
+                  keeps its rhythm whatever each day's state is. */}
               <div
                 className={isCompleted || isToday ? 'cx-pop' : undefined}
                 style={{
                   '--cx-i': i,
                   width: 36, height: 36, borderRadius: '50%',
-                  backgroundColor: isCompleted ? 'var(--color-accent)' : isToday ? 'transparent' : 'var(--color-surface-2)',
+                  backgroundColor: isCompleted || isToday ? 'transparent' : 'var(--color-surface-2)',
                   border: isToday ? '2px solid var(--color-accent)' : isCompleted ? 'none' : '2px solid var(--color-surface-3)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  // Only the day that carries meaning gets a shadow
-                  boxShadow: isCompleted ? 'var(--cx-shadow-cta)' : 'none',
                   animationDelay: `calc(${i} * 40ms)`,
                 } as React.CSSProperties}
               >
                 {isCompleted ? (
-                  <Check size={16} color="#fff" strokeWidth={3} />
+                  <Icon3D src="/icons/check.png" size={36} />
                 ) : isToday ? (
                   <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--color-accent)' }} />
                 ) : null}
@@ -502,7 +515,13 @@ function WorkoutCard({ today, estimatedDuration, todayDone }: { today: TodayTemp
         <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-hint)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
           {t.home.todaysWorkout}
         </p>
-        <p className="cx-display" style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>{t.home.restDay}</p>
+        {/* Same treatment as the Workouts page's rest card — same icon at the
+            same size leading the same title, so the two read as one component
+            rather than as two takes on the same idea. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 4px' }}>
+          <Icon3D src="/icons/rest.png" size={38} />
+          <p className="cx-display" style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>{t.home.restDay}</p>
+        </div>
         <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: 0 }}>{t.home.restDaySub}</p>
       </div>
     )

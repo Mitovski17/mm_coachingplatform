@@ -9,6 +9,7 @@ import type { TodayTemplate, HistorySession, ProgramWorkoutDay } from './actions
 import { getProgramWorkoutDays } from './actions'
 import { useLanguage, tx, type Translations } from '@/lib/i18n'
 import HeadlineMark from '@/components/client/HeadlineMark'
+import Icon3D from '@/components/client/Icon3D'
 import WorkoutInstructions from './WorkoutInstructions'
 import { useWorkoutSession } from '@/lib/WorkoutSessionContext'
 
@@ -76,14 +77,16 @@ export default function WorkoutsClient({
 
   return (
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
+      {/* Mark then title, as one left-aligned unit — `justify-between` would
+          push them to opposite ends of the 480px column again. */}
       <div
-        className="cx-in flex items-center justify-between"
-        style={{ padding: '52px 20px 18px' }}
+        className="cx-in flex items-center"
+        style={{ padding: '52px 20px 18px', gap: 12 }}
       >
+        <HeadlineMark name="train" />
         <h1 className="cx-display cx-display-lg" style={{ fontSize: '28px', fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
           {t.workouts.title}
         </h1>
-        <HeadlineMark />
       </div>
 
       {/* Segmented control — the thumb slides between options rather than an
@@ -405,9 +408,15 @@ function TodayWorkoutCard({ today, hasPlan, onSwitch, t }: { today: TodayTemplat
         >
           {t.workouts.today}
         </p>
-        <p style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 6px' }}>
-          {t.workouts.restDay}
-        </p>
+        {/* The sleeper leads the title. It sits on the title row rather than
+            above the whole card so it reads as belonging to "Rest Day", not as
+            a banner over the eyebrow too. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 6px' }}>
+          <Icon3D src="/icons/rest.png" size={38} />
+          <p style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+            {t.workouts.restDay}
+          </p>
+        </div>
         <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
           {t.workouts.restSub}
         </p>

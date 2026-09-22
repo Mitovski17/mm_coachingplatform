@@ -259,7 +259,10 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 24 }}>
 
       {/* Header */}
-      <div className="cx-in" style={{ padding: '52px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      {/* The mark leads the whole text block (eyebrow + title), not just the
+          title, so it centres against the pair rather than against one line. */}
+      <div className="cx-in" style={{ padding: '52px 20px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <HeadlineMark name="progress" />
         <div style={{ minWidth: 0 }}>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-hint)', margin: '0 0 5px' }}>
             {t.progress.week} {weekNum}
@@ -268,7 +271,6 @@ export default function ProgressClient({ data }: { data: ProgressData }) {
             {t.progress.title}
           </h1>
         </div>
-        <HeadlineMark />
       </div>
 
       {/* Stat chips */}

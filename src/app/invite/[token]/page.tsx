@@ -153,21 +153,17 @@ export default function InvitePage() {
         style={{ backgroundColor: 'var(--color-surface-1)' }}
       >
         <div className="w-full max-w-sm text-center">
-          <div
-            className="mx-auto mb-6 flex items-center justify-center"
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: '50%',
-              backgroundColor: 'rgba(249,115,22,0.1)',
-              border: '1px solid rgba(249,115,22,0.2)',
-            }}
-          >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect width="20" height="16" x="2" y="4" rx="2" />
-              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-            </svg>
-          </div>
+          {/* Pure artwork — no tinted plate or ring behind it. */}
+          <img
+            src="/icons/mail.png"
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            width={72}
+            height={72}
+            className="mx-auto mb-6"
+            style={{ width: 72, height: 72, objectFit: 'contain', display: 'block', userSelect: 'none' }}
+          />
           <h2
             className="text-2xl mb-3"
             style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}

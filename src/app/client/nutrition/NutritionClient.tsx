@@ -23,8 +23,19 @@ import type { FoodSearchResult } from '@/lib/food-search'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import FoodScannerModal from './FoodScannerModal'
 import ShoppingListModal from './ShoppingListModal'
+import HeadlineMark from '@/components/client/HeadlineMark'
 import { useLanguage, tx, type Translations } from '@/lib/i18n'
 import { normalizeDecimalInput } from '@/lib/numeric-input'
+import {
+  DEFAULT_FOOD_UNIT,
+  defaultQuantityFor,
+  foodUnitLabel,
+  formatFoodQuantity,
+  type FoodUnitId,
+} from '@/lib/food-units'
+import FoodUnitPicker from '@/components/client/FoodUnitPicker'
+import FoodUnitEquivalence from '@/components/client/FoodUnitEquivalence'
+import { useFoodAmount } from '@/components/client/useFoodAmount'
 
 const COLOR_PROTEIN = '#3b82f6'
 const COLOR_CARBS = '#f97316'
@@ -729,13 +740,18 @@ export default function NutritionClient({
     <div className="mx-auto" style={{ maxWidth: '480px', padding: '0 0 8px' }}>
       <div className="cx-in" style={{ padding: '52px 20px 10px' }}>
         <div className="flex items-start justify-between">
-          <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-hint)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()}
-            </p>
-            <h1 className="cx-display cx-display-lg" style={{ fontSize: '30px', fontWeight: 800, color: 'var(--color-text-primary)', margin: '2px 0 0', lineHeight: 1.1 }}>
-              {t.nutrition.title}
-            </h1>
+          {/* The apple leads the text block. `justify-between` still separates
+              this group from the controls on the right; only the mark moved. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            <HeadlineMark name="nutrition" />
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-hint)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()}
+              </p>
+              <h1 className="cx-display cx-display-lg" style={{ fontSize: '30px', fontWeight: 800, color: 'var(--color-text-primary)', margin: '2px 0 0', lineHeight: 1.1 }}>
+                {t.nutrition.title}
+              </h1>
+            </div>
           </div>
           {/* Right-hand controls. Centred against each other and sized to the
               segmented control's exact height so the pair reads as one unit. */}
@@ -2130,7 +2146,9 @@ function CustomFoodRow({
               outline: 'none',
             }}
           />
-          <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>{log.unit}</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>
+            {foodUnitLabel(log.unit, t.nutrition.units, qty)}
+          </span>
           <button
             type="button"
             onClick={onConfirmEdit}
@@ -2309,7 +2327,9 @@ function FoodRow({
               outline: 'none',
             }}
           />
-          <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>{unit}</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-hint)' }}>
+            {foodUnitLabel(unit, t.nutrition.units, parsedEditQty)}
+          </span>
           <button
             type="button"
             onClick={handleConfirm}
@@ -2434,6 +2454,7 @@ function FoodInner({
   c: number
   fat: number
 }) {
+  const { t } = useLanguage()
   return (
     <>
       <div className="flex-1 min-w-0">
@@ -2444,7 +2465,7 @@ function FoodInner({
           {name}
         </p>
         <p style={{ fontSize: 13, color: 'var(--color-text-hint)', margin: '2px 0 0' }}>
-          {Math.round(quantity)}{unit}
+          {formatFoodQuantity(quantity, unit, t.nutrition.units)}
         </p>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
@@ -2537,7 +2558,7 @@ function AddCustomFood({
    *  shown once a search for what's typed has finished. */
   const [searchedQuery, setSearchedQuery] = useState<string | null>(null)
   const [selected, setSelected] = useState<FoodSearchResult | null>(null)
-  const [quantity, setQuantity] = useState('100')
+  const amount = useFoodAmount()
   const [manualOpen, setManualOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
@@ -2584,21 +2605,22 @@ function AddCustomFood({
   // so the spinner appears immediately rather than after the debounce.
   const searchPending = trimmedQuery.length >= 2 && (searching || searchedQuery !== trimmedQuery)
 
-  const parsedQty = parseFloat(quantity) || 0
-  const qtyValid = parsedQty > 0
+  const qtyValid = amount.valid
 
   const handleAddFromResult = async () => {
     if (!selected || !qtyValid || submitting) return
     setSubmitting(true)
     try {
+      // Macros are per 100 g, so whatever unit was picked scales through grams.
+      const grams = amount.grams
       await onAdd({
         foodName: selected.brand ? `${selected.name} (${selected.brand})` : selected.name,
-        quantity: parsedQty,
-        unit: 'g',
-        calories: round1((selected.caloriesPer100g * parsedQty) / 100),
-        proteinG: round1((selected.proteinPer100g * parsedQty) / 100),
-        carbsG: round1((selected.carbsPer100g * parsedQty) / 100),
-        fatG: round1((selected.fatPer100g * parsedQty) / 100),
+        quantity: amount.parsedQuantity,
+        unit: amount.unit,
+        calories: round1((selected.caloriesPer100g * grams) / 100),
+        proteinG: round1((selected.proteinPer100g * grams) / 100),
+        carbsG: round1((selected.carbsPer100g * grams) / 100),
+        fatG: round1((selected.fatPer100g * grams) / 100),
       })
     } finally {
       setSubmitting(false)
@@ -2606,11 +2628,11 @@ function AddCustomFood({
     setQuery('')
     setResults([])
     setSelected(null)
-    setQuantity('100')
+    amount.reset()
   }
 
   const selectedInsights: NutritionInsight[] = selected
-    ? getNutritionInsights(selected, parsedQty, dailyGoal ?? null, t.nutrition.insights)
+    ? getNutritionInsights(selected, amount.grams, dailyGoal ?? null, t.nutrition.insights)
     : []
 
   return (
@@ -2764,64 +2786,69 @@ function AddCustomFood({
               </span>
             )}
           </p>
-          <div className="flex items-center gap-2 mb-2">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={quantity}
-              onChange={(e) => setQuantity(normalizeDecimalInput(e.target.value))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddFromResult()
-                if (e.key === 'Escape') setSelected(null)
-              }}
-              autoFocus
-              aria-label={t.nutrition.quantity}
-              style={{
-                width: 70,
-                padding: '6px 8px',
-                fontSize: 13,
-                backgroundColor: 'var(--color-surface-3)',
-                border: '1px solid ' + (qtyValid ? 'var(--color-border)' : 'rgba(239,68,68,0.6)'),
-                borderRadius: 8,
-                color: 'var(--color-text-primary)',
-              }}
-            />
-            <span style={{ fontSize: 12, color: 'var(--color-text-hint)' }}>g</span>
-            <button
-              type="button"
-              onClick={handleAddFromResult}
-              disabled={!qtyValid || submitting}
-              className="px-3 py-1.5 text-xs font-semibold"
-              style={{
-                backgroundColor: 'var(--color-accent)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                cursor: !qtyValid || submitting ? 'default' : 'pointer',
-                opacity: !qtyValid || submitting ? 0.5 : 1,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
-              {submitting && <Loader2 size={12} className="animate-spin" />}
-              {submitting ? t.nutrition.adding : t.nutrition.addToMeal}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelected(null)}
-              disabled={submitting}
-              className="text-xs"
-              style={{
-                color: 'var(--color-text-hint)',
-                background: 'transparent',
-                border: 'none',
-                cursor: submitting ? 'default' : 'pointer',
-                opacity: submitting ? 0.5 : 1,
-              }}
-            >
-              {t.common.cancel}
-            </button>
+          <div className="mb-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amount.quantity}
+                onChange={(e) => amount.setQuantity(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddFromResult()
+                  if (e.key === 'Escape') setSelected(null)
+                }}
+                autoFocus
+                aria-label={t.nutrition.quantity}
+                style={{
+                  width: 70,
+                  padding: '6px 8px',
+                  fontSize: 13,
+                  backgroundColor: 'var(--color-surface-3)',
+                  border:
+                    '1px solid ' +
+                    (amount.parsedQuantity > 0 ? 'var(--color-border)' : 'rgba(239,68,68,0.6)'),
+                  borderRadius: 8,
+                  color: 'var(--color-text-primary)',
+                }}
+              />
+              <FoodUnitPicker value={amount.unit} onChange={amount.setUnit} disabled={submitting} />
+              <button
+                type="button"
+                onClick={handleAddFromResult}
+                disabled={!qtyValid || submitting}
+                className="px-3 py-1.5 text-xs font-semibold"
+                style={{
+                  backgroundColor: 'var(--color-accent)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: !qtyValid || submitting ? 'default' : 'pointer',
+                  opacity: !qtyValid || submitting ? 0.5 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}
+              >
+                {submitting && <Loader2 size={12} className="animate-spin" />}
+                {submitting ? t.nutrition.adding : t.nutrition.addToMeal}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                disabled={submitting}
+                className="text-xs"
+                style={{
+                  color: 'var(--color-text-hint)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: submitting ? 'default' : 'pointer',
+                  opacity: submitting ? 0.5 : 1,
+                }}
+              >
+                {t.common.cancel}
+              </button>
+            </div>
+            <FoodUnitEquivalence amount={amount} />
           </div>
           {selectedInsights.length > 0 && (
             <div
@@ -2897,6 +2924,9 @@ function ManualEntryForm({
   const [c, setC] = useState('')
   const [f, setF] = useState('')
   const [q, setQ] = useState('100')
+  // Here the macros are typed in directly for the amount entered, so the unit is
+  // only a label — nothing is converted through grams.
+  const [unit, setUnit] = useState<FoodUnitId>(DEFAULT_FOOD_UNIT)
   const [submitting, setSubmitting] = useState(false)
 
   const parsedQ = parseFloat(q) || 0
@@ -2911,7 +2941,7 @@ function ManualEntryForm({
       await onAdd({
         foodName: name.trim(),
         quantity: parsedQ,
-        unit: 'g',
+        unit,
         calories: parseFloat(cal) || 0,
         proteinG: parseFloat(p) || 0,
         carbsG: parseFloat(c) || 0,
@@ -2941,9 +2971,29 @@ function ManualEntryForm({
         placeholder={t.nutrition.foodName}
         style={{ ...inputStyle, marginBottom: 6 }}
       />
+      {/* The amount and its unit belong together, so they get their own row
+          above the macro grid rather than sharing a cell with it. */}
+      <div className="flex items-center gap-2 mb-2">
+        <input
+          type="text"
+          inputMode="decimal"
+          value={q}
+          onChange={(e) => setQ(normalizeDecimalInput(e.target.value))}
+          placeholder={t.nutrition.quantity}
+          aria-label={t.nutrition.quantity}
+          style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+        />
+        <FoodUnitPicker
+          value={unit}
+          onChange={(next) => {
+            setUnit(next)
+            setQ(defaultQuantityFor(next))
+          }}
+          disabled={submitting}
+        />
+      </div>
       <div className="grid grid-cols-2 gap-2 mb-2">
         <input type="text" inputMode="decimal" value={cal} onChange={(e) => setCal(normalizeDecimalInput(e.target.value))} placeholder={t.nutrition.calories} style={inputStyle} />
-        <input type="text" inputMode="decimal" value={q} onChange={(e) => setQ(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.quantity} (${t.nutrition.grams})`} style={inputStyle} />
         <input type="text" inputMode="decimal" value={p} onChange={(e) => setP(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.protein} (${t.nutrition.grams})`} style={inputStyle} />
         <input type="text" inputMode="decimal" value={c} onChange={(e) => setC(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.carbs} (${t.nutrition.grams})`} style={inputStyle} />
         <input type="text" inputMode="decimal" value={f} onChange={(e) => setF(normalizeDecimalInput(e.target.value))} placeholder={`${t.nutrition.fat} (${t.nutrition.grams})`} style={inputStyle} />

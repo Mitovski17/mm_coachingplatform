@@ -6,6 +6,9 @@ import { lookupBarcode, logCustomFood, addBarcodeFood } from './actions'
 import type { FoodSearchResult } from '@/lib/food-search'
 import { useLanguage } from '@/lib/i18n'
 import { normalizeDecimalInput } from '@/lib/numeric-input'
+import FoodUnitPicker from '@/components/client/FoodUnitPicker'
+import FoodUnitEquivalence from '@/components/client/FoodUnitEquivalence'
+import { useFoodAmount } from '@/components/client/useFoodAmount'
 
 type Phase = 'scanning' | 'loading' | 'found' | 'not-found' | 'manual'
 
@@ -33,7 +36,7 @@ export default function BarcodeScannerModal({
   const { t } = useLanguage()
   const [phase, setPhase] = useState<Phase>('scanning')
   const [result, setResult] = useState<FoodSearchResult | null>(null)
-  const [quantity, setQuantity] = useState('100')
+  const amount = useFoodAmount()
   const [logging, setLogging] = useState(false)
   const [logError, setLogError] = useState<string | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
@@ -191,21 +194,20 @@ export default function BarcodeScannerModal({
   }
 
   const handleConfirm = async () => {
-    if (!result || logging) return
-    const q = parseFloat(quantity) || 0
-    if (q <= 0) return
+    if (!result || logging || !amount.valid) return
     setLogging(true)
     setLogError(null)
     try {
-      const ratio = q / 100
+      // Label values are per 100 g, so the chosen unit scales through grams.
+      const ratio = amount.grams / 100
       await logCustomFood({
         clientId,
         workspaceId,
         loggedDate: logDate,
         mealType: mealName,
         foodName: result.brand ? `${result.name} (${result.brand})` : result.name,
-        quantity: q,
-        unit: 'g',
+        quantity: amount.parsedQuantity,
+        unit: amount.unit,
         calories: Math.round(result.caloriesPer100g * ratio * 10) / 10,
         proteinG: Math.round(result.proteinPer100g * ratio * 10) / 10,
         carbsG: Math.round(result.carbsPer100g * ratio * 10) / 10,
@@ -449,29 +451,36 @@ export default function BarcodeScannerModal({
             </p>
 
             {/* Quantity input */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <label style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: 600, flexShrink: 0 }}>
-                {t.nutrition.quantity}
-              </label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={quantity}
-                onChange={(e) => setQuantity(normalizeDecimalInput(e.target.value))}
-                min="1"
-                style={{
-                  width: 90,
-                  padding: '8px 12px',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 10,
-                  color: '#fff',
-                  outline: 'none',
-                }}
-              />
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>g</span>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <label style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: 600, flexShrink: 0 }}>
+                  {t.nutrition.quantity}
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={amount.quantity}
+                  onChange={(e) => amount.setQuantity(e.target.value)}
+                  style={{
+                    width: 90,
+                    padding: '8px 12px',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: 10,
+                    color: '#fff',
+                    outline: 'none',
+                  }}
+                />
+                <FoodUnitPicker
+                  value={amount.unit}
+                  onChange={amount.setUnit}
+                  variant="overlay"
+                  disabled={logging}
+                />
+              </div>
+              <FoodUnitEquivalence amount={amount} variant="overlay" />
             </div>
 
             {logError && (
@@ -495,7 +504,7 @@ export default function BarcodeScannerModal({
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={logging || !quantity || parseFloat(quantity) <= 0}
+              disabled={logging || !amount.valid}
               style={{
                 width: '100%',
                 backgroundColor: '#f97316',
@@ -620,7 +629,7 @@ function ManualProductForm({
   const [carbs, setCarbs] = useState('')
   const [fat, setFat] = useState('')
   const [fiber, setFiber] = useState('')
-  const [amount, setAmount] = useState('100')
+  const eaten = useFoodAmount()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -639,9 +648,8 @@ function ManualProductForm({
       setError(t.nutrition.caloriesRequired)
       return
     }
-    const qty = num(amount)
-    if (qty <= 0) {
-      setError(t.nutrition.caloriesRequired)
+    if (!eaten.valid) {
+      setError(t.nutrition.quantityRequired)
       return
     }
     setSaving(true)
@@ -659,7 +667,9 @@ function ManualProductForm({
         carbsPer100g: num(carbs),
         fatPer100g: num(fat),
         fiberPer100g: fiber.trim() ? num(fiber) : null,
-        quantity: qty,
+        quantity: eaten.parsedQuantity,
+        unit: eaten.unit,
+        quantityGrams: eaten.grams,
       })
       onSaved()
     } catch (e) {
@@ -770,20 +780,24 @@ function ManualProductForm({
       </div>
 
       <div>
-        <label style={labelStyle}>{t.nutrition.quantityEatenG}</label>
-        <div style={{ position: 'relative' }}>
+        <label style={labelStyle}>{t.nutrition.quantityEaten}</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <input
             type="text"
             inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(normalizeDecimalInput(e.target.value))}
-            min="1"
-            style={inputStyle}
+            value={eaten.quantity}
+            onChange={(e) => eaten.setQuantity(e.target.value)}
+            aria-label={t.nutrition.quantityEaten}
+            style={{ ...inputStyle, flex: 1, minWidth: 0 }}
           />
-          <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }}>
-            g
-          </span>
+          <FoodUnitPicker
+            value={eaten.unit}
+            onChange={eaten.setUnit}
+            variant="overlay"
+            disabled={saving}
+          />
         </div>
+        <FoodUnitEquivalence amount={eaten} variant="overlay" />
       </div>
 
       {error && (
